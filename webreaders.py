@@ -23,7 +23,6 @@ __license__ = ""
 
 
 _RETRY = {'retries':3, 'backoff':0.3, 'httpcodes':(500, 502, 504)}
-_DELAY = 0
 _LASTTIME = None
 
 
@@ -53,7 +52,7 @@ def sleeper(delay):
     return decorator
 
 
-def create_retry(retries=3, backoff=0.3, httpcodes=[500, 502, 504], **kwargs):
+def create_retry(retries, backoff, httpcodes, **kwargs):
     retry = Retry(total=retries, read=retries, connect=retries, backoff_factor=backoff, status_forcelist=httpcodes)
     adapter = HTTPAdapter(max_retries=retry)
     return adapter
@@ -66,7 +65,7 @@ class WebReader(object):
                    'zip' : lambda response: response.content,
                    'csv' : lambda response: response.content.deconde('utf-8')}
    
-    def __new__(cls, *args, delay=_DELAY, **kwargs):
+    def __new__(cls, *args, delay=0, **kwargs):
         instance = super().__new__(cls)
         instance.get = sleeper(delay)(instance.execute) if delay else instance.get
         return instance
