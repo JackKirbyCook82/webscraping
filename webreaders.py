@@ -10,48 +10,18 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 from requests.packages.urllib3.util.retry import Retry
-import time
-from functools import update_wrapper
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
+
+from webscraping.sleeper import Sleeper
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ['WebReader']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
-
-
-_RETRY = {'retries':3, 'backoff':0.3, 'httpcodes':(500, 502, 504)}
-_LASTTIME = None
-
-
-def _remember(stoptime):
-    global _LASTTIME
-    _LASTTIME = stoptime
-
-
-def sleeper(delay):
-    ready = lambda current, last: current - last  > delay if last else True
-    wait = lambda current, last: max([delay - int(current - last), 0]) if last else 0
-    
-    def decorator(function):
-        def wrapper(*args, **kwargs):
-            starttime = time.time()
-            if not ready(starttime, _LASTTIME): 
-                waittime = wait(starttime, _LASTTIME)
-                print('Download Waiting: {} Seconds'.format(waittime))
-                time.sleep(waittime)
-            response = function(*args, **kwargs)
-            stoptime = time.time()
-            _remember(stoptime)
-            return response
         
-        update_wrapper(wrapper, function)
-        return wrapper
-    return decorator
-
-
+            
 def create_retry(retries, backoff, httpcodes, **kwargs):
     retry = Retry(total=retries, read=retries, connect=retries, backoff_factor=backoff, status_forcelist=httpcodes)
     adapter = HTTPAdapter(max_retries=retry)
@@ -67,13 +37,12 @@ class WebReader(object):
    
     def __new__(cls, *args, delay=0, **kwargs):
         instance = super().__new__(cls)
-        instance.get = sleeper(delay)(instance.execute) if delay else instance.get
+        instance.execute = Sleeper(delay)(instance.execute) if delay else instance.execute
         return instance
         
-    def __init__(self, *args, headers={}, retry=_RETRY, **kwargs):
-        self.__headers = headers     
-        self.__retry = retry                
-    
+    def __init__(self, *args, headers={}, retry={'retries':3, 'backoff':0.3, 'httpcodes':(500, 502, 504)}, **kwargs):
+        self.__headers, self.__retry= headers, retry    
+
     @keydispatcher
     def execute(self, method, session, url, *args, **kwargs): raise KeyError(method)
     @execute.register('get')
