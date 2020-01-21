@@ -14,7 +14,7 @@ from webscraping.sleeper import Sleeper
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebDriver', 'WebLink', 'WebLinks']
+__all__ = ['WebDriver', 'WebElement', 'WebElements']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -25,11 +25,13 @@ class WebDriver(ABC):
 
     def __new__(cls, *args, delay=None, **kwargs):
         instance = super().__new__(cls)
-        instance.sleeper = Sleeper(delay)
-        instance.click = instance.sleeper(instance.click)
-        instance.foward = instance.sleeper(instance.foward)
-        instance.back = instance.sleeper(instance.back)
+        instance.factory(Sleeper(delay))
         return instance
+
+    @classmethod
+    def factory(cls, sleeper):
+        cls.sleeper = sleeper
+        for function_name in ['click', 'forward', 'back']: setattr(cls, function_name, cls.sleeper(getattr(cls, function_name)))
 
     def __init__(self, file, browser, *args, **kwargs): self.__file, self.__browser =  file, browser
     def __call__(self, url, *args, **kwargs): 
@@ -46,23 +48,23 @@ class WebDriver(ABC):
     def getpage(self): return self.__driver.page_source    
     
     def click(self, element): element.click()
-    def foward(self): self.driver.foward()
+    def forward(self): self.driver.forward()
     def back(self): self.driver.back()
 
 
-class WebLink(object):
-    def __init__(self, link): self.__link = link
-    def __call__(self): self.__link.click()
-    def click(self): self.__link.click()
+class WebElement(object):
+    def __init__(self, element): self.__element = element
+    def __call__(self): self.__element.click()
+    def click(self): self.__element.click()
     @classmethod
     def fromxpath(cls, driver, xpath): return cls(driver.find_element(By.XPATH, xpath))
 
 
-class WebLinks(object):
-    def __init__(self, *links): self.__links = links
-    def __getitem__(self, index): return WebLink(self.__links[index])
+class WebElements(object):
+    def __init__(self, *elements): self.__elements = elements
+    def __getitem__(self, index): return WebElement(self.__elements[index])
     def __iter__(self): 
-        for link in self.__links: yield WebLink(link) 
+        for element in self.__elements: yield WebElement(element) 
     @classmethod
     def fromxpath(cls, driver, xpath): return cls(*driver.find_element(By.XPATH, xpath))
 
