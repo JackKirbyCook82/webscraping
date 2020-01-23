@@ -14,7 +14,7 @@ from webscraping.sleeper import Sleeper
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebDriver', 'WebElement', 'WebElements']
+__all__ = ['WebDriver', 'WebCrawler', 'WebElement', 'WebElements']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -50,6 +50,21 @@ class WebDriver(ABC):
     def click(self, element): element.click()
     def forward(self): self.driver.forward()
     def back(self): self.driver.back()
+
+
+class WebCrawler(WebDriver):
+    keyformat = lambda crawlnum, pagenum: "{}|{}".format(crawlnum, pagenum)
+
+    def execute(self, *args, crawlxpath, pagexpath, crawlnum=0, pagenum=0, **kwargs):
+        for weblink in WebElements.fromxpath(self.driver, pagexpath):
+            self.click(weblink)
+            yield self.keyformat(crawlnum=crawlnum, pagenum=pagenum), self.driver.getpage()
+            pagenum = pagenum + 1
+            self.back()
+        nextweblink = WebElement.fromxpath(self.driver, crawlxpath)
+        if nextweblink:
+            self.click(nextweblink)
+            self.execute(*args, crawlxpath=crawlxpath, pagexpath=pagexpath, crawlnum=crawlnum+1, pagenum=pagenum, **kwargs)    
 
 
 class WebElement(object):
