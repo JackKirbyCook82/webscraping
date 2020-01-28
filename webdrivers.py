@@ -7,14 +7,13 @@ Created on Mon Dec 30 2019
 """
 
 from abc import ABC, abstractmethod
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
-from webscraping.sleeper import Sleeper
-
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebDriver', 'WebCrawler', 'WebElement', 'WebElements']
+__all__ = ['WebDriver', 'WebElement', 'WebElements']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -23,19 +22,15 @@ class WebDriver(ABC):
     webdrivers = {'chrome':webdriver.Chrome, 'firefox':webdriver.Firefox}
     weboptions = {'chrome':webdriver.ChromeOptions, 'firefox':webdriver.FirefoxOptions}
 
-    def __new__(cls, *args, delay=None, **kwargs):
-        instance = super().__new__(cls)
-        instance.factory(Sleeper(delay))
-        return instance
-
-    @classmethod
-    def factory(cls, sleeper):
-        cls.sleeper = sleeper
-        for function_name in ['click', 'forward', 'back']: setattr(cls, function_name, cls.sleeper(getattr(cls, function_name)))
-
-    def __init__(self, file, browser, *args, **kwargs): self.__file, self.__browser =  file, browser
+    def __init__(self, file, browser, *args, delay=None, patience=None, **kwargs): 
+        self.__file, self.__browser =  file, browser
+        self.__patience = patience
+        self.__sleep = delay
+    
     def __call__(self, url, *args, **kwargs): 
         self.__driver = self.webdrivers[self.__browser.lower()](executable_path=self.__file, options=self.weboptions[self.__browser]()) 
+        if self.__patience: self.__driver.set_page_load_timeout(self.__patience)
+        self.__driver.maximize_window()
         self.__driver.get(str(url))
         yield from self.execute(*args, **kwargs)
         self.__driver.quit()
@@ -45,45 +40,54 @@ class WebDriver(ABC):
 
     @property
     def driver(self): return self.__driver    
-    def getpage(self): return self.__driver.page_source    
+    @property
+    def url(self): return self.__driver.current_url
+    @property
+    def html(self): return self.__driver.page_source
     
-    def click(self, element): element.click()
-    def forward(self): self.driver.forward()
-    def back(self): self.driver.back()
+    def back(self): self.__driver.back
+    def forward(self): self.__driver.forward
+    def sleep(self): time.sleep(self.__sleep)
+    def refresh(self): self.__driver.refresh
 
 
-class WebCrawler(WebDriver):
-    keyformat = lambda crawlnum, pagenum: "{}|{}".format(crawlnum, pagenum)
-
-    def execute(self, *args, crawlxpath, pagexpath, crawlnum=0, pagenum=0, **kwargs):
-        for weblink in WebElements.fromxpath(self.driver, pagexpath):
-            self.click(weblink)
-            yield self.keyformat(crawlnum=crawlnum, pagenum=pagenum), self.driver.getpage()
-            pagenum = pagenum + 1
-            self.back()
-        nextweblink = WebElement.fromxpath(self.driver, crawlxpath)
-        if nextweblink:
-            self.click(nextweblink)
-            self.execute(*args, crawlxpath=crawlxpath, pagexpath=pagexpath, crawlnum=crawlnum+1, pagenum=pagenum, **kwargs)    
-
-
-class WebElement(object):
-    def __init__(self, element): self.__element = element
-    def __call__(self): self.__element.click()
+class WebElement(ABC):
+    def __init__(self, driver): self.__element = driver.find_element(By.XPATH, self.xpath)
+    
     def click(self): self.__element.click()
+    def clear(self): self.__element.clear()
+    
+    @property
+    def enabled(self): return self.__element.is_enabled()
+    @property
+    def selected(self): return self.__element.is_selected()
+    @property
+    def text(self): return self.__element.text
+    
     @classmethod
-    def fromxpath(cls, driver, xpath): return cls(driver.find_element(By.XPATH, xpath))
+    def create(cls, xpath):  
+        def wrapper(subclass):
+            name = subclass.__name__
+            bases = (subclass, cls)
+            newsubclass = type(name, bases, dict(xpath=xpath))
+            return newsubclass
+        return wrapper 
 
 
-class WebElements(object):
-    def __init__(self, *elements): self.__elements = elements
+class WebElements(ABC):
+    def __init__(self, driver): self.__elements = driver.find_elements(By.XPATH, self.xpath) 
     def __getitem__(self, index): return WebElement(self.__elements[index])
     def __iter__(self): 
         for element in self.__elements: yield WebElement(element) 
+    
     @classmethod
-    def fromxpath(cls, driver, xpath): return cls(*driver.find_element(By.XPATH, xpath))
-
-
+    def create(cls, xpath):  
+        def wrapper(subclass):
+            name = subclass.__name__
+            bases = (subclass, cls)
+            newsubclass = type(name, bases, dict(xpath=xpath))
+            return newsubclass
+        return wrapper 
 
 
 
