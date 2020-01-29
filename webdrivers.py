@@ -9,11 +9,10 @@ Created on Mon Dec 30 2019
 from abc import ABC, abstractmethod
 import time
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebDriver', 'WebElement', 'WebElements']
+__all__ = ['WebDriver', 'WebPage']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -51,64 +50,27 @@ class WebDriver(ABC):
     def refresh(self): self.__driver.refresh
 
 
-class WebElement(ABC):
-    def __init__(self, driver): self.__element = driver.find_element(By.XPATH, self.xpath)
+class WebPage(ABC):
+    def __init__(self, *args, driver, **kwargs): 
+        self.__data = {datatype:{datakey:dataelement for datakey, dataelement in datavalue.items()} for datatype, datavalue in self.registry().items()}
+    def __call__(self, *args, **kwargs): 
+        data = {datatype:{datakey:dataelement(*args, **kwargs) for datakey, dataelement in datavalue.items()} for datatype, datavalue in self.__data.items()}
+        return self.execute(*args, **data, **kwargs)
     
-    def click(self): self.__element.click()
-    def clear(self): self.__element.clear()
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass    
     
-    @property
-    def enabled(self): return self.__element.is_enabled()
-    @property
-    def selected(self): return self.__element.is_selected()
-    @property
-    def text(self): return self.__element.text
-    
+    __registry = {}
     @classmethod
-    def create(cls, xpath):  
-        def wrapper(subclass):
-            name = subclass.__name__
-            bases = (subclass, cls)
-            newsubclass = type(name, bases, dict(xpath=xpath))
-            return newsubclass
-        return wrapper 
-
-
-class WebElements(ABC):
-    def __init__(self, driver): self.__elements = driver.find_elements(By.XPATH, self.xpath) 
-    def __getitem__(self, index): return WebElement(self.__elements[index])
-    def __iter__(self): 
-        for element in self.__elements: yield WebElement(element) 
+    def registry(cls): return cls.__registry
+    @classmethod    
+    def register(cls, datatype, datakey):
+        def wrapper(dataelement):
+            cls.__registry[datatype][datakey] = dataelement
+            return dataelement
+        return wrapper
     
-    @classmethod
-    def create(cls, xpath):  
-        def wrapper(subclass):
-            name = subclass.__name__
-            bases = (subclass, cls)
-            newsubclass = type(name, bases, dict(xpath=xpath))
-            return newsubclass
-        return wrapper 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
 
 
 
