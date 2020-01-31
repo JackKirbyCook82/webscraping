@@ -9,7 +9,7 @@ Created on Mon Dec 30 2019
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 
-from utilities.dataframes import dataframe_fromhtml
+#from utilities.dataframes import dataframe_fromhtml
  
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -82,10 +82,10 @@ class WebData(WebElement):
         for element in self.element: yield element.text
 
 
-class WebTable(WebElement):
-    def asdict(self):
-        dataframe = dataframe_fromhtml(self.html, tablenum=0, header=0, htmlparser='lxml', forceframe=True)
-        return dataframe.to_dict(orient='list')
+class WebTable(WebElement): pass
+#    def asdict(self):
+#        dataframe = dataframe_fromhtml(self.html, tablenum=0, header=0, htmlparser='lxml', forceframe=True)
+#        return dataframe.to_dict(orient='list')
 
 
 
