@@ -31,11 +31,10 @@ Parms = keyword_segment('Parms', '&', '=', startchar='?')
 Anchor = value_segment('Port', startchar='#')
 
                                        
-url_segments = ('protocol', 'domain', 'port', 'path', 'parms', 'anchor')                       
-URL_Segments = ntuple('UrlSgmts', ' '.join(url_segments))          
+URLSGMTS = ('protocol', 'domain', 'port', 'path', 'parms', 'anchor')                               
 
 
-class URL(URL_Segments):   
+class URL(ntuple('URL', ' '.join(URLSGMTS))  ):   
     def __new__(cls, protocol, domain, port=Port(), path=Path(), parms=Parms(), anchor=Anchor()):
         return super().__new__(cls, protocol, domain, port, path, parms, anchor)
     
