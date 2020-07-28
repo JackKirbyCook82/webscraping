@@ -13,7 +13,7 @@ from selenium import webdriver
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebDriver', 'WebPage']
+__all__ = ['WebDriver']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -50,28 +50,6 @@ class WebDriver(ABC):
     def sleep(self): time.sleep(random.randint(self.__mindelay, self.__maxdelay))
     def refresh(self): self.__driver.refresh
 
-
-class WebPage(ABC):
-    def __init__(self, *args, driver, **kwargs): 
-        self.__data = {datatype:{datakey:dataelement for datakey, dataelement in datavalue.items()} for datatype, datavalue in self.registry().items()}
-    def __call__(self, *args, **kwargs): 
-        data = {datatype:{datakey:dataelement(*args, **kwargs) for datakey, dataelement in datavalue.items()} for datatype, datavalue in self.__data.items()}
-        return self.execute(*args, **data, **kwargs)
-    
-    @abstractmethod
-    def execute(self, *args, **kwargs): pass    
-    
-    __registry = {}
-    @classmethod
-    def registry(cls): return cls.__registry
-    @classmethod    
-    def register(cls, datatype, datakey):
-        def wrapper(dataelement):
-            cls.__registry[datatype][datakey] = dataelement
-            return dataelement
-        return wrapper
-    
-    
 
 
 
