@@ -37,6 +37,7 @@ class WebElement(object):
   
 
 class WebElementDict(dict):
+    def __getitem__(self, key): super().__getitem__(key.lower().replace(' ', ''))
     def __init__(self, **elements):
         super().__init__({key.lower().replace(' ', ''):self.webelement.fromelement(element) for key, element in elements.items()})
     

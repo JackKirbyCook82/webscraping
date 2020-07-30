@@ -20,7 +20,6 @@ __license__ = ""
 
 class WebDriver(ABC):
     webdrivers = {'chrome':webdriver.Chrome, 'firefox':webdriver.Firefox}
-    weboptions = {'chrome':webdriver.ChromeOptions, 'firefox':webdriver.FirefoxOptions}
 
     def __init__(self, file, browser, *args, mindelay=5, maxdelay=20, patience=100, **kwargs): 
         self.__file, self.__browser =  file, browser
@@ -28,7 +27,7 @@ class WebDriver(ABC):
         self.__mindelay, self.__maxdelay = mindelay, maxdelay
     
     def __call__(self, url, *args, **kwargs): 
-        self.__driver = self.webdrivers[self.__browser.lower()](executable_path=self.__file, options=self.weboptions[self.__browser]()) 
+        self.__driver = self.webdrivers[self.__browser.lower()](executable_path=self.__file) 
         self.__driver.set_page_load_timeout(self.__patience)
         self.__driver.maximize_window()
         self.__driver.get(str(url))
