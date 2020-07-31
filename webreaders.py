@@ -7,9 +7,13 @@ Created on Sat Mar 23 2019
 """
 
 import requests
+from requests.exceptions import RequestException
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
 from requests.packages.urllib3.util.retry import Retry
+from collections import namedtuple as ntuple
+from collections import OrderedDict as ODict
+import time
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
@@ -20,40 +24,60 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-def create_retry(retries, backoff, httpcodes):
-    retry = Retry(total=retries, read=retries, connect=retries, backoff_factor=backoff, status_forcelist=httpcodes)
-    adapter = HTTPAdapter(max_retries=retry)
-    return adapter
+class RetryAdapter(ntuple('RetryAdapter', 'retries backoff httpcodes')): 
+    def __new__(cls, retries=3, backoff=0.3, httpcodes=(500, 502, 504)): return super().__new__(cls, retries, backoff, httpcodes)
+    def __call__(self, session): 
+        retry = Retry(total=self.retries, read=self.retries, connect=self.retries, backoff_factor=self.backoff, status_forcelist=self.httpcodes)
+        adapter = HTTPAdapter(max_retries=retry)
+        return adapter     
 
-def create_authentication(username, password):
-    return HTTPBasicAuth(username, password)
+class Proxy(ntuple('Proxy', 'host port')): 
+    httpproxyformat = 'http://{host}:{port}'
+    def __call__(self): return {'http':self.httpproxyformat.format(**self._asdict()), 'https':self.httpproxyformat.format(**self._asdict())}
 
-def create_proxy(host, port):
-    proxy = 'http://{}:{}'.format(host, port)
-    return {'http':proxy, 'https':proxy}
-    
-def create_headers(headers={}, **content):
-    headers.update(content)
-    return headers
+class Authenticate(ntuple('Authenticate', 'username password')): 
+    def __call__(self): return HTTPBasicAuth(self.username, self.password)
+
+class Headers(ODict): pass
 
 
 class WebReader(object):   
-    def __init__(self, *args, **kwargs):
-        pass
+    def __init__(self, *args, pools={}, attempts=10, delay=3, **kwargs):
+        assert isinstance(pools, dict)
+        self.__attempts, self.__delay = attempts, delay
+        self.__retry = kwargs.get('retry', None)
+        self.__authenticate = kwargs.get('authenticate', None)
+        self.__headers = kwargs.get('headers', None)
+        self.__proxy = kwargs.get('proxy', None)
+        self.__lasttime = None
+
+    def ready(self, currenttime): return currenttime - self.__lasttime  > self.__delay if self.__lasttime else True
+    def wait(self, currenttime): return max([self.__delay - int(currenttime - self.__lasttime), 0]) if self.__lasttime else 0
+    def record(self, currenttime): self.__lasttime = currenttime
+    def sleep(self, waittime): time.sleep(waittime)
     
-    def __call__(self, url, datatype, *args, **kwargs):
-        pass
+    def __call__(self, url, datatype, *args, attempt=0, **kwargs):
+        headers, proxy = self.__headers, self.__proxy
+        try: return self.execute(url, datatype, *args, headers=headers, proxy=proxy, **kwargs)
+        except RequestException as error: 
+            if attempt < self.__attempts: return self(url, datatype, *args, attempt=attempt+1, **kwargs)
+            else: raise error
     
     def execute(self, url, datatype, *args, **kwargs):
         with requests.Session() as session:
-            response = session.get(str(url))
+            session.mount('http://', self.__retry())
+            session.mount('https://', self.__retry())
+            parms = {'headers':kwargs.get('headers', None), 'proxies':kwargs.get('proxy', None), 'auth':self.__authenticate}
+            if not self.ready(time.time()): self.sleep(self.wait(time.time()))
+            response = session.get(str(url), **parms)
+            self.record(time.time())
             if not response.status_code == requests.codes.ok: print('URL Request Failure:')
             else: print('URL Request Success:')  
             print(str(url), '\n')
             response.raise_for_status()
-            data = self.datamethods[datatype](response)
+            data = self.parse(datatype, response)
         return data
-        
+
     @keydispatcher
     def parse(self, datatype, response): raise KeyError(datatype)
     @parse.register('html')
@@ -64,32 +88,6 @@ class WebReader(object):
     def parseZIP(response): return response.content
     @parse.register('csv')
     def parseCSV(response): return response.content.decode('utf-8')
-
-
-# retry={'retries':3, 'backoff':0.3, 'httpcodes':(500, 502, 504)}
-# session.mount('http://', retryadapter)
-# session.mount('https://', retryadapter)
-
-
-#class Sleeper(object):
-#    def __init__(self, delay=None): self.__delay, self.__lasttime = delay if delay else 0, None        
-#    def ready(self, currenttime): return currenttime - self.__lasttime  > self.__delay if self.__lasttime else True
-#    def wait(self, currenttime): return max([self.__delay - int(currenttime - self.__lasttime), 0]) if self.__lasttime else 0
-#    def record(self, lasttime): self.__lasttime = lasttime
-#    
-#    def __call__(self, function):
-#        def wrapper(*args, **kwargs):
-#            starttime = time.time()
-#            if not self.ready(starttime):
-#                waittime = self.wait(starttime)
-#                print('Download Waiting: {} Seconds'.format(waittime))
-#                time.sleep(waittime)
-#            response = function(*args, **kwargs)
-#            self.record(time.time())
-#            return response
-#        update_wrapper(wrapper, function)
-#        return wrapper   
-           
 
 
 
