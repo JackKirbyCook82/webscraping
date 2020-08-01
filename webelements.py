@@ -6,18 +6,21 @@ Created on Mon Dec 30 2019
 
 """
 
+import pandas as pd
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebElement', 'WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList']
+__all__ = ['WebElement', 'WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebTable']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
 class WebElement(object): 
     def __init__(self, element, *args, **kwargs): self.__element = element
+    def __getitem__(self, attr): return self.__element.get_attribute(attr)
     @property
     def element(self): return self.__element    
     @property
@@ -26,9 +29,9 @@ class WebElement(object):
     def html(self): return self.__element.get_attribute('outerHTML')   
         
     @classmethod
-    def fromdriver(cls, driver, *args, **kwargs): return cls(driver.find_element(By.XPATH, cls.xpath))
+    def fromdriver(cls, driver): return cls(driver.find_element(By.XPATH, cls.xpath))
     @classmethod
-    def fromelement(cls, element, *args, **kwargs): return cls(element)    
+    def fromelement(cls, element): return cls(element)    
     
     @classmethod
     def create(cls, xpath):
@@ -99,7 +102,10 @@ class WebSelect(WebElement):
     def select(self, value): self.element.select_by_value(value)
 
 
-
+class WebTable(WebElement): 
+    def dataframe(self): 
+        table = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)
+        return table.to_frame() if not isinstance(table, pd.DataFrame) else table
 
 
 

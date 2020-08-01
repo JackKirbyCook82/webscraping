@@ -29,6 +29,7 @@ __license__ = ""
 
 
 class Headers(ODict): 
+    def __next__(self): return self
     @classmethod
     def fromjson(cls, file):
         if not os.path.isfile(file): raise FileNotFoundError(file)
@@ -36,6 +37,7 @@ class Headers(ODict):
         assert isinstance(content, dict)
         return cls([(key, value) for key, value in content.items()])  
   
+    
 class HeadersPool(object):
     def __iter__(self): return self
     def __next__(self): return random.choice(self.__pool)
@@ -55,6 +57,7 @@ class HeadersPool(object):
 class Proxy(ntuple('Proxy', 'host port')): 
     httpproxyformat = 'http://{host}:{port}'
     def __str__(self): return self.httpproxyformat.format(**self._asdict())
+    def __next__(self): return self
 
 class ProxyPool(object):
     def __iter__(self): return self
