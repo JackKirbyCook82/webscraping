@@ -21,6 +21,7 @@ __license__ = ""
 class WebElement(object): 
     def __init__(self, element, *args, **kwargs): self.__element = element
     def __getitem__(self, attr): return self.__element.get_attribute(attr)
+    def __bool__(self): return self.element.is_enabled()
     @property
     def element(self): return self.__element    
     @property
@@ -72,6 +73,12 @@ class WebElementList(list):
         return wrapper 
 
 
+class WebLink(WebElement):
+    @property
+    def url(self): return str(self['href'])
+    def click(self): self.element.click()  
+
+
 class WebClickable(WebElement):    
     def click(self): self.element.click()
 
@@ -84,10 +91,6 @@ class WebInput(WebElement):
     def click(self): self.element.click()
     def clear(self): self.element.clear()
     def fill(self, content): self.element.sendKeys(content)       
-    
-
-class WebLink(WebElement):
-    def click(self): self.element.click()  
     
 
 class WebSelect(WebElement):

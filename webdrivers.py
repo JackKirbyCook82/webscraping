@@ -35,15 +35,26 @@ class WebDriver(ABC):
         self.__retry = retry
         self.__wait = wait
         
-    def __call__(self, *args, retrys=0, **kwargs):
-        try: url = args.pop(0)
-        except: url = self.__url
+    def __call__(self, *args, **kwargs):
+        url = kwargs.get('url', self.__url)
+        if url is None: raise MissingURLError()
+        try: content = [content for content in self.run(url, *args, **kwargs)]
+        except (TimeoutException, WebDriverException):
+            self.sleep(self.__retry)
+            content = [content for content in self.run(url, *args, **kwargs)]
+        if len(content) == 0: return None
+        elif len(content) == 1: return content[0]
+        else: return content
+            
+    def __iter__(self): return self.generator
+    def generator(self, *args, retrys=0, **kwargs):
+        url = kwargs.get('url', self.__url)
         if url is None: raise MissingURLError()
         try: yield from self.run(*args, **kwargs)
         except (TimeoutException, WebDriverException):
             self.sleep(self.__retry)
-            yield from self(url, *args, retrys=retrys+1, **kwargs)        
-        
+            yield from self.generator(url, *args, retrys=retrys+1, **kwargs)        
+         
     def run(self, url, *args, **kwargs): 
         options = self.getoptions(*args, **self.__options, **kwargs)
         capabilities = self.getcapabilities(*args, **kwargs)
@@ -55,7 +66,7 @@ class WebDriver(ABC):
         driversetup = dict(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities)
         driver = webdriver.Chrome(**driversetup) 
         driver.set_page_load_timeout(self.__timeout)
-        driver.get(str(url))
+        driver.get(str(url))       
         yield from self.execute(*args, **kwargs)
         driver.quit()
 
