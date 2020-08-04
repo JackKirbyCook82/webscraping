@@ -9,7 +9,7 @@ Created on Mon Dec 30 2019
 from abc import ABC, abstractmethod
 from time import sleep
 import random
-from selenium import webdriver
+from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
@@ -64,7 +64,7 @@ class WebDriver(ABC):
             driverproxy.add_to_capabilities(capabilities)                        
         except AttributeError: pass
         driversetup = dict(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities)
-        driver = webdriver.Chrome(**driversetup) 
+        driver = Chrome(**driversetup) 
         driver.set_page_load_timeout(self.__timeout)
         driver.get(str(url))       
         yield from self.execute(*args, **kwargs)
