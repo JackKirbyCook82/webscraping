@@ -13,7 +13,7 @@ from selenium.webdriver.support.ui import Select
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebElement', 'WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebTable']
+__all__ = ['WebElement', 'WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -25,9 +25,7 @@ class WebElement(object):
     @property
     def element(self): return self.__element    
     @property
-    def text(self): return self.__element.text
-    @property
-    def html(self): return self.__element.get_attribute('outerHTML')   
+    def html(self): return self.__element.get_attribute('outerHTML')       
         
     @classmethod
     def fromdriver(cls, driver): return cls(driver.find_element(By.XPATH, cls.xpath))
@@ -103,6 +101,12 @@ class WebSelect(WebElement):
     def options(self): return self.element.options()
     def clear(self): self.element.deselect_all()
     def select(self, value): self.element.select_by_value(value)
+
+
+class WebData(WebElement):
+    @property
+    def text(self): return self.__element.text
+
 
 
 class WebTable(WebElement): 
