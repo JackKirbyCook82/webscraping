@@ -99,40 +99,45 @@ class WebInput(WebElement):
     
 
 class WebSelect(WebElement):
+    def __len__(self): return len(self.element.options())    
+    def keys(self): return [element.text for element in self.element.options()]
+    def clear(self): self.element.deselect_all()
+    def isel(self, index): self.element.select_by_index(index)
+    def sel(self, value): self.element.select_by_visible_text(value)
+
     @classmethod
     def fromdriver(cls, driver, *args, **kwargs):
         element = Select(driver.driver.find_element(By.XPATH, cls.xpath))
         return cls(element, *args, **kwargs)
 
-    @property
-    def options(self): return self.element.options()
-    def clear(self): self.element.deselect_all()
-    def select(self, value): self.element.select_by_value(value)
-
 
 class WebData(WebElement):
-    def __getitem__(self, key): return self.data[key]
-    @property
+    def __getitem__(self, key): return self.data[key]    
     def text(self): return self.__element.text
-    @property
     def data(self): 
-        if isinstance(self.regex, str): data = [self.parser(x) for x in re.findall(self.regex, self.text)]
-        elif isinstance(self.regex, dict): data = {key:[self.parsers.get(key, self.parser)(x) for x in re.findall(pattern, self.text)] for key, pattern in self.regex.items()}
-        else: raise TypeError(type(self.regex))
-        return data[0] if isinstance(data, list) and len(data) == 1 else data
+        if isinstance(self.data, str): return [self.parser(x) for x in re.findall(self.data, self.text)]
+        elif isinstance(self.data, dict): return {key:[self.parsers.get(key, self.parser)(x) for x in re.findall(pattern, self.text)] for key, pattern in self.data.items()}
+        else: raise TypeError(type(self.data))
 
     @classmethod
-    def create(cls, xpath, regex, parser=lambda x: str(x), parsers={}, **kwargs):
+    def create(cls, xpath, *args, data, parser=lambda x: str(x), parsers={}, **kwargs):
         assert isinstance(parsers, dict) and hasattr(parser, '__call__')
         assert all([hasattr(item, '__call__') for item in parsers.values()])
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(xpath=xpath, regex=regex, parser=parser, parsers=parsers))
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(xpath=xpath, data=data, parser=parser, parsers=parsers))
         return wrapper         
 
 
 class WebTable(WebElement): 
+    def parser(self, dataframe): return dataframe
+    def table(self): return self.parser(self.dataframe)    
     def dataframe(self): 
         table = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)
         return table.to_frame() if not isinstance(table, pd.DataFrame) else table
+
+    @classmethod
+    def create(cls, xpath, *args, headerrow=None, indexcolumn=None, **kwargs):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(xpath=xpath, headerrow=headerrow, indexcolumn=indexcolumn))
+        return wrapper         
 
 
 
