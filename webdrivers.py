@@ -22,38 +22,31 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-class MissingURLError(Exception): pass
+class MaxWebDriverRetryError(Exception): pass
+class MissingWebDriverURLError(Exception): pass
 
 
 class WebDriver(ABC):
-    def __init__(self, file, *args, retry=5, wait=(5, 10), timeout=100, **kwargs): 
+    def __init__(self, file, *args, retrys=5, wait=(5, 10), timeout=100, **kwargs): 
         self.__file = file
         self.__url = kwargs.get('url', None)
         self.__options = dict(headless=kwargs.get('headless', False), images=kwargs.get('images', True))
         self.__proxy = kwargs.get('proxy', None)
         self.__timeout = timeout
-        self.__retry = retry
+        self.__retrys = retrys
         self.__wait = wait
         
     def __call__(self, *args, **kwargs):
         url = kwargs.get('url', self.__url)
-        if url is None: raise MissingURLError()
-        try: content = [content for content in self.run(url, *args, **kwargs)]
-        except (TimeoutException, WebDriverException):
-            self.sleep(self.__retry)
-            content = [content for content in self.run(url, *args, **kwargs)]
-        if len(content) == 0: return None
-        elif len(content) == 1: return content[0]
-        else: return content
-            
-    def __iter__(self): return self.generator
-    def generator(self, *args, retrys=0, **kwargs):
-        url = kwargs.get('url', self.__url)
-        if url is None: raise MissingURLError()
+        if url is None: raise MissingWebDriverURLError()
+        yield from self.controller(*args, **kwargs)
+    
+    def controller(self, *args, retrys=0, **kwargs):
+        if retrys > self.__retrys: raise MaxWebDriverRetryError()
         try: yield from self.run(*args, **kwargs)
         except (TimeoutException, WebDriverException):
             self.sleep(self.__retry)
-            yield from self.generator(url, *args, retrys=retrys+1, **kwargs)        
+            yield from self.controller(*args, retrys=retrys+1, **kwargs)        
          
     def run(self, url, *args, **kwargs): 
         options = self.getoptions(*args, **self.__options, **kwargs)
@@ -72,6 +65,8 @@ class WebDriver(ABC):
 
     @abstractmethod
     def execute(self, *args, **kwargs): pass
+    @abstractmethod
+    def setup(self, *args, **kwargs): pass
 
     @property
     def driver(self): return self.__driver    

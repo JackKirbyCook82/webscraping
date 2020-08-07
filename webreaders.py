@@ -37,7 +37,6 @@ class Headers(ODict):
         assert isinstance(content, dict)
         return cls([(key, value) for key, value in content.items()])  
   
-    
 class HeadersPool(object):
     def __iter__(self): return self
     def __next__(self): return random.choice(self.__pool)
