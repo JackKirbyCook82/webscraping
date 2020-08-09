@@ -37,8 +37,7 @@ class WebElement(object):
     @classmethod
     def fromdriver(cls, driver): return cls(driver.find_element(By.XPATH, cls.xpath))
     @classmethod
-    def fromelement(cls, element): return cls(element)    
-    
+    def fromelement(cls, element): return cls(element)        
     @classmethod
     def create(cls, xpath):
         def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(xpath=xpath))
@@ -53,8 +52,7 @@ class WebElementDict(dict):
     @classmethod
     def fromdriver(cls, driver, *args, **kwargs):
         elements = {str(key):value for key, value in zip(driver.find_elements(By.XPATH, cls.keys), driver.find_elements(By.XPATH, cls.values))}
-        return cls(**elements)
-           
+        return cls(**elements)           
     @classmethod
     def create(cls, keys, values, webelement):
         assert issubclass(webelement, WebElement)
@@ -69,8 +67,7 @@ class WebElementList(list):
     @classmethod
     def fromdriver(cls, driver, *args, **kwargs):
         elements = [item for item in driver.find_elements(By.XPATH, cls.items)]
-        return cls(*elements)
-    
+        return cls(*elements)   
     @classmethod
     def create(cls, items, webelement):
         assert issubclass(webelement, WebElement)

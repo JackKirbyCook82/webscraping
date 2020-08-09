@@ -17,7 +17,7 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebDriver']
+__all__ = ['WebDriver', 'WebPage']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -65,8 +65,6 @@ class WebDriver(ABC):
 
     @abstractmethod
     def execute(self, *args, **kwargs): pass
-    @abstractmethod
-    def setup(self, *args, **kwargs): pass
 
     @property
     def driver(self): return self.__driver    
@@ -100,7 +98,19 @@ class WebDriver(ABC):
         return DesiredCapabilities.CHROME.copy()
 
 
-
+class WebPage(ABC):
+    def __init__(self, webdriver): self.__webelements = {key:value(webdriver) for key, value in self.__registry.items()}
+    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
+    def __getitem__(self, key): return self.__webelements[key]
+    def __setitem__(self, key, value): self.__webelements[key] = value
+    def __getattr__(self, attr): 
+        try: return self.__webelements[attr]
+        except KeyError: raise AttributeError(attr)
+    
+    @classmethod
+    def create(cls, **webelements):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'__registry':webelements})
+        return wrapper         
 
 
 
