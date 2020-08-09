@@ -12,6 +12,7 @@ import re
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver import Element, Chrome
+from selenium.common.exceptions import NoSuchElementException
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -35,9 +36,12 @@ class WebElement(object):
     def html(self): return self.__element.get_attribute('outerHTML')       
         
     @classmethod
-    def fromdriver(cls, driver): return cls(driver.find_element(By.XPATH, cls.xpath))
-    @classmethod
     def fromelement(cls, element): return cls(element)        
+    @classmethod
+    def fromdriver(cls, driver): 
+        try: return cls(driver.find_element(By.XPATH, cls.xpath))    
+        except NoSuchElementException: return None
+    
     @classmethod
     def create(cls, xpath):
         def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(xpath=xpath))
@@ -104,23 +108,27 @@ class WebSelect(WebElement):
 
     @classmethod
     def fromdriver(cls, driver, *args, **kwargs):
-        element = Select(driver.driver.find_element(By.XPATH, cls.xpath))
-        return cls(element, *args, **kwargs)
+        try: return cls(Select(driver.find_element(By.XPATH, cls.xpath)))    
+        except NoSuchElementException: return None
+
+
+class WebText(WebElement):
+    def text(self): return self.__element.text
+    def data(self): return str(self.text())
 
 
 class WebData(WebElement):
-    def __getitem__(self, key): return self.data[key]    
     def text(self): return self.__element.text
     def data(self): 
-        if isinstance(self.data, str): return [self.parser(x) for x in re.findall(self.data, self.text)]
-        elif isinstance(self.data, dict): return {key:[self.parsers.get(key, self.parser)(x) for x in re.findall(pattern, self.text)] for key, pattern in self.data.items()}
-        else: raise TypeError(type(self.data))
+        if isinstance(self.content, str): return [self.parser(x) for x in re.findall(self.content, str(self.text()))]
+        elif isinstance(self.content, dict): return {key:[self.parsers.get(key, self.parser)(x) for x in re.findall(pattern, str(self.text()))] for key, pattern in self.content.items()}
+        else: raise TypeError(type(self.content))
 
     @classmethod
-    def create(cls, xpath, *args, data, parser=lambda x: str(x), parsers={}, **kwargs):
+    def create(cls, xpath, *args, content, parser=lambda x: str(x), parsers={}, **kwargs):
         assert isinstance(parsers, dict) and hasattr(parser, '__call__')
         assert all([hasattr(item, '__call__') for item in parsers.values()])
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(xpath=xpath, data=data, parser=parser, parsers=parsers))
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(xpath=xpath, content=content, parser=parser, parsers=parsers))
         return wrapper         
 
 

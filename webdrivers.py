@@ -99,17 +99,25 @@ class WebDriver(ABC):
 
 
 class WebPage(ABC):
-    def __init__(self, webdriver): self.__webelements = {key:value(webdriver) for key, value in self.__registry.items()}
+    def __init__(self, driver): self.__elements = {key:value(driver) for key, value in self.__registry.items()}
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
-    def __getitem__(self, key): return self.__webelements[key]
-    def __setitem__(self, key, value): self.__webelements[key] = value
+    def __getitem__(self, key): return self.__elements[key]
+    def __setitem__(self, key, value): self.__elements[key] = value
     def __getattr__(self, attr): 
-        try: return self.__webelements[attr]
+        try: return self.__elements[attr]
         except KeyError: raise AttributeError(attr)
     
+    def __iter__(self): 
+        for key, value in self.__elements.items(): yield key ,value
+    
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass
+    @abstractmethod
+    def data(self, *args, **kwargs): pass
+    
     @classmethod
-    def create(cls, **webelements):
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'__registry':webelements})
+    def create(cls, **elements):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'__registry':elements})
         return wrapper         
 
 
