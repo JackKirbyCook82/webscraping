@@ -17,13 +17,34 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebDriver', 'WebPage']
+__all__ = ['WebPage', 'WebDriver']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
 class MaxWebDriverRetryError(Exception): pass
 class MissingWebDriverURLError(Exception): pass
+
+
+class WebPage(ABC):
+    def __init__(self, driver): self.__elements = {key:value(driver) for key, value in self.__registry.items()}
+    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
+    def __getitem__(self, key): return self.__elements[key]
+    def __setitem__(self, key, value): self.__elements[key] = value
+    def __getattr__(self, attr): 
+        try: return self.__elements[attr]
+        except KeyError: raise AttributeError(attr)
+    
+    def __iter__(self): 
+        for key, value in self.__elements.items(): yield key ,value
+    
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass
+    
+    @classmethod
+    def create(cls, **elements):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'__registry':elements})
+        return wrapper  
 
 
 class WebDriver(ABC):
@@ -35,11 +56,15 @@ class WebDriver(ABC):
         self.__timeout = timeout
         self.__retrys = retrys
         self.__wait = wait
+        self.__success = False
         
     def __call__(self, *args, **kwargs):
         url = kwargs.get('url', self.__url)
         if url is None: raise MissingWebDriverURLError()
-        yield from self.controller(*args, **kwargs)
+        try: 
+            yield from self.controller(*args, **kwargs)
+            self.__success = True
+        except MaxWebDriverRetryError: raise StopIteration()
     
     def controller(self, *args, retrys=0, **kwargs):
         if retrys > self.__retrys: raise MaxWebDriverRetryError()
@@ -72,6 +97,8 @@ class WebDriver(ABC):
     def url(self): return self.__driver.current_url
     @property
     def html(self): return self.__driver.page_source
+    @property
+    def success(self): return self.__success
     
     def back(self): self.__driver.back
     def forward(self): self.__driver.forward
@@ -98,27 +125,7 @@ class WebDriver(ABC):
         return DesiredCapabilities.CHROME.copy()
 
 
-class WebPage(ABC):
-    def __init__(self, driver): self.__elements = {key:value(driver) for key, value in self.__registry.items()}
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
-    def __getitem__(self, key): return self.__elements[key]
-    def __setitem__(self, key, value): self.__elements[key] = value
-    def __getattr__(self, attr): 
-        try: return self.__elements[attr]
-        except KeyError: raise AttributeError(attr)
-    
-    def __iter__(self): 
-        for key, value in self.__elements.items(): yield key ,value
-    
-    @abstractmethod
-    def execute(self, *args, **kwargs): pass
-    @abstractmethod
-    def data(self, *args, **kwargs): pass
-    
-    @classmethod
-    def create(cls, **elements):
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'__registry':elements})
-        return wrapper         
+       
 
 
 
