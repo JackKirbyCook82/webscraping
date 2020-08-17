@@ -11,8 +11,10 @@ import re
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
-from selenium.webdriver import Element, Chrome
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.remote.webdriver import WebDriver as WebDriverType
+from selenium.webdriver.remote.webelement import WebElement as WebElementType
+from selenium.webdriver.support.select import Select as WebSelectType
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -23,13 +25,14 @@ __license__ = ""
 
 class WebElement(object): 
     def __getattr__(self, attr): return self.element.get_attribute(attr)
+    def __getitem__(self, key): return self.element.get_attribute(key)
     def __bool__(self): return self.element.is_enabled() if self.element is not None else False
-    def __init__(self, element): self.__element = element
-    def __new__(cls, item):
-        if isinstance(item, Element): return super().__new__(cls) 
-        elif isinstance(item, Chrome): return cls.fromdriver(item)
-        elif item is None: super().__new__(cls)
-        else: raise TypeError(item)
+    def __init__(self, item):
+        if isinstance(item, WebDriverType): self.__element = self.fromdriver(item)
+        elif isinstance(item, WebElementType): self.__element = item
+        elif isinstance(item, WebSelectType): self.__element = item
+        elif item is None: self.__element = item
+        else: raise TypeError(type(item))
 
     @property
     def element(self): return self.__element    
@@ -38,16 +41,9 @@ class WebElement(object):
     @property
     def html(self): return self.element.get_attribute('outerHTML') if self.element is not None else ""       
         
-    @classmethod
-    def fromelement(cls, element, **attrs): 
-        for name, attr in attrs.items(): setattr(cls, name, attr)
-        return cls(element) 
-       
-    @classmethod
-    def fromdriver(cls, driver, **attrs): 
-        for name, attr in attrs.items(): setattr(cls, name, attr)
-        try: return cls(driver.find_element(By.XPATH, cls.xpath))    
-        except NoSuchElementException: return cls(None)
+    def fromdriver(cls, driver): 
+        try: return driver.find_element(By.XPATH, cls.xpath)
+        except NoSuchElementException: return None
     
     @classmethod
     def create(cls, xpath, **attrs):
@@ -58,7 +54,7 @@ class WebElement(object):
 class WebElementDict(dict):
     def __getitem__(self, key): return super().__getitem__(key.lower().replace(' ', ''))
     def __init__(self, **elements):
-        super().__init__({key.lower().replace(' ', ''):self.webelement.fromelement(element, **self.attrs) for key, element in elements.items()})
+        super().__init__({key.lower().replace(' ', ''):self.webelement(element) for key, element in elements.items()})
     
     @classmethod
     def fromdriver(cls, driver):
@@ -68,13 +64,14 @@ class WebElementDict(dict):
     @classmethod
     def create(cls, keys, values, webelement, **attrs):
         assert issubclass(webelement, WebElement)
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(keys=keys, values=values, webelement=webelement, attrs=attrs))
+        for name, attr in attrs.items(): setattr(webelement, name, attr)
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(keys=keys, values=values, webelement=webelement))
         return wrapper 
 
 
 class WebElementList(list):
     def __init__(self, *elements):
-        super().__init__([self.webelement.fromelement(element, **self.attrs) for element in elements.items()])
+        super().__init__([self.webelement(element) for element in elements.items()])
 
     @classmethod
     def fromdriver(cls, driver):
@@ -84,7 +81,8 @@ class WebElementList(list):
     @classmethod
     def create(cls, items, webelement, **attrs):
         assert issubclass(webelement, WebElement)
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(items=items, webelement=webelement, attrs=attrs))
+        for name, attr in attrs.items(): setattr(webelement, name, attr)
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(items=items, webelement=webelement))
         return wrapper 
 
 
@@ -115,11 +113,9 @@ class WebSelect(WebElement):
     def isel(self, index): self.element.select_by_index(index)
     def sel(self, value): self.element.select_by_visible_text(value)
 
-    @classmethod
-    def fromdriver(cls, driver, **attrs):
-        for name, attr in attrs.items(): setattr(cls, name, attr)
-        try: return cls(Select(driver.find_element(By.XPATH, cls.xpath)))    
-        except NoSuchElementException: return cls(None)
+    def fromdriver(self, driver):
+        try: return Select(driver.find_element(By.XPATH, self.xpath))    
+        except NoSuchElementException: return None
 
 
 class WebText(WebElement):
@@ -148,9 +144,9 @@ class WebData(WebElement):
 
 class WebTable(WebElement): 
     def parser(self, dataframe): return dataframe
-    def table(self): return self.parser(self.dataframe)    
+    def table(self): return self.parser(self.dataframe())    
     def dataframe(self): 
-        table = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)
+        table = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)[0]
         return table.to_frame() if not isinstance(table, pd.DataFrame) else table
 
     @classmethod
