@@ -12,6 +12,7 @@ from itertools import cycle
 import random
 import pandas as pd
 import requests
+from parse import parse
 from requests.exceptions import RequestException
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPBasicAuth
@@ -58,6 +59,12 @@ class Proxy(ntuple('Proxy', 'domain port')):
     httpproxyformat = 'http://{domain}:{port}'
     def __str__(self): return self.httpproxyformat.format(**self._asdict())
     def __next__(self): return self
+    
+    @classmethod
+    def fromstr(cls, string):
+        content = parse(cls.httpproxyformat, string)
+        return cls(content.named['domain'], content.named['port'])
+        
 
 class ProxyPool(object):
     def __iter__(self): return self
@@ -73,6 +80,18 @@ class ProxyPool(object):
         content = {'Domain':[proxy.domain for proxy in self.__proxys], 'Port':[proxy.port for proxy in self.__proxys]}
         return pd.DataFrame(content)
         
+    def tojson(self, file):
+        with open(file, 'w') as outfile: 
+            content = [str(proxy) for proxy in self.__proxys]
+            json.dump(content, outfile, sort_keys=True, indent=3, separators=(',', ' : '))         
+    
+    @classmethod
+    def fromjson(cls, file):
+        if not os.path.isfile(file): raise FileNotFoundError(file)
+        with open(file, 'r') as infile: contents = json.load(infile)
+        assert isinstance(contents, list)
+        return cls(*[Proxy.fromstr(content) for content in contents])
+    
 
 class Authenticate(ntuple('Authenticate', 'username password')): 
     def __call__(self): return HTTPBasicAuth(self.username, self.password)

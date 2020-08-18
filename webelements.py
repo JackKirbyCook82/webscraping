@@ -6,9 +6,8 @@ Created on Mon Dec 30 2019
 
 """
 
-import pandas as pd
 import re
-
+import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import NoSuchElementException
@@ -39,7 +38,7 @@ class WebElement(object):
     @property
     def text(self): return self.element.text if self.element is not None else None
     @property
-    def html(self): return self.element.get_attribute('outerHTML') if self.element is not None else ""       
+    def html(self): return self.element.get_attribute('outerHTML') if self.element is not None else None       
         
     def fromdriver(cls, driver): 
         try: return driver.find_element(By.XPATH, cls.xpath)
@@ -88,7 +87,7 @@ class WebElementList(list):
 
 class WebLink(WebElement):
     @property
-    def url(self): return str(self.href)
+    def url(self): return str(self.element.href)
     def click(self): self.element.click()  
 
 

@@ -6,11 +6,11 @@ Created on Mon Dec 30 2019
 
 """
 
-from abc import ABC, abstractmethod
 from time import sleep
-import random
+from abc import ABC, abstractmethod
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 
@@ -44,70 +44,68 @@ class WebPage(ABC):
 
 class WebDriver(ABC):
     def __repr__(self): 
-        content = {'timeout':self.__timeout, **self.__options}
+        content = {'timeout':self.__timeout, 'retrys':self.__retrys, 'wait':self.__wait, **self.__options}
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}({})".format(self.__class__.__name__, string)
     
-    def __init__(self, file, *args, timeout=100, **kwargs): 
+    def __init__(self, file, *args, timeout=100, retrys=0, wait=5, **kwargs): 
+        self.__timeout, self.__retrys, self.__wait = timeout, retrys, wait
         self.__file = file
         self.__driver = None
         self.__url = kwargs.get('url', None)
         self.__options = dict(headless=kwargs.get('headless', False), images=kwargs.get('images', True))
         self.__proxy = kwargs.get('proxy', None)
-        self.__timeout = timeout
         self.__success = False
         
     def __call__(self, *args, **kwargs):
         url = kwargs.get('url', self.__url)
         if url is None: raise MissingWebDriverURLError()
-        yield from self.controller(url, *args, **kwargs)
-        print('URL Request Success:')
-        print(str(url), '\n')
-        self.__success = True
+        try: 
+            yield from self.controller(url, *args, **kwargs)
+            print('URL Request Success:')
+            print(str(url), '\n')
+            self.__success = True
+        except MaxWebDriverRetryError:
+            print('URL Request Failure:')
+            print(str(url), '\n')
+            self.__success = False            
     
-    def controller(self, *args, **kwargs):
-        yield from self.run(*args, **kwargs)    
-         
+    def controller(self, *args, retry=0, **kwargs):
+        try: yield from self.run(*args, **kwargs)    
+        except (TimeoutException, WebDriverException) as error:
+            self.stop()
+            print('WebDriver Retry on Error: {}|{}'.format(str(retry+1)), self.__retrys)
+            print('{}: {}'.format(error.__class__.__name__, str(error)))
+            if retry < self.__retrys: 
+                self.sleep(self.wait)
+                yield from self.controller(*args, retry=retry+1, **kwargs)
+            else: raise MaxWebDriverRetryError(retry)
+        
     def run(self, url, *args, **kwargs): 
+        options, capabilities = self.setup(*args, **kwargs)
+        self.start(url, options, capabilities)    
+        yield from self.execute(*args, **kwargs)
+        self.stop()
+
+    def setup(self, *args, **kwargs):
         options = self.getoptions(*args, **self.__options, **kwargs)
         capabilities = self.getcapabilities(*args, **kwargs)
         try: 
             proxy = next(self.__proxy)
             driverproxy = self.getproxy(str(proxy), *args, **kwargs)           
             driverproxy.add_to_capabilities(capabilities)                        
-        except TypeError: pass
-        self.start(url, options, capabilities)
-        self.driver.get(str(url))      
-        yield from self.execute(*args, **kwargs)
-        self.stop()
+        except TypeError: pass   
+        return options, capabilities     
 
     def start(self, url, options, capabilities): 
         self.__driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
         self.__driver.set_page_load_timeout(self.__timeout)
+        self.__driver.get(str(url))
         
     def stop(self): 
         self.__driver.quit()
         self.__driver = None
-
-    @abstractmethod
-    def execute(self, *args, **kwargs): pass
-
-    @property
-    def driver(self): return self.__driver    
-    @property
-    def url(self): return self.driver.current_url
-    @property
-    def html(self): return self.driver.page_source
-    @property
-    def success(self): return self.success
-    
-    def back(self): self.driver.back
-    def forward(self): self.driver.forward
-    def refresh(self): self.driver.refresh
-
-    def sleep(self, seconds): sleep(seconds)
-    def wait(self): sleep(random.randint(*self.__wait))
-    
+        
     def getoptions(self, *args, headless, images, **kwargs):
         options = Options()
         options.add_argument("--incognito")
@@ -128,14 +126,25 @@ class WebDriver(ABC):
 
     def getcapabilities(self, *args, **kwargs):
         return DesiredCapabilities.CHROME.copy()
+    
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass
 
+    @property
+    def driver(self): return self.__driver    
+    @property
+    def url(self): return self.driver.current_url
+    @property
+    def html(self): return self.driver.page_source
+    @property
+    def success(self): return self.success
+    
+    def back(self): self.driver.back
+    def forward(self): self.driver.forward
+    def refresh(self): self.driver.refresh
+    def sleep(self, seconds): sleep(seconds)
 
-       
-
-
-
-
-
+    
 
 
 
