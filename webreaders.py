@@ -8,18 +8,19 @@ Created on Sat Mar 23 2019
 
 import os.path
 import json
-from itertools import cycle
+import time
 import random
-import pandas as pd
 import requests
+import pandas as pd
 from parse import parse
-from requests.exceptions import RequestException
-from requests.adapters import HTTPAdapter
+from itertools import cycle
+from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
+from requests.adapters import HTTPAdapter
+from requests.exceptions import RequestException
 from requests.packages.urllib3.util.retry import Retry
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
-import time
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
@@ -28,6 +29,17 @@ __author__ = "Jack Kirby Cook"
 __all__ = ['WebReader', 'RetryAdapter', 'Proxy', 'ProxyPool', 'Authenticate', 'Headers', 'HeadersPool']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
+
+
+_PATTERN = r"\d{1,2}"
+_TIMEKEYS = ('days', 'hours', 'minutes', 'day', 'hour', 'minute')
+_TIMEDELTAS = {key:' '.join([_PATTERN, key]) for key in _TIMEKEYS} 
+
+_roundtime = lambda t: t.replace(second=0, microsecond=0, minute=t.minute) + timedelta(minutes=t.second//30)
+_fromtimestamp = lambda ts: datetime.fromtimestamp(ts)
+_totimestamp = lambda t: t.timestamp(t)
+_currenttime = lambda: _roundtime(datetime.now())
+_pasttime = lambda dt: _roundtime(_currenttime() - dt)
 
 
 class Headers(ODict): 
@@ -55,15 +67,16 @@ class HeadersPool(object):
         return cls([Headers([(key, value) for key, value in content.items()]) for content in contents])
 
     
-class Proxy(ntuple('Proxy', 'domain port')): 
+class Proxy(ntuple('Proxy', 'domain port time')): 
     httpproxyformat = 'http://{domain}:{port}'
     def __str__(self): return self.httpproxyformat.format(**self._asdict())
     def __next__(self): return self
     
     @classmethod
-    def fromstr(cls, string):
+    def fromstr(cls, string, proxytime):
         content = parse(cls.httpproxyformat, string)
-        return cls(content.named['domain'], content.named['port'])
+        assert isinstance(proxytime, datetime)
+        return cls(content.named['domain'], content.named['port'], proxytime)
         
 
 class ProxyPool(object):
@@ -77,20 +90,10 @@ class ProxyPool(object):
         
     @property
     def dataframe(self): 
-        content = {'Domain':[proxy.domain for proxy in self.__proxys], 'Port':[proxy.port for proxy in self.__proxys]}
+        content = {'Domain':[proxy.domain for proxy in self.__proxys]}
+        content['Port'] = [proxy.port for proxy in self.__proxys]
+        content['Time'] = [proxy.time for proxy in self.__proxys]
         return pd.DataFrame(content)
-        
-    def tojson(self, file):
-        with open(file, 'w') as outfile: 
-            content = [str(proxy) for proxy in self.__proxys]
-            json.dump(content, outfile, sort_keys=True, indent=3, separators=(',', ' : '))         
-    
-    @classmethod
-    def fromjson(cls, file):
-        if not os.path.isfile(file): raise FileNotFoundError(file)
-        with open(file, 'r') as infile: contents = json.load(infile)
-        assert isinstance(contents, list)
-        return cls(*[Proxy.fromstr(content) for content in contents])
     
 
 class Authenticate(ntuple('Authenticate', 'username password')): 

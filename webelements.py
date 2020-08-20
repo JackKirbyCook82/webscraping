@@ -142,8 +142,8 @@ class WebData(WebElement):
 
 
 class WebTable(WebElement): 
-    def parser(self, dataframe): return dataframe
-    def table(self): return self.parser(self.dataframe())    
+    def parser(self, dataframe, *args, **kwargs): return dataframe
+    def table(self, *args, **kwargs): return self.parser(self.dataframe(), *args, **kwargs)    
     def dataframe(self): 
         table = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)[0]
         return table.to_frame() if not isinstance(table, pd.DataFrame) else table
