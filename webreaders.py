@@ -35,11 +35,7 @@ _PATTERN = r"\d{1,2}"
 _TIMEKEYS = ('days', 'hours', 'minutes', 'day', 'hour', 'minute')
 _TIMEDELTAS = {key:' '.join([_PATTERN, key]) for key in _TIMEKEYS} 
 
-_roundtime = lambda t: t.replace(second=0, microsecond=0, minute=t.minute) + timedelta(minutes=t.second//30)
-_fromtimestamp = lambda ts: datetime.fromtimestamp(ts)
-_totimestamp = lambda t: t.timestamp(t)
-_currenttime = lambda: _roundtime(datetime.now())
-_pasttime = lambda dt: _roundtime(_currenttime() - dt)
+_roundtime = lambda t: t.replace(second=0, microsecond=0) + timedelta(minutes=t.second//30)
 
 
 class Headers(ODict): 
@@ -69,7 +65,11 @@ class HeadersPool(object):
     
 class Proxy(ntuple('Proxy', 'domain port time')): 
     httpproxyformat = 'http://{domain}:{port}'
-    def __str__(self): return self.httpproxyformat.format(**self._asdict())
+    def __str__(self): return self.httpproxyformat.format(**self._asdict())  
+    def __new__(cls, proxyDomain, proxyPort, proxyTime): return super().__new__(cls, proxyDomain, proxyPort, _roundtime(proxyTime))
+    def __hash__(self): return hash((self.domain, self.port,))
+    def __eq__(self, other): return (self.domain, self.port) == (other.domain, other.port)
+    def __ne__(self, other): return not self.__eq__(other)      
     def __next__(self): return self
     
     @classmethod
@@ -80,21 +80,40 @@ class Proxy(ntuple('Proxy', 'domain port time')):
         
 
 class ProxyPool(object):
-    def __iter__(self): return self
+    def __iter__(self): return iter(list(self.__proxys))
     def __next__(self): return next(self.__pool)
+    def __len__(self): return len(self.__proxys)
     def __str__(self): return str(self.dataframe)
-    def __init__(self, *proxys):
+
+    def __add__(self, other): return self.__class__([x for x in iter(self)] + [y for y in iter(other)])
+    def __sub__(self, other): return self.__class__([x for x in iter(self) if x not in [y for y in iter(other)]])
+    
+    def __init__(self, proxys):
         assert all([isinstance(proxy, Proxy) for proxy in proxys])
-        self.__proxys = proxys
-        self.__pool = cycle(proxys)
-        
+        self.__proxys = list(set(proxys))
+        self.__pool = cycle(self.__proxys)
+    
+    def update(self, referenceTime): 
+        assert isinstance(referenceTime, datetime)
+        proxys = [proxy for proxy in iter(self) if proxy.time >= _roundtime(referenceTime)]
+        return self.__class__(proxys)
+    
     @property
     def dataframe(self): 
         content = {'Domain':[proxy.domain for proxy in self.__proxys]}
         content['Port'] = [proxy.port for proxy in self.__proxys]
         content['Time'] = [proxy.time for proxy in self.__proxys]
-        return pd.DataFrame(content)
-    
+        dataframe = pd.DataFrame(content)
+        dataframe['Time'] = pd.to_datetime(dataframe['Time'])
+        return dataframe
+  
+    @classmethod
+    def fromdataframe(cls, dataframe):
+        dataframe.columns = [column.lower() for column in dataframe.columns]
+        dataframe['time'] = pd.to_datetime(dataframe['time'])
+        proxys = [Proxy(proxyDomain, proxyPort, proxyTime) for proxyDomain, proxyPort, proxyTime in zip(dataframe['domain'], dataframe['port'], dataframe['time'])]
+        return cls(proxys)    
+        
 
 class Authenticate(ntuple('Authenticate', 'username password')): 
     def __call__(self): return HTTPBasicAuth(self.username, self.password)
@@ -157,9 +176,6 @@ class WebReader(object):
     def parseZIP(response): return response.content
     @parse.register('csv')
     def parseCSV(response): return response.content.decode('utf-8')
-
-
-
 
 
 

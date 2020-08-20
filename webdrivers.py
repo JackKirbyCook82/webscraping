@@ -74,7 +74,7 @@ class WebDriver(ABC):
         try: yield from self.run(*args, **kwargs)    
         except (TimeoutException, WebDriverException) as error:
             self.stop()
-            print('WebDriver Retry on Error: {}|{}'.format(str(retry+1)), self.__retrys)
+            print('WebDriver Error: {}|{}'.format(str(retry), str(self.__retrys)))
             print('{}: {}'.format(error.__class__.__name__, str(error)))
             if retry < self.__retrys: 
                 self.sleep(self.wait)
