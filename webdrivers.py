@@ -43,18 +43,19 @@ class WebPage(ABC):
 
 
 class WebDriver(ABC):
+    def __bool__(self): return self.__driver is not None
     def __repr__(self): 
         content = {'timeout':self.__timeout, 'retrys':self.__retrys, 'wait':self.__wait, **self.__options}
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
-        return "{}({})".format(self.__class__.__name__, string)
+        return "{}({})".format(self.__class__.__name__, string)    
     
-    def __init__(self, file, *args, timeout=100, retrys=0, wait=5, **kwargs): 
+    def __init__(self, file, *args, timeout=100, retrys=3, wait=5, **kwargs): 
         self.__timeout, self.__retrys, self.__wait = timeout, retrys, wait
         self.__file = file
-        self.__driver = None
         self.__url = kwargs.get('url', None)
         self.__options = dict(headless=kwargs.get('headless', False), images=kwargs.get('images', True))
         self.__proxy = kwargs.get('proxy', None)
+        self.__driver = None
         self.__success = False
         
     def __call__(self, *args, **kwargs):
@@ -133,11 +134,11 @@ class WebDriver(ABC):
     @property
     def driver(self): return self.__driver    
     @property
+    def success(self): return self.success        
+    @property
     def url(self): return self.driver.current_url
     @property
     def html(self): return self.driver.page_source
-    @property
-    def success(self): return self.success
     
     def back(self): self.driver.back
     def forward(self): self.driver.forward

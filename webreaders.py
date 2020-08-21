@@ -100,11 +100,11 @@ class ProxyPool(object):
     
     @property
     def dataframe(self): 
-        content = {'Domain':[proxy.domain for proxy in self.__proxys]}
-        content['Port'] = [proxy.port for proxy in self.__proxys]
-        content['Time'] = [proxy.time for proxy in self.__proxys]
+        content = {'domain':[proxy.domain for proxy in self.__proxys]}
+        content['port'] = [proxy.port for proxy in self.__proxys]
+        content['time'] = [proxy.time for proxy in self.__proxys]
         dataframe = pd.DataFrame(content)
-        dataframe['Time'] = pd.to_datetime(dataframe['Time'])
+        dataframe['time'] = pd.to_datetime(dataframe['time'])
         return dataframe
   
     @classmethod
