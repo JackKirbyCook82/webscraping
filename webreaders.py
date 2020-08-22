@@ -84,13 +84,13 @@ class ProxyPool(object):
     def __next__(self): return next(self.__pool)
     def __len__(self): return len(self.__proxys)
     def __str__(self): return str(self.dataframe)
-
     def __add__(self, other): return self.__class__([x for x in iter(self)] + [y for y in iter(other)])
     def __sub__(self, other): return self.__class__([x for x in iter(self) if x not in [y for y in iter(other)]])
     
     def __init__(self, proxys):
         assert all([isinstance(proxy, Proxy) for proxy in proxys])
         self.__proxys = list(set(proxys))
+        random.shuffle(self.__proxys)
         self.__pool = cycle(self.__proxys)
     
     def update(self, referenceTime): 

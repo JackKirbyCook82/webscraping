@@ -10,9 +10,12 @@ from time import sleep
 from abc import ABC, abstractmethod
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -25,17 +28,21 @@ class MaxWebDriverRetryError(Exception): pass
 class MissingWebDriverURLError(Exception): pass
 
 
-class WebPage(ABC):
-    def __init__(self, driver): self.__elements = {key:value(driver) for key, value in self.Elements.items()}    
+class WebPage(ABC):    
+    def __init__(self, elements): 
+        assert isinstance(elements, dict)
+        self.__elements = elements
+
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
     def __getitem__(self, key): return self.__elements[key]
     def __setitem__(self, key, value): self.__elements[key] = value
-    def __iter__(self): 
-        for key, value in self.__elements.items(): yield key ,value
+    def __bool__(self): return all([bool(element) for element in self.__elements.values()])
     
     @abstractmethod
     def execute(self, *args, **kwargs): pass
     
+    @classmethod
+    def fromdriver(cls, driver): return cls({key:value.fromdriver(driver) for key, value in cls.Elements.items()})
     @classmethod
     def create(cls, **elements):
         def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'Elements':elements})
@@ -43,6 +50,8 @@ class WebPage(ABC):
 
 
 class WebDriver(ABC):
+    xpath = None
+    
     def __bool__(self): return self.__driver is not None
     def __repr__(self): 
         content = {'timeout':self.__timeout, 'retrys':self.__retrys, 'wait':self.__wait, **self.__options}
@@ -59,7 +68,7 @@ class WebDriver(ABC):
         self.__success = False
         
     def __call__(self, *args, **kwargs):
-        url = kwargs.get('url', self.__url)
+        url = kwargs.pop('url', self.__url)
         if url is None: raise MissingWebDriverURLError()
         try: 
             yield from self.controller(url, *args, **kwargs)
@@ -84,7 +93,8 @@ class WebDriver(ABC):
         
     def run(self, url, *args, **kwargs): 
         options, capabilities = self.setup(*args, **kwargs)
-        self.start(url, options, capabilities)    
+        self.start(url, options, capabilities)   
+        self.verify()
         yield from self.execute(*args, **kwargs)
         self.stop()
 
@@ -102,6 +112,10 @@ class WebDriver(ABC):
         self.__driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
         self.__driver.set_page_load_timeout(self.__timeout)
         self.__driver.get(str(url))
+        
+    def verify(self):        
+        if self.xpath: WebDriverWait(self.__driver, self.__wait).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
+        else: pass
         
     def stop(self): 
         self.__driver.quit()
@@ -130,6 +144,11 @@ class WebDriver(ABC):
     
     @abstractmethod
     def execute(self, *args, **kwargs): pass
+
+    @classmethod
+    def create(cls, xpath):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), dict(xpath=xpath))
+        return wrapper 
 
     @property
     def driver(self): return self.__driver    
