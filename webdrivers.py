@@ -87,7 +87,7 @@ class WebDriver(ABC):
             print('WebDriver Error: {}|{}'.format(str(retry), str(self.__retrys)))
             print('{}: {}'.format(error.__class__.__name__, str(error)))
             if retry < self.__retrys: 
-                self.sleep(self.wait)
+                self.sleep(self.__wait)
                 yield from self.controller(*args, retry=retry+1, **kwargs)
             else: raise MaxWebDriverRetryError(retry)
         
@@ -153,7 +153,7 @@ class WebDriver(ABC):
     @property
     def driver(self): return self.__driver    
     @property
-    def success(self): return self.success        
+    def success(self): return self.__success        
     @property
     def url(self): return self.driver.current_url
     @property
