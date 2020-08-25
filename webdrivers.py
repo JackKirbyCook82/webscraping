@@ -23,6 +23,7 @@ __license__ = ""
 
 class MaxWebDriverRetryError(Exception): pass
 class MissingWebDriverURLError(Exception): pass
+class EmptyWebDriverError(Exception): pass
 
 
 class WebDriver(ABC):
@@ -33,13 +34,13 @@ class WebDriver(ABC):
         return "{}({})".format(self.__class__.__name__, string)    
     
     def __init__(self, file, *args, timeout=100, retrys=3, wait=5, **kwargs): 
-        self.__timeout, self.__retrys, self.__wait = timeout, retrys, wait
-        self.__file = file
         self.__url = kwargs.get('url', None)
         self.__options = dict(headless=kwargs.get('headless', False), images=kwargs.get('images', True))
         self.__proxy = kwargs.get('proxy', None)
-        self.__driver = None
+        self.__timeout, self.__retrys, self.__wait = timeout, retrys, wait
+        self.__driver, self.__page = None, None
         self.__success = False
+        self.__file = file
         
     def __call__(self, *args, **kwargs):
         url = kwargs.pop('url', self.__url)
@@ -68,6 +69,7 @@ class WebDriver(ABC):
     def run(self, url, *args, **kwargs): 
         options, capabilities = self.setup(*args, **kwargs)
         self.start(url, options, capabilities)   
+        self.page.load(self.timeout)
         yield from self.execute(*args, **kwargs)
         self.stop()
 
@@ -85,9 +87,10 @@ class WebDriver(ABC):
         self.__driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
         self.__driver.set_page_load_timeout(self.__timeout)
         self.__driver.get(str(url))
-        
-    def stop(self): 
-        self.__driver.quit()
+
+    def stop(self):
+        try: self.__driver.quit()
+        except EmptyWebDriverError: pass
         self.__driver = None
         
     def getoptions(self, *args, headless, images, **kwargs):
@@ -113,17 +116,24 @@ class WebDriver(ABC):
     
     @abstractmethod
     def execute(self, *args, **kwargs): pass
-
+ 
     @property
-    def driver(self): return self.__driver    
+    def success(self): return self.__success    
     @property
-    def success(self): return self.__success        
+    def timeout(self): return self.__timeout    
     @property
     def url(self): return self.driver.current_url
     @property
     def html(self): return self.driver.page_source
     @property
-    def timeout(self): return self.__timeout
+    def element(self): 
+        if self.__driver is None: raise EmptyWebDriverError()
+        return self.__driver   
+
+    @classmethod
+    def create(cls, page):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'page':page})
+        return wrapper  
     
     def back(self): self.driver.back
     def forward(self): self.driver.forward
