@@ -22,7 +22,6 @@ __license__ = ""
 
 
 class MaxWebDriverRetryError(Exception): pass
-class MissingWebDriverURLError(Exception): pass
 class EmptyWebDriverError(Exception): pass
 
 
@@ -31,48 +30,47 @@ class WebDriver(ABC):
     def __repr__(self): 
         content = {'timeout':self.__timeout, 'retrys':self.__retrys, 'wait':self.__wait, **self.__options}
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
-        return "{}({})".format(self.__class__.__name__, string)    
+        return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
     def __init__(self, file, *args, timeout=100, retrys=3, wait=5, **kwargs): 
-        self.__url = kwargs.get('url', None)
         self.__options = dict(headless=kwargs.get('headless', False), images=kwargs.get('images', True))
         self.__proxy = kwargs.get('proxy', None)
         self.__timeout, self.__retrys, self.__wait = timeout, retrys, wait
-        self.__driver, self.__page = None, None
         self.__success = False
         self.__file = file
+        self.__driver = None
         
     def __call__(self, *args, **kwargs):
-        url = kwargs.pop('url', self.__url)
-        if url is None: raise MissingWebDriverURLError()
         try: 
-            yield from self.controller(url, *args, **kwargs)
-            print('URL Request Success:')
-            print(str(url), '\n')
+            yield from self.controller(*args, **kwargs)
             self.__success = True
         except MaxWebDriverRetryError:
-            print('URL Request Failure:')
-            print(str(url), '\n')
             self.__success = False            
+    
+    @classmethod
+    def create(cls, webpage):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebPage':webpage})
+        return wrapper  
     
     def controller(self, *args, retry=0, **kwargs):
         try: yield from self.run(*args, **kwargs)    
         except (TimeoutException, WebDriverException) as error:
-            self.stop()
-            print('WebDriver Error: {}|{}'.format(str(retry), str(self.__retrys)))
-            print('{}: {}'.format(error.__class__.__name__, str(error)))
+            self.stop(False)
+            print("WebDriver Error: {}, {}|{}".format(error.__class__.__name__, str(retry), str(self.__retrys)))
+            print(str(error))
             if retry < self.__retrys: 
                 self.sleep()
                 yield from self.controller(*args, retry=retry+1, **kwargs)
             else: raise MaxWebDriverRetryError(retry)
         
-    def run(self, url, *args, **kwargs): 
+    def run(self, *args, **kwargs): 
         options, capabilities = self.setup(*args, **kwargs)
-        self.start(url, options, capabilities)   
-        self.page.load(self.timeout)
-        yield from self.execute(*args, **kwargs)
-        self.stop()
-
+        self.start(options, capabilities)   
+        page = self.WebPage(self.driver)
+        page.load(*args, timeout=self.timeout, **kwargs)
+        yield from self.execute(page, *args, **kwargs)
+        self.stop(True)        
+        
     def setup(self, *args, **kwargs):
         options = self.getoptions(*args, **self.__options, **kwargs)
         capabilities = self.getcapabilities(*args, **kwargs)
@@ -83,15 +81,17 @@ class WebDriver(ABC):
         except TypeError: pass   
         return options, capabilities     
 
-    def start(self, url, options, capabilities): 
-        self.__driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
-        self.__driver.set_page_load_timeout(self.__timeout)
-        self.__driver.get(str(url))
-
-    def stop(self):
+    def start(self, options, capabilities): 
+        driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
+        driver.set_page_load_timeout(self.timeout)
+        self.__driver = driver 
+        
+    def stop(self, success):
+        assert isinstance(success, bool)
         try: self.__driver.quit()
-        except EmptyWebDriverError: pass
+        except AttributeError: pass
         self.__driver = None
+        self.__success = success
         
     def getoptions(self, *args, headless, images, **kwargs):
         options = Options()
@@ -115,7 +115,7 @@ class WebDriver(ABC):
         return DesiredCapabilities.CHROME.copy()
     
     @abstractmethod
-    def execute(self, *args, **kwargs): pass
+    def execute(self, page, *args, **kwargs): pass
  
     @property
     def success(self): return self.__success    
@@ -124,21 +124,20 @@ class WebDriver(ABC):
     @property
     def url(self): return self.driver.current_url
     @property
-    def html(self): return self.driver.page_source
+    def html(self): return self.driver.page_source   
     @property
-    def element(self): 
+    def driver(self):     
         if self.__driver is None: raise EmptyWebDriverError()
-        return self.__driver   
+        else: return self.__driver
 
-    @classmethod
-    def create(cls, page):
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'page':page})
-        return wrapper  
-    
     def back(self): self.driver.back
     def forward(self): self.driver.forward
     def refresh(self): self.driver.refresh
     def sleep(self): sleep(self.__wait)
+
+
+    
+
 
     
 

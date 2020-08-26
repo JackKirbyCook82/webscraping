@@ -8,7 +8,6 @@ Created on Mon Dec 30 2019
 
 import re
 import pandas as pd
-from abc import ABC, abstractmethod
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
@@ -16,7 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebPage', 'WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable']
+__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -24,31 +23,19 @@ __license__ = ""
 class EmptyWebElementError(Exception): pass
 
 
-class WebPage(ABC):        
-    def __getitem__(self, key): return self.__elements[key]      
-    def __init__(self, driver, *args, **kwargs): self.__driver, self.__elements = driver, {key:webelement(driver) for key, webelement in self.WebElements.items()}
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
-    
-#    def load(self, timeout): 
-#        for key, element in self.__elements.items(): element.load(timeout)          
-    
-    @abstractmethod
-    def execute(self, *args, **kwargs): pass        
-        
-    @classmethod
-    def create(cls, webelements):
-        assert isinstance(webelements, dict)
-        assert all([isinstance(item, WebElement) for item in webelements.values()])
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebElements':webelements})
-        return wrapper  
-
-
 class WebElement(object): 
     def __getattr__(self, attr): return self.element.get_attribute(attr)
     def __getitem__(self, key): return self.element.get_attribute(key)  
-    def __init__(self, driver, *args, element=None, **kwargs): self.__driver, self.__element = driver, element    
-    def load(self, timeout): self.__element = WebDriverWait(self.__driver, timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))   
-     
+    def __init__(self, driver, *args, **kwargs): self.__driver, self.__element = driver, None    
+    def __call__(self, element, *args, **kwargs): self.__element = element
+    def __new__(cls, *args, **kwargs):
+        instance = super().__new__(cls)
+        try: instance(kwargs['element'])
+        except KeyError: pass
+        return instance
+    
+    def load(self, timeout): return WebDriverWait(self.__driver, timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))   
+        
     @property
     def text(self): return self.element.text 
     @property
@@ -56,13 +43,11 @@ class WebElement(object):
     @property
     def enabled(self): return self.element.is_enabled()
     @property
-    def displayed(self): return self.element.is_displayed()
-    @property
-    def empty(self): return self.__element is None
+    def displayed(self): return self.element.is_displayed()   
     @property
     def element(self): 
-        if self.__element is None: raise EmptyWebElementError()
-        return self.__element       
+        if self.__element is not None: return self.__element
+        else: raise EmptyWebElementError()  
 
     @classmethod
     def create(cls, xpath, **attrs):
@@ -72,12 +57,16 @@ class WebElement(object):
 
 class WebElementDict(dict):
     def __getitem__(self, key): return super().__getitem__(key.lower().replace(' ', ''))
-    def __init__(self, driver): self.__driver = driver   
+    def __init__(self, driver, *args, **kwargs): self.__driver = driver   
+    def __call__(self, elements, *args, **kwargs): 
+        assert isinstance(elements, dict)
+        for key, element in elements.items(): self[key] = self.WebElement(self.__driver, *args, element=element, **kwargs)
+    
     def load(self, timeout):
         keyfunction = lambda key: str(key).lower().replace(' ', '')
         keys = WebDriverWait(self.__driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.keyXPath)))
         elements = WebDriverWait(self.__driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.valueXPath)))
-        for key, element in zip(keys, elements): self[keyfunction(key)] = self.WebElement(self.__driver, element=element)
+        return {keyfunction(key):element for key, element in zip(keys, elements)}       
         
     @classmethod
     def create(cls, keys, values, webelement, **attrs):
@@ -88,10 +77,14 @@ class WebElementDict(dict):
 
 
 class WebElementList(list):
-    def __init__(self, driver): self.__driver = driver   
+    def __init__(self, driver, *args, **kwargs): self.__driver = driver   
+    def __call__(self, elements, *args, **kwargs):
+        assert isinstance(elements, list)
+        for element in elements: self.append(self.WebElement(self.driver, *args, element=element, **kwargs))
+    
     def load(self, timeout):
         elements = WebDriverWait(self.__driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.itemXPath)))
-        for element in elements: self.append(self.WebElement(self.__driver, element=element))
+        return elements
 
     @classmethod
     def create(cls, items, webelement, **attrs):
@@ -107,7 +100,7 @@ class WebSelect(WebElement):
     def clear(self): self.element.deselect_all()
     def isel(self, index): self.element.select_by_index(index)
     def sel(self, value): self.element.select_by_visible_text(value)
-    def load(self, timeout): self.__element = Select(super().load(timeout))
+    def load(self, timeout): return Select(super().load(timeout)) 
         
 
 class WebLink(WebElement):
