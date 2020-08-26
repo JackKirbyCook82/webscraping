@@ -25,22 +25,23 @@ class WebPage(ABC):
         self.__webelements = {key:webelement(driver) for key, webelement in self.WebElements.items()}
         self.__driver = driver
         
-    def load(self, *args, timeout, **kwargs):
-        try: url = str(self.url(*args, **kwargs))
-        except TypeError: url = str(self.url)        
-        print('URL WebDriver Request: {}'.format(url))
-        self.__driver.get(url)
-        print('WebPage Loading Success')
-        for key, webelement in self.__webelements.items(): webelement(webelement.load(timeout))  
-        print('WebElement Loading Success')
+    def load(self, *args, timeout, **kwargs):  
+        url = kwargs.get('url', self.url)
+        assert url is not None
+        self.__driver.get(str(url))
+        print('URL Request Success: {}'.format(str(url)))
+        for webelement in self.loadWebElements: self.__webelements[webelement].load(timeout)
+        print("WebPage Loaded: {}".format(self.__class__.__name__))
         
     @abstractmethod
     def execute(self, *args, **kwargs): pass        
         
     @classmethod
-    def create(cls, webelements, *args, url, **kwargs):
+    def create(cls, webelements, *args, url=None, load=[], **kwargs):
         assert isinstance(webelements, dict)
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'url':url, 'WebElements':webelements})
+        def wrapper(subclass): 
+            attrs = {'url':url, 'loadWebElements':tuple(load), 'WebElements':webelements}
+            return type(subclass.__name__, (subclass, cls), attrs)
         return wrapper  
 
 

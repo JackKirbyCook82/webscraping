@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Dec 30 2019
-@name:   Webdriver Objects
+@name:   WebDriver Objects
 @author: Jack Kirby Cook
 
 """
@@ -21,8 +21,8 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-class MaxWebDriverRetryError(Exception): pass
 class EmptyWebDriverError(Exception): pass
+class MaxWebDriverRetryError(Exception): pass
 
 
 class WebDriver(ABC):
@@ -36,10 +36,10 @@ class WebDriver(ABC):
         self.__options = dict(headless=kwargs.get('headless', False), images=kwargs.get('images', True))
         self.__proxy = kwargs.get('proxy', None)
         self.__timeout, self.__retrys, self.__wait = timeout, retrys, wait
+        self.__driver = None
         self.__success = False
         self.__file = file
-        self.__driver = None
-        
+                
     def __call__(self, *args, **kwargs):
         try: 
             yield from self.controller(*args, **kwargs)
@@ -56,7 +56,8 @@ class WebDriver(ABC):
         try: yield from self.run(*args, **kwargs)    
         except (TimeoutException, WebDriverException) as error:
             self.stop(False)
-            print("WebDriver Error: {}, {}|{}".format(error.__class__.__name__, str(retry), str(self.__retrys)))
+            print("WebDriver Failure: {}".format(error.__class__.__name__))
+            print("Attempt: {}|{}".format(str(retry), str(self.__retrys)))
             print(str(error))
             if retry < self.__retrys: 
                 self.sleep()
