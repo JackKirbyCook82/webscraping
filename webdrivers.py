@@ -59,11 +59,12 @@ class WebDriver(ABC):
             print("WebDriver Running: {}".format(self.__class__.__name__))
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             yield from self.run(*args, **kwargs)
-            print("WebDriver Success: {}".format(self.__class__.__name__))
+            print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
         except (TimeoutException, WebDriverException, EmptyWebPageError) as error:
             self.stop(False)
             print("WebDriver Failure: {}".format(self.__class__.__name__))
-            print(error.__class__.__name__, "\n")
+            print(error.__class__.__name__) 
+            print(str(error), "\n")
             if retry < self.__retrys: 
                 self.sleep()
                 yield from self.controller(*args, retry=retry+1, **kwargs)
@@ -72,8 +73,8 @@ class WebDriver(ABC):
     def run(self, *args, **kwargs): 
         options, capabilities = self.setup(*args, **kwargs)
         self.start(options, capabilities)   
-        page = self.WebPage(self.driver)
-        page.load(*args, timeout=self.timeout, **kwargs)
+        page = self.WebPage(self.driver, self.timeout, *args, **kwargs)
+        page.load()
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         
@@ -94,8 +95,7 @@ class WebDriver(ABC):
         
     def stop(self, success):
         assert isinstance(success, bool)
-        try: self.__driver.quit()
-        except AttributeError: pass
+        self.__driver.quit()
         self.__driver = None
         self.__success = success
         

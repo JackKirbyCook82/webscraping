@@ -29,14 +29,14 @@ class WebElement(object):
     def __bool__(self): return self.__element is not None
     def __getattr__(self, attr): return self.element.get_attribute(attr)
     def __getitem__(self, key): return self.element.get_attribute(key)  
-    def __init__(self, driver): self.__driver, self.__element = driver, None    
-    def __new__(cls, driver):
+    def __init__(self, driver, timeout): self.__driver, self.__timeout, self.__element = driver, timeout, None    
+    def __new__(cls, driver, timeout):
         assert hasattr(cls, 'xpath') and isinstance(driver, Chrome)
         return super().__new__(cls)
        
-    def load(self, timeout): 
+    def load(self): 
         print("WebElement Loading: {}".format(self.__class__.__name__))
-        try: element = WebDriverWait(self.driver, timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
+        try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except NoSuchElementException: element = None
         self.update(element)
         
@@ -56,6 +56,8 @@ class WebElement(object):
     @property
     def driver(self): return self.__driver
     @property
+    def timeout(self): return self.__timeout
+    @property
     def element(self): 
         if self.__element is not None: return self.__element
         else: raise EmptyWebElementError() 
@@ -69,16 +71,18 @@ class WebElement(object):
 class WebElementDict(dict):
     keyformat = lambda key: str(key.lower().replace(' ', ''))
     def __getitem__(self, key): return super().__getitem__(self.keyformat(key))
-    def __init__(self, driver, *args, **kwargs): self.__driver = driver 
+    def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout 
 
     @property
     def driver(self): return self.__driver
+    @property
+    def timeout(self): return self.__timeout
 
     def update(self, webelements): super().__init__(webelements)
     def load(self, timeout):
         print("WebElements Loading: {}".format(self.__class__.__name__))
-        keys = WebDriverWait(self.driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.keyXPath)))
-        elements = WebDriverWait(self.driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.valueXPath)))
+        keys = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.keyXPath)))
+        elements = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.valueXPath)))
         elements = {self.keyfunction(key):element for key, element in zip(keys, elements)} 
         webelements = {key:WebElement(self.driver) for key in elements.keys()}
         for element, webelement in zip(elements.values(), webelements.values()): webelement.update(element)
@@ -95,15 +99,17 @@ class WebElementDict(dict):
 class WebElementList(list):
     indexformat = lambda index: int(index)
     def __getitem__(self, index): return super().__getitem__(self.indexformat(index))
-    def __init__(self, driver, *args, **kwargs): self.__driver = driver   
+    def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout   
 
     @property
     def driver(self): return self.__driver
+    @property
+    def timeout(self): return self.__timeout
 
     def update(self, webelements): super().__init__(webelements)
     def load(self, timeout):
         print("WebElements Loading: {}".format(self.__class__.__name__))
-        elements = WebDriverWait(self.driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.itemXPath)))
+        elements = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.itemXPath)))
         webelements = [WebElement(self.driver) for i in range(len(elements))]
         for element, webelement in zip(elements, webelements): webelement.update(element)
         self.update(webelements)
@@ -122,8 +128,9 @@ class WebSelect(WebElement):
     def clear(self): self.element.deselect_all()
     def isel(self, index): self.element.select_by_index(index)
     def sel(self, value): self.element.select_by_visible_text(value)
-    def load(self, timeout): 
-        try: element = WebDriverWait(self.driver, timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
+    def load(self): 
+        print("WebElement Loading: {}".format(self.__class__.__name__))
+        try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except NoSuchElementException: pass
         self.update(Select(element) if element is not None else None)
     
