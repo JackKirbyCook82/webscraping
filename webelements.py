@@ -33,16 +33,17 @@ class WebElement(object):
     def __new__(cls, driver):
         assert hasattr(cls, 'xpath') and isinstance(driver, Chrome)
         return super().__new__(cls)
-    
-    def update(self, element): 
-        self.__element = element 
-        if element is not None: print("WebElement Loaded: {}".format(self.__class__.__name__))
-        else: print("WebElement Missing: {}".format(self.__class__.__name__)) 
-    
+       
     def load(self, timeout): 
+        print("WebElement Loading: {}".format(self.__class__.__name__))
         try: element = WebDriverWait(self.driver, timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except NoSuchElementException: element = None
         self.update(element)
+        
+    def update(self, element): 
+        self.__element = element 
+        if element is not None: print("WebElement Loaded: {}".format(self.__class__.__name__))
+        else: print("WebElement Missing: {}".format(self.__class__.__name__))         
         
     @property
     def text(self): return self.element.text 
@@ -75,11 +76,12 @@ class WebElementDict(dict):
 
     def update(self, webelements): super().__init__(webelements)
     def load(self, timeout):
+        print("WebElements Loading: {}".format(self.__class__.__name__))
         keys = WebDriverWait(self.driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.keyXPath)))
         elements = WebDriverWait(self.driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.valueXPath)))
         elements = {self.keyfunction(key):element for key, element in zip(keys, elements)} 
         webelements = {key:WebElement(self.driver) for key in elements.keys()}
-        for (key, element), (webkey, webelement) in zip(elements.items(), webelements.items()): webelement.update(element)
+        for element, webelement in zip(elements.values(), webelements.values()): webelement.update(element)
         self.update(webelements)
         
     @classmethod
@@ -100,6 +102,7 @@ class WebElementList(list):
 
     def update(self, webelements): super().__init__(webelements)
     def load(self, timeout):
+        print("WebElements Loading: {}".format(self.__class__.__name__))
         elements = WebDriverWait(self.driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.itemXPath)))
         webelements = [WebElement(self.driver) for i in range(len(elements))]
         for element, webelement in zip(elements, webelements): webelement.update(element)
@@ -153,7 +156,8 @@ class WebText(WebElement):
     @classmethod
     def create(cls, xpath, parser=lambda x: str(x), **attrs):
         assert hasattr(parser, '__call__')
-        return super().create(xpath, parser=parser, **attrs)
+        def wrapper(self, x): return parser(x)
+        return super().create(xpath, parser=wrapper, **attrs)
 
 
 class WebData(WebElement):
@@ -170,7 +174,8 @@ class WebData(WebElement):
     def create(cls, xpath, content, parser=lambda x: str(x), parsers={}, **attrs):
         assert isinstance(parsers, dict) and hasattr(parser, '__call__')
         assert all([hasattr(item, '__call__') for item in parsers.values()])
-        return super().create(xpath, content=content, parser=parser, parsers=parsers, **attrs)       
+        def wrapper(self, x): return parser(x)
+        return super().create(xpath, content=content, parser=wrapper, parsers=parsers, **attrs)       
 
 
 class WebTable(WebElement): 

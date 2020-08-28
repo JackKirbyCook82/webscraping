@@ -14,6 +14,8 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 from selenium.common.exceptions import TimeoutException, WebDriverException
 
+from webscraping.webpages import EmptyWebPageError
+
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ['WebDriver']
@@ -53,12 +55,15 @@ class WebDriver(ABC):
         return wrapper  
     
     def controller(self, *args, retry=0, **kwargs):
-        try: yield from self.run(*args, **kwargs)    
-        except (TimeoutException, WebDriverException) as error:
+        try: 
+            print("WebDriver Running: {}".format(self.__class__.__name__))
+            print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
+            yield from self.run(*args, **kwargs)
+            print("WebDriver Success: {}".format(self.__class__.__name__))
+        except (TimeoutException, WebDriverException, EmptyWebPageError) as error:
             self.stop(False)
-            print("WebDriver Failure: {}".format(error.__class__.__name__))
-            print("Attempt: {}|{}".format(str(retry), str(self.__retrys)))
-            print(str(error))
+            print("WebDriver Failure: {}".format(self.__class__.__name__))
+            print(error.__class__.__name__, "\n")
             if retry < self.__retrys: 
                 self.sleep()
                 yield from self.controller(*args, retry=retry+1, **kwargs)
