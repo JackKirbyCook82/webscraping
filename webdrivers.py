@@ -74,7 +74,8 @@ class WebDriver(ABC):
         options, capabilities = self.setup(*args, **kwargs)
         self.start(options, capabilities)   
         page = self.WebPage(self.driver, self.timeout, *args, **kwargs)
-        page.load()
+        page.load(*args, **kwargs)
+        page.setup(*args, **kwargs)
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         

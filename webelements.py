@@ -39,6 +39,7 @@ class WebElement(object):
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except NoSuchElementException: element = None
         self.update(element)
+        return self
         
     def update(self, element): 
         self.__element = element 
@@ -87,6 +88,7 @@ class WebElementDict(dict):
         webelements = {key:WebElement(self.driver) for key in elements.keys()}
         for element, webelement in zip(elements.values(), webelements.values()): webelement.update(element)
         self.update(webelements)
+        return self
         
     @classmethod
     def create(cls, keys, values, webelement, **attrs):
@@ -113,6 +115,7 @@ class WebElementList(list):
         webelements = [WebElement(self.driver) for i in range(len(elements))]
         for element, webelement in zip(elements, webelements): webelement.update(element)
         self.update(webelements)
+        return self
 
     @classmethod
     def create(cls, items, webelement, **attrs):
@@ -133,6 +136,7 @@ class WebSelect(WebElement):
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except NoSuchElementException: pass
         self.update(Select(element) if element is not None else None)
+        return self
     
     
 class WebLink(WebElement):

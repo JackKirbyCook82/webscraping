@@ -35,7 +35,7 @@ class WebPage(ABC):
         self.__url = kwargs.get('url', self.URL)
         if self.__url is None: raise EmptyURLError()
                
-    def load(self):  
+    def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(self.__class__.__name__))
         print(str(self.url))
         self.driver.get(str(self.url))
@@ -45,6 +45,12 @@ class WebPage(ABC):
         else: print('WebPage Failure: {}'.format(self.__class__.__name__))
         if failure: raise EmptyWebPageError(failure)          
         
+    def loads(self, *keys): 
+        for key in keys: self[key].load()
+ 
+    def clicks(self, *keys): 
+        for key in keys: self[key].click()
+        
     @property
     def driver(self): return self.__driver  
     @property
@@ -53,8 +59,10 @@ class WebPage(ABC):
     def url(self): return self.__url
     def check(self): 
         failure = WebDriverWait(self.driver, FAILURE_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, FAILURE_XPATH)))
-        return str(failure.text)
-       
+        return str(failure.text)    
+    
+    @abstractmethod
+    def setup(self, *args, **kwargs): pass
     @abstractmethod
     def execute(self, *args, **kwargs): pass
     
