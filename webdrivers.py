@@ -35,7 +35,6 @@ class WebDriver(ABC):
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
     def __init__(self, file, *args, timeout=100, retrys=3, wait=5, **kwargs): 
-        self.__options = dict(headless=kwargs.get('headless', False), images=kwargs.get('images', True))
         self.__proxy = kwargs.get('proxy', None)
         self.__timeout, self.__retrys, self.__wait = timeout, retrys, wait
         self.__driver = None
@@ -50,8 +49,11 @@ class WebDriver(ABC):
             self.__success = False            
     
     @classmethod
-    def create(cls, webpage):
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebPage':webpage})
+    def create(cls, webpage, options={}, extentions={}):
+        assert isinstance(dict, options)
+        def wrapper(subclass): 
+            attrs = {'WebPage':webpage, 'options':options, 'extentions':extentions}
+            return type(subclass.__name__, (subclass, cls), attrs)
         return wrapper  
     
     def controller(self, *args, retry=0, **kwargs):
@@ -80,7 +82,9 @@ class WebDriver(ABC):
         self.stop(True)        
         
     def setup(self, *args, **kwargs):
-        options = self.getoptions(*args, **self.__options, **kwargs)
+        options = Options()
+        options = self.getoptions(options, **self.options)
+        options = self.getextensions(options, **self.extensions)
         capabilities = self.getcapabilities(*args, **kwargs)
         try: 
             proxy = next(self.__proxy)
@@ -100,17 +104,20 @@ class WebDriver(ABC):
         self.__driver = None
         self.__success = success
         
-    def getoptions(self, *args, headless, images, **kwargs):
-        options = Options()
-        options.add_argument("--incognito")
+    def getoptions(self, options, *args, incognito, headless, images, **kwargs): 
         options.add_argument("--start-maximized")
         options.add_argument("--disable-notifications")
+        if incognito: options.add_argument("--incognito")
         if headless: 
             options.add_argument("--headless")
-            options.add_argument("--no-sandbox")
+            options.add_argument("--no-sandbox")     
         if not images: options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
+        return options
+    
+    def getextensions(self, options, *args, **extensions):
+        for key, value in extensions.items(): options.add_argument('--load-extension={}'.format(value))
         return options
     
     def getproxy(self, proxy, *args, **kwargs):

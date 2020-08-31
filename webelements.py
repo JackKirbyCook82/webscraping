@@ -7,17 +7,18 @@ Created on Mon Dec 30 2019
 """
 
 import re
+import time
 import pandas as pd
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable']
+__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable', 'WebFailure', 'WebCaptcha']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -37,7 +38,7 @@ class WebElement(object):
     def load(self): 
         print("WebElement Loading: {}".format(self.__class__.__name__))
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
-        except NoSuchElementException: element = None
+        except (NoSuchElementException, TimeoutException): element = None
         self.update(element)
         return self
         
@@ -69,6 +70,13 @@ class WebElement(object):
         return wrapper 
   
 
+class WebElementLocator(object):
+    def __init__(self, by, value): self.by, self.value = by, value
+    def __call__(self, driver): 
+        try: return driver.find_elements(self.by, self.value)
+        except WebDriverException as error: raise error
+
+
 class WebElementDict(dict):
     keyformat = lambda key: str(key.lower().replace(' ', ''))
     def __getitem__(self, key): return super().__getitem__(self.keyformat(key))
@@ -80,16 +88,19 @@ class WebElementDict(dict):
     def timeout(self): return self.__timeout
 
     def update(self, webelements): super().__init__(webelements)
-    def load(self, timeout):
-        print("WebElements Loading: {}".format(self.__class__.__name__))
-        keys = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.keyXPath)))
-        elements = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.valueXPath)))
-        elements = {self.keyfunction(key):element for key, element in zip(keys, elements)} 
+    def load(self):
+        print("WebElements Loading: {}".format(self.__class__.__name__))        
+        try: keys = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.keyXPath))
+        except (NoSuchElementException, TimeoutException): keys = []
+        try: values = WebDriverWait(self.driver, self.timeout).until(self.locate(self.valueXPath))
+        except (NoSuchElementException, TimeoutException, WebDriverException): values = []   
+        assert len(keys) == len(values)
+        elements = {self.keyfunction(key):element for key, element in zip(keys, values)} 
         webelements = {key:WebElement(self.driver) for key in elements.keys()}
         for element, webelement in zip(elements.values(), webelements.values()): webelement.update(element)
         self.update(webelements)
         return self
-        
+
     @classmethod
     def create(cls, keys, values, webelement, **attrs):
         assert issubclass(webelement, WebElement)
@@ -109,11 +120,12 @@ class WebElementList(list):
     def timeout(self): return self.__timeout
 
     def update(self, webelements): super().__init__(webelements)
-    def load(self, timeout):
+    def load(self):
         print("WebElements Loading: {}".format(self.__class__.__name__))
-        elements = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.itemXPath)))
-        webelements = [WebElement(self.driver) for i in range(len(elements))]
-        for element, webelement in zip(elements, webelements): webelement.update(element)
+        try: items = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.itemXPath))
+        except (NoSuchElementException, TimeoutException, WebDriverException): items = []
+        webelements = [WebElement(self.driver) for i in range(len(items))]
+        for element, webelement in zip(items, webelements): webelement.update(element)
         self.update(webelements)
         return self
 
@@ -134,8 +146,8 @@ class WebSelect(WebElement):
     def load(self): 
         print("WebElement Loading: {}".format(self.__class__.__name__))
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
-        except NoSuchElementException: pass
-        self.update(Select(element) if element is not None else None)
+        except (NoSuchElementException, TimeoutException): element = None
+        self.update(Select(element) if element is not None else element)
         return self
     
     
@@ -207,6 +219,17 @@ class WebTable(WebElement):
         return super().create(xpath,  headerrow=headerrow, indexcolumn=indexcolumn, **attrs)
 
 
+class WebFailure(WebElement): 
+    pass
+    
+    
+class WebCaptcha(WebElement):
+    def pause(self, wait):
+        while True:
+            time.sleep(wait)
+            self.load()
+            if not self: break
+            
 
 
 
