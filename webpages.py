@@ -7,10 +7,7 @@ Created on Mon Dec 30 2019
 """
 
 from abc import ABC, abstractmethod
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
+import time
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -26,50 +23,45 @@ class EmptyURLError(Exception): pass
 class WebPage(ABC):        
     def __getitem__(self, key): return self.__webelements[key]      
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
-    def __init__(self, driver, timeout, *args, failure_timeout=10, captcha_timeout=20, **kwargs): 
-        self.__driver, self.__timeout = driver, timeout
-        try: self.__failure = self.WebElements.pop('failure')(driver, failure_timeout)
-        except KeyError: print('No Failure Check: {}'.format(self.__class__.__name__))
-        try: self.__captcha = self.WebElements.pop('captcha')(driver, captcha_timeout)        
-        except KeyError: print('No Captcha Check: {}'.format(self.__class__.__name__))
+    def __init__(self, driver, timeout, wait, *args, failure_timeout=10, captcha_timeout=20, **kwargs): 
+        self.__driver, self.__timeout, self.__wait = driver, timeout, wait
+        try: self.__failure = self.Failure(driver, failure_timeout)
+        except AttributeError: pass
+        try: self.__captcha = self.Captcha(driver, captcha_timeout)
+        except AttributeError: pass
         self.__webelements = {key:webelement(driver, timeout) for key, webelement in self.WebElements.items()}       
         self.__url = kwargs.get('url', self.URL)
         if self.__url is None: raise EmptyURLError()
    
+    def sleep(self): time.sleep(self.__wait)
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(self.__class__.__name__))
         print(str(self.url))
         self.driver.get(str(self.url))
+        self.sleep()
         try: self.check_for_failure()
         except AttributeError: pass
         try: self.check_for_captcha()
         except AttributeError: pass
-
 
     def check_for_failure(self):
         failure = self.__failure.load()
         if failure: print('WebPage Failure: {}'.format(self.__class__.__name__))
         else: print('WebPage Success: {}'.format(self.__class__.__name__))  
         if failure: raise EmptyWebPageError(str(failure.text)) 
-    
-    
+        
     def check_for_captcha(self):
         captcha = self.__captcha.load()
-
-
-
-
-        
-    def loads(self, *keys): 
-        for key in keys: self[key].load()
- 
-    def clicks(self, *keys): 
-        for key in keys: self[key].click()
+        if captcha: print('WebPage Captcha: {}'.format(self.__class__.__name__))
+        else: pass
+        if captcha: captcha.wait(self.wait)
         
     @property
     def driver(self): return self.__driver  
     @property
     def timeout(self): return self.__timeout      
+    @property
+    def wait(self): return self.__wait
     @property
     def url(self): return self.__url
     
@@ -81,8 +73,12 @@ class WebPage(ABC):
     @classmethod
     def create(cls, webelements, *args, url=None, **kwargs):
         assert isinstance(webelements, dict)
-        assert 'failure' in webelements.keys() and 'captcha' in webelements.keys()
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'URL':url, 'WebElements':webelements})
+        def wrapper(subclass): 
+            attrs = {'URL':url}
+            if 'failure' in webelements.keys(): attrs['Failure'] = webelements.pop('failure')
+            if 'captcha' in webelements.keys(): attrs['Captcha'] = webelements.pop('captcha')         
+            attrs['WebElements'] = webelements
+            return type(subclass.__name__, (subclass, cls), attrs)
         return wrapper  
 
 

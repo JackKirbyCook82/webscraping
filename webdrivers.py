@@ -6,7 +6,7 @@ Created on Mon Dec 30 2019
 
 """
 
-from time import sleep
+import time
 from abc import ABC, abstractmethod
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
@@ -30,13 +30,13 @@ class MaxWebDriverRetryError(Exception): pass
 class WebDriver(ABC):
     def __bool__(self): return self.__driver is not None
     def __repr__(self): 
-        content = {'timeout':self.__timeout, 'retrys':self.__retrys, 'wait':self.__wait, **self.__options}
+        content = {'timeout':self.__timeout, 'retrys':self.__retrys, **self.options}
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
-    def __init__(self, file, *args, timeout=100, retrys=3, wait=5, **kwargs): 
+    def __init__(self, file, *args, timeout=100, wait=10, retrys=3, **kwargs): 
         self.__proxy = kwargs.get('proxy', None)
-        self.__timeout, self.__retrys, self.__wait = timeout, retrys, wait
+        self.__timeout, self.__wait, self.__retrys = timeout, wait, retrys
         self.__driver = None
         self.__success = False
         self.__file = file
@@ -50,9 +50,9 @@ class WebDriver(ABC):
     
     @classmethod
     def create(cls, webpage, options={}, extentions={}):
-        assert isinstance(dict, options)
+        assert isinstance(options, dict)
         def wrapper(subclass): 
-            attrs = {'WebPage':webpage, 'options':options, 'extentions':extentions}
+            attrs = {'WebPage':webpage, 'options':options, 'extensions':extentions}
             return type(subclass.__name__, (subclass, cls), attrs)
         return wrapper  
     
@@ -67,15 +67,13 @@ class WebDriver(ABC):
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(error.__class__.__name__) 
             print(str(error), "\n")
-            if retry < self.__retrys: 
-                self.sleep()
-                yield from self.controller(*args, retry=retry+1, **kwargs)
+            if retry < self.__retrys: yield from self.controller(*args, retry=retry+1, **kwargs)
             else: raise MaxWebDriverRetryError(retry)
         
     def run(self, *args, **kwargs): 
         options, capabilities = self.setup(*args, **kwargs)
         self.start(options, capabilities)   
-        page = self.WebPage(self.driver, self.timeout, *args, **kwargs)
+        page = self.WebPage(self.driver, self.timeout, self.wait, *args, **kwargs)
         page.load(*args, **kwargs)
         page.setup(*args, **kwargs)
         yield from self.execute(page, *args, **kwargs)
@@ -136,6 +134,8 @@ class WebDriver(ABC):
     @property
     def timeout(self): return self.__timeout    
     @property
+    def wait(self): return self.__wait
+    @property
     def url(self): return self.driver.current_url
     @property
     def html(self): return self.driver.page_source   
@@ -146,8 +146,8 @@ class WebDriver(ABC):
 
     def back(self): self.driver.back
     def forward(self): self.driver.forward
+    def sleep(self): time.sleep(self.__wait)
     def refresh(self): self.driver.refresh
-    def sleep(self): sleep(self.__wait)
 
 
     

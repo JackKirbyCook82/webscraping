@@ -30,8 +30,10 @@ class WebElement(object):
     def __bool__(self): return self.__element is not None
     def __getattr__(self, attr): return self.element.get_attribute(attr)
     def __getitem__(self, key): return self.element.get_attribute(key)  
-    def __init__(self, driver, timeout): self.__driver, self.__timeout, self.__element = driver, timeout, None    
-    def __new__(cls, driver, timeout):
+    def __init__(self, driver, timeout, *args, **kwargs): 
+        self.__driver, self.__timeout, self.__element = driver, timeout, None    
+    
+    def __new__(cls, driver, *args, **kwargs):
         assert hasattr(cls, 'xpath') and isinstance(driver, Chrome)
         return super().__new__(cls)
        
@@ -46,7 +48,7 @@ class WebElement(object):
         self.__element = element 
         if element is not None: print("WebElement Loaded: {}".format(self.__class__.__name__))
         else: print("WebElement Missing: {}".format(self.__class__.__name__))         
-        
+         
     @property
     def text(self): return self.element.text 
     @property
@@ -54,7 +56,7 @@ class WebElement(object):
     @property
     def enabled(self): return self.element.is_enabled()
     @property
-    def displayed(self): return self.element.is_displayed()   
+    def displayed(self): return self.element.is_displayed() 
     @property
     def driver(self): return self.__driver
     @property
@@ -63,7 +65,7 @@ class WebElement(object):
     def element(self): 
         if self.__element is not None: return self.__element
         else: raise EmptyWebElementError() 
-        
+       
     @classmethod
     def create(cls, xpath, **attrs):
         def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'xpath':xpath, **attrs})
@@ -219,14 +221,12 @@ class WebTable(WebElement):
         return super().create(xpath,  headerrow=headerrow, indexcolumn=indexcolumn, **attrs)
 
 
-class WebFailure(WebElement): 
-    pass
-    
-    
+class WebFailure(WebElement): pass    
 class WebCaptcha(WebElement):
-    def pause(self, wait):
+    def wait(self, duration):
         while True:
-            time.sleep(wait)
+            print('Waiting for Captcha: {}'.format(self.__class__.__name__))
+            time.sleep(duration)
             self.load()
             if not self: break
             
