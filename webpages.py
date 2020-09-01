@@ -6,8 +6,8 @@ Created on Mon Dec 30 2019
 
 """
 
-from abc import ABC, abstractmethod
 import time
+from abc import ABC, abstractmethod
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -23,7 +23,7 @@ class EmptyURLError(Exception): pass
 class WebPage(ABC):        
     def __getitem__(self, key): return self.__webelements[key]      
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
-    def __init__(self, driver, timeout, wait, *args, failure_timeout=10, captcha_timeout=20, **kwargs): 
+    def __init__(self, driver, timeout, *args, wait=None, failure_timeout=10, captcha_timeout=20, **kwargs): 
         self.__driver, self.__timeout, self.__wait = driver, timeout, wait
         try: self.__failure = self.Failure(driver, failure_timeout)
         except AttributeError: pass
@@ -33,7 +33,7 @@ class WebPage(ABC):
         self.__url = kwargs.get('url', self.URL)
         if self.__url is None: raise EmptyURLError()
    
-    def sleep(self): time.sleep(self.__wait)
+    def sleep(self): time.sleep(self.wait)
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(self.__class__.__name__))
         print(str(self.url))
@@ -80,7 +80,6 @@ class WebPage(ABC):
             attrs['WebElements'] = webelements
             return type(subclass.__name__, (subclass, cls), attrs)
         return wrapper  
-
 
 
 

@@ -9,7 +9,6 @@ Created on Mon Dec 30 2019
 import re
 import time
 import pandas as pd
-from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
@@ -31,16 +30,13 @@ class WebElement(object):
     def __getattr__(self, attr): return self.element.get_attribute(attr)
     def __getitem__(self, key): return self.element.get_attribute(key)  
     def __init__(self, driver, timeout, *args, **kwargs): 
-        self.__driver, self.__timeout, self.__element = driver, timeout, None    
-    
-    def __new__(cls, driver, *args, **kwargs):
-        assert hasattr(cls, 'xpath') and isinstance(driver, Chrome)
-        return super().__new__(cls)
+        assert hasattr(self, 'xpath')
+        self.__driver, self.__timeout, self.__element = driver, timeout, None        
        
     def load(self): 
         print("WebElement Loading: {}".format(self.__class__.__name__))
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
-        except (NoSuchElementException, TimeoutException): element = None
+        except (NoSuchElementException, TimeoutException, WebDriverException): element = None
         self.update(element)
         return self
         
@@ -57,13 +53,16 @@ class WebElement(object):
     def enabled(self): return self.element.is_enabled()
     @property
     def displayed(self): return self.element.is_displayed() 
+    
+    @property
+    def loaded(self): return bool(self)    
     @property
     def driver(self): return self.__driver
     @property
     def timeout(self): return self.__timeout
     @property
     def element(self): 
-        if self.__element is not None: return self.__element
+        if not self.loaded: return self.__element
         else: raise EmptyWebElementError() 
        
     @classmethod
@@ -85,15 +84,21 @@ class WebElementDict(dict):
     def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout 
 
     @property
+    def loaded(self): return bool(self)
+    @property
     def driver(self): return self.__driver
     @property
     def timeout(self): return self.__timeout
+    @property
+    def elements(self): 
+        if not self.loaded: return {key:value for key, value in self.items()}
+        else: raise EmptyWebElementError()
 
     def update(self, webelements): super().__init__(webelements)
     def load(self):
         print("WebElements Loading: {}".format(self.__class__.__name__))        
         try: keys = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.keyXPath))
-        except (NoSuchElementException, TimeoutException): keys = []
+        except (NoSuchElementException, TimeoutException, WebDriverException): keys = []
         try: values = WebDriverWait(self.driver, self.timeout).until(self.locate(self.valueXPath))
         except (NoSuchElementException, TimeoutException, WebDriverException): values = []   
         assert len(keys) == len(values)
@@ -117,9 +122,15 @@ class WebElementList(list):
     def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout   
 
     @property
+    def loaded(self): return bool(self)
+    @property
     def driver(self): return self.__driver
     @property
     def timeout(self): return self.__timeout
+    @property
+    def elements(self): 
+        if not self.loaded: return [item for item in self]
+        else: raise EmptyWebElementError()
 
     def update(self, webelements): super().__init__(webelements)
     def load(self):
@@ -141,8 +152,10 @@ class WebElementList(list):
 
 class WebSelect(WebElement):
     def __len__(self): return len(self.element.options())    
+    
+    def click(self): self.element.click()      
+    def clear(self): self.element.deselect_all()    
     def keys(self): return [element.text for element in self.element.options()]
-    def clear(self): self.element.deselect_all()
     def isel(self, index): self.element.select_by_index(index)
     def sel(self, value): self.element.select_by_visible_text(value)
     def load(self): 

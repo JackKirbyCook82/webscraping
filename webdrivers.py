@@ -73,9 +73,8 @@ class WebDriver(ABC):
     def run(self, *args, **kwargs): 
         options, capabilities = self.setup(*args, **kwargs)
         self.start(options, capabilities)   
-        page = self.WebPage(self.driver, self.timeout, self.wait, *args, **kwargs)
+        page = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
         page.load(*args, **kwargs)
-        page.setup(*args, **kwargs)
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         
