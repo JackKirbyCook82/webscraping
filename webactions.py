@@ -7,11 +7,11 @@ Created on Tues Sept 1 2020
 """
 
 from abc import ABC, abstractmethod
-#from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.action_chains import ActionChains
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClick', 'WebDoubleClick', 'WebClickDown', 'WebClickRelease', 'WebDragDrop', 'WebMoveTo', 'WebKeyDown', 'WebKeyUp']
+__all__ = ['WebActionChain', 'WebClick', 'WebDoubleClick', 'WebClickDown', 'WebClickRelease', 'WebDragDrop', 'WebMoveTo', 'WebKeyDown', 'WebKeyUp']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -19,103 +19,102 @@ __license__ = ""
 class EmptyWebActionError(Exception): pass
 
 
-#class WebActionChain(list):
-#    def __bool__(self): return self.loaded
-#    def __init__(self, driver, timeout, *args, **kwargs): 
-#        self.__driver, self.__timeout, self.__chain = driver, timeout, ActionChains(driver)
-#    
-#    def __call__(self):  
-#        if not self: raise EmptyWebActionError()
-#        actionchain = ActionChains(self.driver)
-#        for webaction in self: webaction(actionchain)
-#
-#    @property
-#    def loaded(self): return all([bool(webaction) for webaction in self.values()])
-#    def load(self): 
-#        for webaction in self: webaction.load()
-#
-#    @property
-#    def driver(self): return self.__driver
-#    @property
-#    def timeout(self): return self.__timeout
-#    
-#    @classmethod
-#    def register(self, key):
-#        def wrapper(webaction):
-#            assert isinstance(webaction, WebAction)
-#            self[key] = webaction
-#            return webaction
-#        return wrapper
+class WebActionChain(object):
+    def __bool__(self): return self.loaded
+    def __getitem__(self, key): return self.__webelements[key]
+    def __init__(self, driver, timeout, *args, **kwargs): 
+        self.__driver, self.__timeout = driver, timeout
+        self.__webactions = tuple([webaction(driver, timeout) for webaction in self.WebActions])
+        self.__webelements = {key:webelement(driver, timeout) for key, webelement in self.WebElements.items()}
+    
+    @property
+    def loaded(self): return all([webaction.loaded for webaction in self.__webactions]) and all([webelement.loaded for webelement in self.__webelements])
+    def load(self): 
+        print("WebActionChain Loading: {}".format(self.__class__.__name__))
+        for webaction in self.__webactions: webaction.load()
+        for webelement in self.__webelements: webelement.load()
+    
+    @property
+    def driver(self): return self.__driver
+    @property
+    def timeout(self): return self.__timeout
+  
+    def execute(self, *args, **kwargs): return
+    def __call__(self, *args, **kwargs):
+        actions = ActionChains(self.driver)
+        for webaction in self.__webactions: webaction.subscribe(actions)
+        print("WebActionChain Executing: {}".format(self.__class__.__name__))
+        actions.preform()
+        return self.execute(*args, **kwargs)
+
+    @classmethod
+    def create(cls, webactions, *args, webelements={}, **attrs):
+        assert isinstance(webactions, (tuple, list)) and isinstance(webelements, dict)
+        assert all([issubclass(webaction, WebAction) for webaction in webactions])
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebActions':tuple(webactions), 'WebElements':webelements, **attrs})
+        return wrapper
 
 
 class WebAction(ABC): 
     def __bool__(self): return self.loaded
-    def __init__(self, driver, timeout, *args, wait=None, **kwargs): 
-        self.__driver, self.__timeout, self.__wait = driver, timeout, wait
+    def __init__(self, driver, timeout, *args,**kwargs): 
+        self.__driver, self.__timeout = driver, timeout
         self.__webelement = self.WebElement(driver, timeout)       
        
-#    def __call__(self, actionchain):
-#        assert isinstance(actionchain, ActionChains) 
-#        if not self: raise EmptyWebActionError()
-#        self.execute(actionchain)
-#        if self.wait: actionchain.pause(self.wait)
-
     @property
     def loaded(self): return self.__webelement.loaded
-    def load(self): self.__webelement.load()
-       
+    def load(self): 
+        print("WebAction Loading: {}".format(self.__class__.__name__))
+        self.__webelement.load()
+        
+    def subscribe(self, actions):
+        if not self.loaded: raise EmptyWebActionError()
+        self.register(actions)
+        if self.wait: actions.pause(self.wait)
+    
     @abstractmethod
-    def execute(self, actionchain): pass
-                
+    def register(self, actions): pass
+        
     @classmethod
-    def create(cls, webelement): 
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebElement':webelement})
-        return wrapper 
+    def create(cls, webelement, wait=None, **attrs): 
+        def wrapper(subclass): 
+            return type(subclass.__name__, (subclass, cls), {'WebElement':webelement, 'wait':wait, **attrs})
+        return wrapper             
 
 
 class WebClick(WebAction): 
-    pass
-#    def execute(self, actionchain): actionchain.click(self.__webelement)    
+    def register(self, actions): actions.click(self.__webelement)    
     
 class WebDoubleClick(WebAction): 
-    pass 
-#    def execute(self, actionchain): actionchain.double_click(self.__webelement)
+    def register(self, actions): actions.double_click(self.__webelement)
     
 class WebClickDown(WebAction): 
-    pass
-#    def execute(self, actionchain): actionchain.click_and_hold(self.__webelement)
+    def register(self, actions): actions.click_and_hold(self.__webelement)
 
 class WebClickRelease(WebAction): 
-    pass
-#    def execute(self, actionchain): actionchain.release(self.__webelement)
+    def register(self, actions): actions.release(self.__webelement)
 
 class WebMoveTo(WebAction): 
-    pass
-#    def execute(self, actionchain): actionchain.move_to_element(self.__webelement)
+    def register(self, actions): actions.move_to_element(self.__webelement)
  
-
 
 class WebKeyAction(WebAction):
     @classmethod
-    def create(cls, webelement, keyvalue): 
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebElement':webelement, 'keyvalue':keyvalue})
-        return wrapper   
+    def create(cls, webelement, value, **attrs): 
+        return super().create(webelement, value=value, **attrs)
 
 class WebKeyDown(WebKeyAction): 
-    pass
-#    def execute(self, actionchain): actionchain.key_down(self.keyvalue, self.__webelement)
+    def register(self, actions): actions.key_down(self.value, self.__webelement)
     
 class WebKeyUp(WebKeyAction): 
-    pass
-#    def execute(self, actionchain): actionchain.key_up(self.keyvalue, self.__webelement)
-
+    def register(self, actions): actions.key_up(self.value, self.__webelement)
 
 
 class WebDragDrop(WebAction):   
-#    def execute(self, actionchain): actionchain.drag_and_drop(self.__sourcewebelement, self.__destinationwebelement)
+    def register(self, actions): actions.drag_and_drop(self.__sourcewebelement, self.__destinationwebelement)
     
-    def __init__(self, driver, timeout, *args, wait=None, **kwargs):    
-        self.__driver, self.__timeout, self.__wait = driver, timeout, wait
+    def __init__(self, driver, timeout, *args, **kwargs):    
+        self.__driver, self.__timeout = driver, timeout
         self.__sourcewebelement = self.SourceWebElement(driver, timeout)    
         self.__destinationwebelement = self.DestinationWebElement(driver, timeout)
         
@@ -126,13 +125,9 @@ class WebDragDrop(WebAction):
         self.__destinationwebelement.load()
       
     @classmethod
-    def create(cls, source, destination):
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'SourceWebElement':source, 'DestinationWebElement':destination})
+    def create(cls, source, destination, wait=None, **attrs):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'SourceWebElement':source, 'DestinationWebElement':destination, 'wait':wait, **attrs})
         return wrapper 
-
-
-  
-
 
 
 

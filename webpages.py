@@ -21,7 +21,7 @@ class EmptyURLError(Exception): pass
 
 
 class WebPage(ABC):        
-    def __getitem__(self, key): return self.__webelements[key]      
+    def __getitem__(self, key): return self.__webcontrols[key]      
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
     def __init__(self, driver, timeout, *args, wait=None, failure_timeout=10, captcha_timeout=20, **kwargs): 
         self.__driver, self.__timeout, self.__wait = driver, timeout, wait
@@ -29,7 +29,7 @@ class WebPage(ABC):
         except AttributeError: pass
         try: self.__captcha = self.Captcha(driver, captcha_timeout)
         except AttributeError: pass
-        self.__webelements = {key:webelement(driver, timeout) for key, webelement in self.WebElements.items()}       
+        self.__webcontrols = {key:webcontrol(driver, timeout) for key, webcontrol in self.WebControls.items()}       
         self.__url = kwargs.get('url', self.URL)
         if self.__url is None: raise EmptyURLError()
    
@@ -66,20 +66,17 @@ class WebPage(ABC):
     def url(self): return self.__url
     
     @abstractmethod
-    def setup(self, *args, **kwargs): pass
-    @abstractmethod
     def execute(self, *args, **kwargs): pass
-    
+ 
     @classmethod
-    def create(cls, webelements, *args, url=None, **kwargs):
-        assert isinstance(webelements, dict)
-        def wrapper(subclass): 
+    def create(cls, url=None, **webcontrols):
+        def wrapper(subclass):
             attrs = {'URL':url}
-            if 'failure' in webelements.keys(): attrs['Failure'] = webelements.pop('failure')
-            if 'captcha' in webelements.keys(): attrs['Captcha'] = webelements.pop('captcha')         
-            attrs['WebElements'] = webelements
+            if 'failure' in webcontrols.keys(): attrs['Failure'] = webcontrols.pop('failure')
+            if 'captcha' in webcontrols.keys(): attrs['Captcha'] = webcontrols.pop('captcha')   
+            attrs['WebControls'] = webcontrols
             return type(subclass.__name__, (subclass, cls), attrs)
-        return wrapper  
+        return wrapper
 
 
 

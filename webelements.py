@@ -33,7 +33,7 @@ class WebElement(object):
         assert hasattr(self, 'xpath')
         self.__driver, self.__timeout, self.__element = driver, timeout, None        
        
-    def load(self): 
+    def load(self):
         print("WebElement Loading: {}".format(self.__class__.__name__))
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except (NoSuchElementException, TimeoutException, WebDriverException): element = None
@@ -62,7 +62,7 @@ class WebElement(object):
     def timeout(self): return self.__timeout
     @property
     def element(self): 
-        if not self.loaded: return self.__element
+        if self.loaded: return self.__element
         else: raise EmptyWebElementError() 
        
     @classmethod
@@ -91,9 +91,11 @@ class WebElementDict(dict):
     def timeout(self): return self.__timeout
     @property
     def elements(self): 
-        if not self.loaded: return {key:value for key, value in self.items()}
+        if self.loaded: return {key:value for key, value in self.items()}
         else: raise EmptyWebElementError()
 
+    def keys(self): return list(self.keys())
+    def sel(self, value): return self[value]
     def update(self, webelements): super().__init__(webelements)
     def load(self):
         print("WebElements Loading: {}".format(self.__class__.__name__))        
@@ -104,6 +106,7 @@ class WebElementDict(dict):
         assert len(keys) == len(values)
         elements = {self.keyfunction(key):element for key, element in zip(keys, values)} 
         webelements = {key:WebElement(self.driver) for key in elements.keys()}
+        assert elements.keys() == webelements.keys()
         for element, webelement in zip(elements.values(), webelements.values()): webelement.update(element)
         self.update(webelements)
         return self
@@ -129,9 +132,10 @@ class WebElementList(list):
     def timeout(self): return self.__timeout
     @property
     def elements(self): 
-        if not self.loaded: return [item for item in self]
+        if self.loaded: return [item for item in self]
         else: raise EmptyWebElementError()
 
+    def isel(self, index): return self[index]
     def update(self, webelements): super().__init__(webelements)
     def load(self):
         print("WebElements Loading: {}".format(self.__class__.__name__))
