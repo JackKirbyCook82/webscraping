@@ -7,7 +7,6 @@ Created on Mon Dec 30 2019
 """
 
 import re
-import time
 import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
@@ -17,7 +16,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable', 'WebFailure', 'WebCaptcha']
+__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -32,7 +31,7 @@ class WebElement(object):
     def __init__(self, driver, timeout, *args, **kwargs): 
         assert hasattr(self, 'xpath')
         self.__driver, self.__timeout, self.__element = driver, timeout, None        
-       
+        
     def load(self):
         print("WebElement Loading: {}".format(self.__class__.__name__))
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
@@ -64,7 +63,7 @@ class WebElement(object):
     def element(self): 
         if self.loaded: return self.__element
         else: raise EmptyWebElementError() 
-       
+    
     @classmethod
     def create(cls, xpath, **attrs):
         def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'xpath':xpath, **attrs})
@@ -94,7 +93,6 @@ class WebElementDict(dict):
         if self.loaded: return {key:value for key, value in self.items()}
         else: raise EmptyWebElementError()
 
-    def keys(self): return list(self.keys())
     def sel(self, value): return self[value]
     def update(self, webelements): super().__init__(webelements)
     def load(self):
@@ -165,7 +163,7 @@ class WebSelect(WebElement):
     def load(self): 
         print("WebElement Loading: {}".format(self.__class__.__name__))
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
-        except (NoSuchElementException, TimeoutException): element = None
+        except (NoSuchElementException, TimeoutException, WebDriverException): element = None
         self.update(Select(element) if element is not None else element)
         return self
     
@@ -238,14 +236,7 @@ class WebTable(WebElement):
         return super().create(xpath,  headerrow=headerrow, indexcolumn=indexcolumn, **attrs)
 
 
-class WebFailure(WebElement): pass    
-class WebCaptcha(WebElement):
-    def wait(self, duration):
-        while True:
-            print('Waiting for Captcha: {}'.format(self.__class__.__name__))
-            time.sleep(duration)
-            self.load()
-            if not self: break
+
             
 
 

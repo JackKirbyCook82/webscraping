@@ -33,6 +33,7 @@ class WebActionChain(object):
         print("WebActionChain Loading: {}".format(self.__class__.__name__))
         for webaction in self.__webactions: webaction.load()
         for webelement in self.__webelements: webelement.load()
+        return self
     
     @property
     def driver(self): return self.__driver
@@ -66,6 +67,7 @@ class WebAction(ABC):
     def load(self): 
         print("WebAction Loading: {}".format(self.__class__.__name__))
         self.__webelement.load()
+        return self
         
     def subscribe(self, actions):
         if not self.loaded: raise EmptyWebActionError()
@@ -77,8 +79,7 @@ class WebAction(ABC):
         
     @classmethod
     def create(cls, webelement, wait=None, **attrs): 
-        def wrapper(subclass): 
-            return type(subclass.__name__, (subclass, cls), {'WebElement':webelement, 'wait':wait, **attrs})
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebElement':webelement, 'wait':wait, **attrs})
         return wrapper             
 
 
@@ -100,8 +101,7 @@ class WebMoveTo(WebAction):
 
 class WebKeyAction(WebAction):
     @classmethod
-    def create(cls, webelement, value, **attrs): 
-        return super().create(webelement, value=value, **attrs)
+    def create(cls, webelement, value, **attrs): return super().create(webelement, value=value, **attrs)
 
 class WebKeyDown(WebKeyAction): 
     def register(self, actions): actions.key_down(self.value, self.__webelement)
@@ -123,6 +123,7 @@ class WebDragDrop(WebAction):
     def load(self): 
         self.__sourcewebelement.load()
         self.__destinationwebelement.load()
+        return self
       
     @classmethod
     def create(cls, source, destination, wait=None, **attrs):
