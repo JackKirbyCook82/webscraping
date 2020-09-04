@@ -12,6 +12,7 @@ from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
+from selenium.common.exceptions import TimeoutException
 
 from webscraping.webelements import EmptyWebElementError
 from webscraping.webactions import EmptyWebActionError
@@ -75,7 +76,11 @@ class WebDriver(ABC):
         options, capabilities = self.setup(*args, **kwargs)
         self.start(options, capabilities)   
         page = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
-        page.load(*args, **kwargs)
+        try: page.load(*args, **kwargs)
+        except TimeoutException: self.refresh()
+        if not page.loaded: raise EmptyWebPageError('Page Not Loaded')
+        failure = page.failure()
+        if failure: raise EmptyWebPageError(str(failure))
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         

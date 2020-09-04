@@ -16,12 +16,13 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelect', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable']
+__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelection', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
 class EmptyWebElementError(Exception): pass
+class InconsistentWebElementError(Exception): pass
 
 
 class WebElement(object): 
@@ -41,8 +42,7 @@ class WebElement(object):
         
     def update(self, element): 
         self.__element = element 
-        if element is not None: print("WebElement Loaded: {}".format(self.__class__.__name__))
-        else: print("WebElement Missing: {}".format(self.__class__.__name__))         
+        if element is None: print("WebElement Missing: {}".format(self.__class__.__name__))         
          
     @property
     def text(self): return self.element.text 
@@ -99,9 +99,9 @@ class WebElementDict(dict):
         print("WebElements Loading: {}".format(self.__class__.__name__))        
         try: keys = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.keyXPath))
         except (NoSuchElementException, TimeoutException, WebDriverException): keys = []
-        try: values = WebDriverWait(self.driver, self.timeout).until(self.locate(self.valueXPath))
+        try: values = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.valueXPath))
         except (NoSuchElementException, TimeoutException, WebDriverException): values = []   
-        assert len(keys) == len(values)
+        if len(keys) == len(values): raise InconsistentWebElementError('Keys[{}] != Values[{}]'.format(len(keys), len(values)))
         elements = {self.keyfunction(key):element for key, element in zip(keys, values)} 
         webelements = {key:WebElement(self.driver) for key in elements.keys()}
         assert elements.keys() == webelements.keys()
@@ -152,7 +152,7 @@ class WebElementList(list):
         return wrapper 
 
 
-class WebSelect(WebElement):
+class WebSelection(WebElement):
     def __len__(self): return len(self.element.options())    
     
     def click(self): self.element.click()      

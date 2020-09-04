@@ -72,11 +72,7 @@ class WebPage(ABC):
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(self.__class__.__name__))
         print(str(self.url))
-        self.driver.get(str(self.url))
-        loaded, failure = self.loaded, self.failure()
-        if not loaded: raise EmptyWebPageError('Page Not Loaded')
-        if failure: raise EmptyWebPageError(str(failure))
-        print('WebPage Loaded: {}'.format(self.__class__.__name__))
+        self.driver.get(str(self.url))      
        
     @property
     def driver(self): return self.__driver  
