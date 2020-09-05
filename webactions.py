@@ -39,14 +39,18 @@ class WebActionChain(object):
     @property
     def timeout(self): return self.__timeout
   
-### MAKE SEPERATE ACTION CHAINS IF CUSTOM ACTION IN MIDDLE ###
-#    def execute(self, *args, **kwargs): pass
-#    def __call__(self, *args, **kwargs):
-#        actions = ActionChains(self.driver)
-#        for webaction in self.__webactions: webaction.subscribe(actions)
-#        print("WebActionChain Executing: {}".format(self.__class__.__name__))
-#        actions.perform()
-#        return self.execute(*args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        actionchains = []
+        for webaction in self.__webactions:
+            if issubclass(webaction, WebCustomAction): actionchains.append(webaction)
+            elif issubclass(webaction, WebAction):  
+                try: webaction.subscribeTo(actionchains[-1])
+                except (IndexError, AttributeError): actionchains.append(webaction.subscribeTo(ActionChains(self.driver)))
+            else: raise TypeError(type(webaction))
+        print("WebActionChain Executing: {}".format(self.__class__.__name__))
+        for actionchain in actionchains: 
+            try: actionchain.perform()
+            except AttributeError: actionchain(*args, **kwargs)
 
     @classmethod
     def create(cls, webactions, *args, **attrs):
@@ -81,7 +85,7 @@ class WebActionBase(ABC):
 class WebAction(WebActionBase):
     @abstractmethod
     def registerTo(self, actionchain): pass    
-    def subscriteTo(self, actionchain):
+    def subscribeTo(self, actionchain):
         if not self.loaded: raise EmptyWebActionError()
         self.registerTo(actionchain)
         if self.wait: actionchain.pause(self.wait)
@@ -119,7 +123,11 @@ class WebKeyUp(WebAction):
 class WebDragDrop(WebAction):   
     def registerTo(self, actionchain): actionchain.drag_and_drop(self.webelements[0].element, self.webelements[1].element)
 
-
+class WebSelect(WebCustomAction):
+    def execute(self, *args, select, **kwargs): 
+        if isinstance(select, str): self.webelements[0].sel(select) 
+        elif isinstance(select, int): self.webelements[0].isel(select)
+        else: raise TypeError(type(select))
 
 
 
