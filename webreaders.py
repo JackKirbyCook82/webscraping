@@ -14,7 +14,6 @@ import requests
 import pandas as pd
 from parse import parse
 from itertools import cycle
-from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
@@ -29,13 +28,6 @@ __author__ = "Jack Kirby Cook"
 __all__ = ['WebReader', 'RetryAdapter', 'Proxy', 'ProxyPool', 'Authenticate', 'Headers', 'HeadersPool']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
-
-
-_PATTERN = r"\d{1,2}"
-_TIMEKEYS = ('days', 'hours', 'minutes', 'day', 'hour', 'minute')
-_TIMEDELTAS = {key:' '.join([_PATTERN, key]) for key in _TIMEKEYS} 
-
-_roundtime = lambda t: t.replace(second=0, microsecond=0) + timedelta(minutes=t.second//30)
 
 
 class Headers(ODict): 
@@ -63,20 +55,19 @@ class HeadersPool(object):
         return cls([Headers([(key, value) for key, value in content.items()]) for content in contents])
 
     
-class Proxy(ntuple('Proxy', 'domain port time')): 
+class Proxy(ntuple('Proxy', 'domain port')): 
     httpproxyformat = 'http://{domain}:{port}'
     def __str__(self): return self.httpproxyformat.format(**self._asdict())  
-    def __new__(cls, proxyDomain, proxyPort, proxyTime): return super().__new__(cls, proxyDomain, proxyPort, _roundtime(proxyTime))
+    def __new__(cls, proxyDomain, proxyPort): return super().__new__(cls, proxyDomain, proxyPort)
     def __hash__(self): return hash((self.domain, self.port,))
     def __eq__(self, other): return (self.domain, self.port) == (other.domain, other.port)
     def __ne__(self, other): return not self.__eq__(other)      
     def __next__(self): return self
     
     @classmethod
-    def fromstr(cls, string, proxytime):
+    def fromstr(cls, string):
         content = parse(cls.httpproxyformat, string)
-        assert isinstance(proxytime, datetime)
-        return cls(content.named['domain'], content.named['port'], proxytime)
+        return cls(content.named['domain'], content.named['port'])
         
 
 class ProxyPool(object):
@@ -88,30 +79,22 @@ class ProxyPool(object):
     def __sub__(self, other): return self.__class__([x for x in iter(self) if x not in [y for y in iter(other)]])
     
     def __init__(self, proxys):
+        assert isinstance(proxys, list)
         assert all([isinstance(proxy, Proxy) for proxy in proxys])
         self.__proxys = list(set(proxys))
         random.shuffle(self.__proxys)
         self.__pool = cycle(self.__proxys)
     
-    def update(self, referenceTime): 
-        assert isinstance(referenceTime, datetime)
-        proxys = [proxy for proxy in iter(self) if proxy.time >= _roundtime(referenceTime)]
-        return self.__class__(proxys)
-    
     @property
     def dataframe(self): 
-        content = {'domain':[proxy.domain for proxy in self.__proxys]}
-        content['port'] = [proxy.port for proxy in self.__proxys]
-        content['time'] = [proxy.time for proxy in self.__proxys]
+        content = {'domain':[proxy.domain for proxy in self.__proxys], 'port':[proxy.port for proxy in self.__proxys]}
         dataframe = pd.DataFrame(content)
-        dataframe['time'] = pd.to_datetime(dataframe['time'])
         return dataframe
   
     @classmethod
     def fromdataframe(cls, dataframe):
         dataframe.columns = [column.lower() for column in dataframe.columns]
-        dataframe['time'] = pd.to_datetime(dataframe['time'])
-        proxys = [Proxy(proxyDomain, proxyPort, proxyTime) for proxyDomain, proxyPort, proxyTime in zip(dataframe['domain'], dataframe['port'], dataframe['time'])]
+        proxys = [Proxy(proxyDomain, proxyPort) for proxyDomain, proxyPort in zip(dataframe['domain'], dataframe['port'])]
         return cls(proxys)    
         
 
