@@ -130,7 +130,7 @@ class WebDriver(ABC):
 
     def getcapabilities(self, *args, **kwargs):
         return DesiredCapabilities.CHROME.copy()
-    
+       
     @abstractmethod
     def execute(self, page, *args, **kwargs): pass
  
@@ -149,6 +149,8 @@ class WebDriver(ABC):
         if self.__driver is None: raise EmptyWebDriverError()
         else: return self.__driver
 
+    def addproxy(self, proxy): self.__proxy = proxy
+    
     def back(self): self.driver.back
     def forward(self): self.driver.forward
     def sleep(self): time.sleep(self.__wait)
