@@ -21,16 +21,36 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-#class EmptyWebElementError(Exception): pass
-
+class EmptyWebElementError(Exception): 
+    def __str__(self): pass
+    def __init__(self, webelement): 
+        assert isinstance(webelement, WebElement)
+        self.webelement = webelement
+    
+class EmptyWebElementsError(Exception): 
+    def __str__(self): pass
+    def __init__(self, webelements):
+        assert isinstance(webelements, (list, dict))
+        try: assert all([isinstance(value, WebElement) for value in webelements.values()])
+        except AttributeError: assert all([isinstance(item, WebElement) for item in webelements])
+        self.webelements = webelements
+    
 
 class WebElement(object): 
     def __getattr__(self, attr): return self.element.get_attribute(attr)
-    def __getitem__(self, key): return self.element.get_attribute(key)  
-    def __init__(self, driver, timeout, *args, **kwargs): 
-        assert hasattr(self, 'xpath')
-        self.__driver, self.__timeout, self.__element = driver, timeout, None        
-        
+    def __getitem__(self, key): return self.element.get_attribute(key) 
+    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__element = driver, timeout, None    
+    def __new__(cls, *args, **kwargs):
+        assert hasattr(cls, 'xpath')
+        return super().__new__(cls)
+   
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self):
+        content = {'Loaded':self.loaded}
+        if self.loaded: content['Stale'] = self.stale
+        if not self.stale: content.update({'Enabled':self.enabled, 'Displayed':self.displayed})
+        return "{}|{}".format(self.__class__.__name__, ', '.join(['='.join([key, value]) for key, value in content.items()]))    
+    
     def __load(self):
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except (NoSuchElementException, TimeoutException, WebDriverException): element = None        
@@ -51,12 +71,6 @@ class WebElement(object):
         self.__element = element 
         if element is None: print("WebElement Missing: {}".format(self.__class__.__name__))         
        
-    def __str__(self):
-        content = {'Loaded':self.loaded}
-        if self.loaded: content['Stale'] = self.stale
-        if not self.stale: content.update({'Enabled':self.enabled, 'Displayed':self.displayed})
-        return "{}|{}".format(self.__class__.__name__, ', '.join(['='.join([key, value]) for key, value in content.items()]))
-        
     @property
     def text(self): return self.element.text 
     @property
@@ -77,7 +91,7 @@ class WebElement(object):
     @property
     def element(self): 
         if self.loaded: return self.__element
-        else: raise EmptyWebElementError(self.__class__.__name__) 
+        else: raise EmptyWebElementError(self) 
     
     @classmethod
     def create(cls, xpath, **attrs):
@@ -97,6 +111,9 @@ class WebElementDict(dict):
     def __getitem__(self, key): return super().__getitem__(self.keyformat(key))
     def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout 
 
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self): return "\n".join([str(webelement) for webelement in self.values()])
+
     @property
     def loaded(self): return bool(self)
     @property
@@ -106,7 +123,7 @@ class WebElementDict(dict):
     @property
     def elements(self): 
         if self.loaded: return {key:value for key, value in self.items()}
-        else: raise EmptyWebElementError(self.__class__.__name__)
+        else: raise EmptyWebElementsError(self)
 
     def sel(self, value): return self[value]
     def update(self, webelements): super().__init__(webelements)
@@ -137,6 +154,9 @@ class WebElementList(list):
     def __getitem__(self, index): return super().__getitem__(self.indexformat(index))
     def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout   
 
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self): return "\n".join([str(webelement) for webelement in self])
+
     @property
     def loaded(self): return bool(self)
     @property
@@ -146,7 +166,7 @@ class WebElementList(list):
     @property
     def elements(self): 
         if self.loaded: return [item for item in self]
-        else: raise EmptyWebElementError(self.__class__.__name__)
+        else: raise EmptyWebElementsError(self)
 
     def isel(self, index): return self[index]
     def update(self, webelements): super().__init__(webelements)

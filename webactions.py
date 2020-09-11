@@ -17,7 +17,17 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-#class EmptyWebActionError(Exception): pass
+class EmptyWebActionError(Exception): 
+    def __str__(self): pass
+    def __init__(self, webaction):
+        assert isinstance(webaction, (WebAction))
+        self.webaction = webaction
+
+class WebActionFailure(Exception):
+    def __str__(self): pass
+    def __init__(self, webaction):
+        assert isinstance(webaction, (WebAction))
+        self.webaction = webaction
 
 
 class WebChain(object):
@@ -41,7 +51,7 @@ class WebChain(object):
 
     def __call__(self, *args, **kwargs):
         for link in self.__links: 
-            if not link.loaded: raise EmptyWebActionError(link.__class__.__name__)
+            if not link.loaded: raise EmptyWebActionError(link)
         for segment in self.build():
             try: segment.perform()
             except AttributeError: segment(*args, **kwargs)
@@ -69,7 +79,7 @@ class WebAction(ABC):
     def __init__(self, driver, timeout, *args, **kwargs):
         self.__driver, self.__timeout = driver, timeout
         self.__webelements = [item(driver, timeout) for item in self.WebElements] 
-        if len(self.__webelements) < 1: raise EmptyWebActionError(self.__class__.__name__)
+        if len(self.__webelements) < 1: raise EmptyWebActionError(self)
           
     @property
     def loaded(self): return all([webelement.loaded for webelement in self.webelements])  
@@ -80,7 +90,7 @@ class WebAction(ABC):
     @abstractmethod
     def execute(self, *args, **kwargs): pass
     def __call__(self, *args, **kwargs): 
-        if not self.loaded: raise EmptyWebActionError(self.__class__.__name__)
+        if not self.loaded: raise EmptyWebActionError(self)
         self.execute(*args, **kwargs)   
 
     @property
@@ -102,16 +112,16 @@ class WebProcess(WebAction):
     @abstractmethod
     def process(self, x): pass
     def subscribe(self, x): 
-        if not self.loaded: raise EmptyWebActionError(self.__class__.__name__)
+        if not self.loaded: raise EmptyWebActionError(self)
         try: self.process(x)
-        except AttributeError: raise ???
+        except AttributeError: raise WebActionFailure(self)
         if self.wait: x.pause(self.wait)
         return x
 
     def execute(self, *args, **kwargs):
         x = ActionChains(self.driver)
         try: self.process(x)
-        except AttributeError: raise ???
+        except AttributeError: raise WebActionFailure(self)
         x.perform()
 
 
@@ -122,7 +132,7 @@ class WebOperation(WebAction):
     def execute(self, *args, **kwargs): 
         self.operation(*args, **kwargs)
         if self.wait: time.sleep(self.wait)
- 
+
     
 class WebClick(WebProcess): 
     def process(self, x): x.click(self.webelements[0].element)    

@@ -14,7 +14,7 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 from selenium.common.exceptions import TimeoutException
 
-from webscraping.webelements import EmptyWebElementError
+from webscraping.webelements import EmptyWebElementError, EmptyWebElementsError
 from webscraping.webactions import EmptyWebActionError
 from webscraping.webpages import EmptyWebPageError, CaptchaWebPageError
 
@@ -25,8 +25,12 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-#class EmptyWebDriverError(Exception): pass
 class MaxWebDriverRetryError(Exception): pass
+class EmptyWebDriverError(Exception):
+    def __str__(self): pass
+    def __init__(self, webdriver): 
+        assert isinstance(webdriver, WebDriver)
+        self.webdriver = webdriver
 
 
 class WebDriver(ABC):
@@ -64,7 +68,7 @@ class WebDriver(ABC):
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             yield from self.run(*args, **kwargs)
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
-        except (EmptyWebElementError, EmptyWebActionError, EmptyWebPageError, CaptchaWebPageError, EmptyWebDriverError) as error:
+        except (EmptyWebElementError, EmptyWebElementsError, EmptyWebActionError, EmptyWebPageError, CaptchaWebPageError, EmptyWebDriverError) as error:
             self.stop(False)
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error), '\n')
@@ -78,11 +82,11 @@ class WebDriver(ABC):
         try: page.load(*args, **kwargs)
         except TimeoutException: self.refresh()
         if not page.loaded: self.refresh() 
-        if not page.loaded: raise EmptyWebPageError('Page Not Loaded')
-        failure = page.failure()
-        if failure: raise EmptyWebPageError(str(failure))
-        captcha = page.captcha()
-        if captcha: raise CaptchaWebPageError(str(captcha))
+        if not page.loaded: raise EmptyWebPageError(page)
+#        failure = page.failure()
+#        if failure: raise EmptyWebPageError(page)
+#        captcha = page.captcha()
+#        if captcha: raise CaptchaWebPageError(page)
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         
@@ -148,7 +152,7 @@ class WebDriver(ABC):
     def html(self): return self.driver.page_source   
     @property
     def driver(self):     
-        if self.__driver is None: raise EmptyWebDriverError()
+        if self.__driver is None: raise EmptyWebDriverError(self)
         else: return self.__driver
 
     def addproxy(self, proxy): self.__proxy = proxy
