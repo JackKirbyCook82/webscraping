@@ -24,9 +24,9 @@ failure_xpath = "//div[@id='main-message']//span[@jsselect='heading']"
 captcha_xpath = "//div[@class='captcha-container']"
 
 
-class EmptyWebPageError(Exception): pass
-class CaptchaWebPageError(Exception): pass
-class EmptyURLError(Exception): pass
+#class EmptyWebPageError(Exception): pass
+#class CaptchaWebPageError(Exception): pass
+#class EmptyURLError(Exception): pass
 
 
 class PageCondition(object):
@@ -53,13 +53,12 @@ class Captcha: pass
         
 
 class WebPage(ABC):         
-    def __getitem__(self, key): return self.__webcontrols[key]      
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
+    def __getitem__(self, key): return self.__webcontrols[key]          
     def __init__(self, driver, timeout, *args, **kwargs): 
         self.__driver, self.__timeout = driver, timeout
         self.__webcontrols = {key:webcontrol(driver, timeout) for key, webcontrol in self.WebControls.items()}       
         self.__url = kwargs.get('url', self.URL)
-        if self.__url is None: raise EmptyURLError()        
+        if self.__url is None: raise EmptyURLError(self.__class__.__name__)        
     
     @property
     def loaded(self): 
@@ -74,6 +73,10 @@ class WebPage(ABC):
         print(str(self.url))
         self.driver.get(str(self.url))      
        
+    def __call__(self, *args, **kwargs): 
+        if not self.loaded: raise EmptyWebPageError(self.__class__.__name__)
+        return self.execute(*args, **kwargs)     
+        
     @property
     def driver(self): return self.__driver  
     @property

@@ -16,7 +16,7 @@ from selenium.common.exceptions import TimeoutException
 
 from webscraping.webelements import EmptyWebElementError
 from webscraping.webactions import EmptyWebActionError
-from webscraping.webpages import EmptyWebPageError
+from webscraping.webpages import EmptyWebPageError, CaptchaWebPageError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -25,7 +25,7 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-class EmptyWebDriverError(Exception): pass
+#class EmptyWebDriverError(Exception): pass
 class MaxWebDriverRetryError(Exception): pass
 
 
@@ -64,11 +64,10 @@ class WebDriver(ABC):
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             yield from self.run(*args, **kwargs)
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
-        except (EmptyWebElementError, EmptyWebActionError, EmptyWebPageError) as error:
+        except (EmptyWebElementError, EmptyWebActionError, EmptyWebPageError, CaptchaWebPageError, EmptyWebDriverError) as error:
             self.stop(False)
             print("WebDriver Failure: {}".format(self.__class__.__name__))
-            print(error.__class__.__name__) 
-            print(str(error), "\n")
+            print(str(error), '\n')
             if retry < self.__retrys: yield from self.controller(*args, retry=retry+1, **kwargs)
             else: raise MaxWebDriverRetryError(retry)
         
@@ -78,9 +77,12 @@ class WebDriver(ABC):
         page = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
         try: page.load(*args, **kwargs)
         except TimeoutException: self.refresh()
+        if not page.loaded: self.refresh() 
         if not page.loaded: raise EmptyWebPageError('Page Not Loaded')
         failure = page.failure()
         if failure: raise EmptyWebPageError(str(failure))
+        captcha = page.captcha()
+        if captcha: raise CaptchaWebPageError(str(captcha))
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         
@@ -154,8 +156,9 @@ class WebDriver(ABC):
     def back(self): self.driver.back
     def forward(self): self.driver.forward
     def sleep(self): time.sleep(self.__wait)
-    def refresh(self): self.driver.refresh
-
+    def refresh(self): 
+        self.driver.refresh
+        self.sleep()
 
     
 

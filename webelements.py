@@ -21,29 +21,42 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-class EmptyWebElementError(Exception): pass
-class InconsistentWebElementError(Exception): pass
+#class EmptyWebElementError(Exception): pass
 
 
 class WebElement(object): 
-    def __bool__(self): return self.__element is not None
     def __getattr__(self, attr): return self.element.get_attribute(attr)
     def __getitem__(self, key): return self.element.get_attribute(key)  
     def __init__(self, driver, timeout, *args, **kwargs): 
         assert hasattr(self, 'xpath')
         self.__driver, self.__timeout, self.__element = driver, timeout, None        
         
-    def load(self):
-        print("WebElement Loading: {}".format(self.__class__.__name__))
+    def __load(self):
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
-        except (NoSuchElementException, TimeoutException, WebDriverException): element = None
+        except (NoSuchElementException, TimeoutException, WebDriverException): element = None        
         self.update(element)
-        return self
         
+    def load(self):
+        if not self.loaded:
+            print("WebElement Loading: {}".format(self.__class__.__name__))
+            self.__load()            
+            return self
+        if self.stale:
+            print('WebElement Reloading: {}'.format(self.__class__.__name__))
+            self.__load()
+            return self
+        return self
+
     def update(self, element): 
         self.__element = element 
         if element is None: print("WebElement Missing: {}".format(self.__class__.__name__))         
-         
+       
+    def __str__(self):
+        content = {'Loaded':self.loaded}
+        if self.loaded: content['Stale'] = self.stale
+        if not self.stale: content.update({'Enabled':self.enabled, 'Displayed':self.displayed})
+        return "{}|{}".format(self.__class__.__name__, ', '.join(['='.join([key, value]) for key, value in content.items()]))
+        
     @property
     def text(self): return self.element.text 
     @property
@@ -52,9 +65,11 @@ class WebElement(object):
     def enabled(self): return self.element.is_enabled()
     @property
     def displayed(self): return self.element.is_displayed() 
-    
     @property
-    def loaded(self): return bool(self)    
+    def stale(self): return EC.staleness_of(self.element)     
+    @property
+    def loaded(self): return self.__element is not None 
+    
     @property
     def driver(self): return self.__driver
     @property
@@ -62,7 +77,7 @@ class WebElement(object):
     @property
     def element(self): 
         if self.loaded: return self.__element
-        else: raise EmptyWebElementError() 
+        else: raise EmptyWebElementError(self.__class__.__name__) 
     
     @classmethod
     def create(cls, xpath, **attrs):
@@ -91,7 +106,7 @@ class WebElementDict(dict):
     @property
     def elements(self): 
         if self.loaded: return {key:value for key, value in self.items()}
-        else: raise EmptyWebElementError()
+        else: raise EmptyWebElementError(self.__class__.__name__)
 
     def sel(self, value): return self[value]
     def update(self, webelements): super().__init__(webelements)
@@ -101,7 +116,7 @@ class WebElementDict(dict):
         except (NoSuchElementException, TimeoutException, WebDriverException): keys = []
         try: values = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.valueXPath))
         except (NoSuchElementException, TimeoutException, WebDriverException): values = []   
-        if len(keys) == len(values): raise InconsistentWebElementError('Keys[{}] != Values[{}]'.format(len(keys), len(values)))
+        if len(keys) == len(values): raise ValueError('Keys[{}] != Values[{}]'.format(len(keys), len(values)))
         elements = {self.keyfunction(key):element for key, element in zip(keys, values)} 
         webelements = {key:WebElement(self.driver) for key in elements.keys()}
         assert elements.keys() == webelements.keys()
@@ -131,7 +146,7 @@ class WebElementList(list):
     @property
     def elements(self): 
         if self.loaded: return [item for item in self]
-        else: raise EmptyWebElementError()
+        else: raise EmptyWebElementError(self.__class__.__name__)
 
     def isel(self, index): return self[index]
     def update(self, webelements): super().__init__(webelements)
