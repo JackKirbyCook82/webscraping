@@ -24,56 +24,40 @@ failure_xpath = "//div[@id='main-message']//span[@jsselect='heading']"
 captcha_xpath = "//div[@class='captcha-container']"
 
 
-class EmptyWebPageError(Exception):
-    def __str__(self): pass
-    def __init__(self, webpage): 
-        assert isinstance(webpage, WebPage)
-        self.webpage = webpage
+class WebPageError(Exception):
+    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, '\n'.join(list(self.args))) 
 
-class CaptchaWebPageError(Exception):
-    def __str__(self): pass
-    def __init__(self, webpage): 
-        assert isinstance(webpage, WebPage)
-        self.webpage = webpage
+
+class EmptyWebPageError(WebPageError): pass
+class EmptyWebPageURLError(WebPageError): pass
+class FailureWebPageError(WebPageError): pass
+class CaptchaWebPageError(WebPageError): pass
     
-class EmptyWebPageURLError(Exception):
-    def __str__(self): pass
-    def __init__(self, webpage): 
-        assert isinstance(webpage, WebPage)
-        self.webpage = webpage
 
-
-class PageCondition(ABC):
+class WebPageCondition(ABC):    
+    def raiseException(self): raise self.Exception(str(self.webpage), str(self)) 
+    
     def __bool__(self): return True
-    def __call__(self): self.execute()
+    def __init__(self, webpage): self.webpage = webpage
+    def __str__(self): return "|".join([self.__class__.__name__, str(self.element.text)])
     def __new__(cls, webpage): 
         assert isinstance(webpage, WebPage)
         try: element = WebDriverWait(webpage.driver, cls.timeout).until(EC.presence_of_element_located((By.XPATH, cls.xpath)))    
         except (NoSuchElementException, TimeoutException, WebDriverException): return False
         condition = super().__new__(cls)
         setattr(condition, 'element', element)
-        return condition
-     
-    @abstractmethod
-    def string(self): pass
-    @abstractmethod
-    def execute(self): pass
-    
+        return condition    
+
     @classmethod
-    def create(cls, xpath, timeout):
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'xpath':xpath, 'timeout':timeout})
+    def create(cls, xpath, timeout, exception):
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'xpath':xpath, 'timeout':timeout, 'Exception':exception})
         return wrapper
         
     
-@PageCondition.create(xpath=failure_xpath, timeout=10)
-class Failure:
-    def string(self): pass
-    def execute(self): raise EmptyWebPageError() 
-    
-@PageCondition.create(xpath=captcha_xpath, timeout=10)
-class Captcha: 
-    def string(self): pass
-    def execute(self): raise CaptchaWebPageError()      
+@WebPageCondition.create(xpath=failure_xpath, timeout=10, exception=FailureWebPageError)
+class Failure: pass
+@WebPageCondition.create(xpath=captcha_xpath, timeout=10, exception=CaptchaWebPageError)
+class Captcha: pass   
         
 
 class WebPage(ABC):         
@@ -83,20 +67,25 @@ class WebPage(ABC):
         self.__webcontrols = {key:webcontrol(driver, timeout) for key, webcontrol in self.WebControls.items()}       
         self.__url = kwargs.get('url', self.URL)
         if self.__url is None: raise EmptyWebPageURLError(self)        
+ 
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])
     
     @property
     def loaded(self): 
         try: return WebDriverWait(self.driver, self.timeout).until(lambda driver: driver.current_url != notloaded_url)   
         except (NoSuchElementException, TimeoutException, WebDriverException): return False
     
-#    def failure(self): return Failure(self)
-#    def captcha(self): return Captcha(self)
-        
     def load(self, *args, **kwargs): 
-        print("WebPage Loading: {}".format(self.__class__.__name__))
-        print(str(self.url))
+        print("WebPage Loading: {}".format(str(self)))
         self.driver.get(str(self.url))      
        
+    def verify(self):
+        try: Failure(self).raiseException()
+        except AttributeError: pass
+        try: Captcha(self).raiseException()
+        except AttributeError: pass
+    
     def __call__(self, *args, **kwargs): 
         if not self.loaded: raise EmptyWebPageError(self)
         return self.execute(*args, **kwargs)     

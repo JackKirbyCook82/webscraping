@@ -14,9 +14,9 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 from selenium.common.exceptions import TimeoutException
 
-from webscraping.webelements import EmptyWebElementError, EmptyWebElementsError
+from webscraping.webelements import EmptyWebElementError
 from webscraping.webactions import EmptyWebActionError
-from webscraping.webpages import EmptyWebPageError, CaptchaWebPageError
+from webscraping.webpages import EmptyWebPageError, FailureWebPageError, CaptchaWebPageError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -27,14 +27,12 @@ __license__ = ""
 
 class MaxWebDriverRetryError(Exception): pass
 class EmptyWebDriverError(Exception):
-    def __str__(self): pass
-    def __init__(self, webdriver): 
-        assert isinstance(webdriver, WebDriver)
-        self.webdriver = webdriver
+    def __str__(self): return "{}\n{}".format(self.__class__.__name__, self.args[0])
 
 
 class WebDriver(ABC):
     def __bool__(self): return self.__driver is not None
+    def __str__(self): return self.__class__.__name__
     def __repr__(self): 
         content = {'timeout':self.__timeout, 'retrys':self.__retrys, **self.options}
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
@@ -68,7 +66,7 @@ class WebDriver(ABC):
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             yield from self.run(*args, **kwargs)
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
-        except (EmptyWebElementError, EmptyWebElementsError, EmptyWebActionError, EmptyWebPageError, CaptchaWebPageError, EmptyWebDriverError) as error:
+        except (EmptyWebElementError, EmptyWebActionError, EmptyWebPageError, FailureWebPageError, CaptchaWebPageError, EmptyWebDriverError) as error:
             self.stop(False)
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error), '\n')
@@ -81,12 +79,7 @@ class WebDriver(ABC):
         page = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
         try: page.load(*args, **kwargs)
         except TimeoutException: self.refresh()
-        if not page.loaded: self.refresh() 
-        if not page.loaded: raise EmptyWebPageError(page)
-#        failure = page.failure()
-#        if failure: raise EmptyWebPageError(page)
-#        captcha = page.captcha()
-#        if captcha: raise CaptchaWebPageError(page)
+        page.verify()
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         
@@ -152,7 +145,7 @@ class WebDriver(ABC):
     def html(self): return self.driver.page_source   
     @property
     def driver(self):     
-        if self.__driver is None: raise EmptyWebDriverError(self)
+        if self.__driver is None: raise EmptyWebDriverError(str(self))
         else: return self.__driver
 
     def addproxy(self, proxy): self.__proxy = proxy
