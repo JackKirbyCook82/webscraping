@@ -21,7 +21,7 @@ class EmptyWebActionError(Exception):
     def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
 
 class WebActionFailure(Exception):
-    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
+    def __str__(self): return "\n{}".format(self.args[0])
 
 
 class WebChain(object):
@@ -155,16 +155,7 @@ class WebDragDrop(WebProcess):
     def process(self, x): x.drag_and_drop(self.webelements[0].element, self.webelements[1].element)
 
 class WebSelect(WebOperation): 
-    def operation(self, *args, select, **kwargs):
-        if isinstance(select, int): self.webelements[0].isel(select)
-        elif isinstance(select, str): self.webelements[0].sel(select)
-        else: raise TypeError(select)
-
-
-
-
-
-
+    def operation(self, *args, select, **kwargs): self.webelements[0].sel(select)
 
 
 

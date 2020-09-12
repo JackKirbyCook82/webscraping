@@ -34,11 +34,8 @@ class WebElement(object):
         return super().__new__(cls)
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
-    def __str__(self):
-        content = {'Loaded':self.loaded}
-        if self.loaded: content.update({'Enabled':self.enabled, 'Displayed':self.displayed})
-        return "{}|{}".format(self.__class__.__name__, ', '.join(['='.join([key, str(value)]) for key, value in content.items()]))    
-    
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(self.loaded))
+
     def get(self):
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except (NoSuchElementException, TimeoutException, WebDriverException): element = None        
@@ -186,17 +183,33 @@ class WebElementList(list):
 
 class WebSelection(WebElement):
     def __len__(self): return len(self.element.options())    
-    
-    def click(self): self.element.click()      
-    def clear(self): self.element.deselect_all()    
-    def keys(self): return [element.text for element in self.element.options()]
-    def isel(self, index): self.element.select_by_index(index)
-    def sel(self, value): self.element.select_by_visible_text(value)
-    
-    def get(self): 
-        try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
-        except (NoSuchElementException, TimeoutException, WebDriverException): element = None
-        self.update(Select(element) if element is not None else element)
+    def __init__(self, *args, **kwargs):
+        super().__init__(self, *args, **kwargs)
+        self.__select = None
+
+    @property
+    def select(self): 
+        if self.loaded: return self.__select
+        else: raise EmptyWebElementError(str(self)) 
+
+    def update(self, element): 
+        super().update(element)
+        self.__select = Select(element) if element is not None else element
+
+    def click(self): self.select.click()      
+    def clear(self): self.select.deselect_all()    
+    def keys(self): return [item.text for item in self.select.options()]
+    def isel(self, index): self.select.select_by_index(index)
+    def tsel(self, text): self.select.select_by_visible_text(text)
+    def vsel(self, value): self.select.select_by_value(value)
+    def sel(self, x):
+        if isinstance(x, int): self.isel(x)
+        elif isinstance(x, str): 
+            try: self.vsel({key.replace(' ', ''):value for key, value in self.mapping.items()}[x.replace(' ', '')])
+            except AttributeError: 
+                try: self.vsel(x)
+                except NoSuchElementException: self.tsel(x)
+        else: raise TypeError(type(x).__name__)
     
     
 class WebLink(WebElement):

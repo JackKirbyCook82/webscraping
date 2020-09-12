@@ -25,8 +25,9 @@ CAPTCHA_XPATH = "//div[@class='captcha-container']"
 TIMEOUT = 10
 
 class WebPageError(Exception):
-    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, '\n'.join(list(self.args))) 
-
+    def __str__(self):  
+        string = "{}: {}".format(self.__class__.__name__, self.args[0])
+        return string if not self.args[1:] else "\n".join([string, *self.args[1:]])
 
 class EmptyWebPageError(WebPageError): pass
 class EmptyWebPageURLError(WebPageError): pass
@@ -34,22 +35,28 @@ class FailureWebPageError(WebPageError): pass
 class CaptchaWebPageError(WebPageError): pass
 
 
-def checkLoadFailure(webpage):
-    try: WebDriverWait(webpage.driver, TIMEOUT).until(lambda driver: driver.current_url != NOTLOADED_URL)   
+def checkLoadFailure(webpage, terminate):
+    try: 
+        WebDriverWait(webpage.driver, TIMEOUT).until(lambda driver: driver.current_url == NOTLOADED_URL)   
+        if terminate: raise EmptyWebPageError(str(webpage))
+        else: return True
     except (NoSuchElementException, TimeoutException, WebDriverException): return False   
-    raise EmptyWebPageError(str(webpage))
     
-def checkPageFailure(webpage):
-    try: element = WebDriverWait(webpage.driver, TIMEOUT).until(EC.presence_of_element_located((By.XPATH, FAILURE_XPATH)))    
+def checkPageFailure(webpage, terminate):
+    try: 
+        element = WebDriverWait(webpage.driver, TIMEOUT).until(EC.presence_of_element_located((By.XPATH, FAILURE_XPATH)))    
+        if terminate: raise FailureWebPageError(str(webpage), str(element.text))
+        else: return True
     except (NoSuchElementException, TimeoutException, WebDriverException): return False
-    raise FailureWebPageError(str(webpage), str(element.text))
-
-def checkCaptcha(webpage):
-    try: WebDriverWait(webpage.driver, TIMEOUT).until(EC.presence_of_element_located((By.XPATH, CAPTCHA_XPATH)))    
+    
+def checkCaptcha(webpage, terminate):
+    try: 
+        WebDriverWait(webpage.driver, TIMEOUT).until(EC.presence_of_element_located((By.XPATH, CAPTCHA_XPATH)))    
+        if terminate: raise CaptchaWebPageError(str(webpage))
+        else: return True
     except (NoSuchElementException, TimeoutException, WebDriverException): return False
-    raise CaptchaWebPageError(str(webpage))
-
-
+    
+    
 class WebPage(ABC):         
     def __getitem__(self, key): return self.__webcontrols[key]          
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
@@ -65,7 +72,11 @@ class WebPage(ABC):
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
         self.driver.get(str(self.url))      
-            
+     
+    def isLoaded(self, terminate=False): return not checkLoadFailure(self, terminate)
+    def isFailure(self, terminate=False): return checkPageFailure(self, terminate)
+    def isCaptcha(self, terminate=False): return checkCaptcha(self, terminate)
+        
     @property
     def driver(self): return self.__driver  
     @property
