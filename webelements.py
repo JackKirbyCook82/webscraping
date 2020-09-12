@@ -29,8 +29,11 @@ class WebElement(object):
     def __getattr__(self, attr): return self.element.get_attribute(attr)
     def __getitem__(self, key): return self.element.get_attribute(key) 
     def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__element = driver, timeout, None    
-   
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __new__(cls, *args, **kwargs):
+        assert hasattr(cls, 'xpath')
+        return super().__new__(cls)
+    
+    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self):
         content = {'Loaded':self.loaded}
         if self.loaded: content.update({'Enabled':self.enabled, 'Displayed':self.displayed})
@@ -88,8 +91,11 @@ class WebElementDict(dict):
     keyformat = lambda key: str(key.lower().replace(' ', ''))
     def __getitem__(self, key): return super().__getitem__(self.keyformat(key))
     def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout 
+    def __new__(cls, *args, **kwargs):
+        assert all([hasattr(cls, attr) for attr in ('keyXPath', 'valueXPath', 'WebElement')])
+        return super().__new__(cls)
 
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return "\n".join([self.__class__.__name__]+[str(webelement) for webelement in self.values()])
 
     @property
@@ -119,7 +125,7 @@ class WebElementDict(dict):
         except (NoSuchElementException, TimeoutException, WebDriverException): values = []   
         if len(keys) == len(values): raise ValueError('Keys[{}] != Values[{}]'.format(len(keys), len(values)))
         elements = {self.keyfunction(key):element for key, element in zip(keys, values)} 
-        webelements = {key:WebElement(self.driver) for key in elements.keys()}
+        webelements = {key:WebElement(self.driver, self.timeout) for key in elements.keys()}
         assert elements.keys() == webelements.keys()
         for element, webelement in zip(elements.values(), webelements.values()): webelement.update(element)
         self.update(webelements)        
@@ -136,8 +142,11 @@ class WebElementList(list):
     indexformat = lambda index: int(index)
     def __getitem__(self, index): return super().__getitem__(self.indexformat(index))
     def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout   
+    def __new__(cls, *args, **kwargs):
+        assert all([hasattr(cls, attr) for attr in ('itemXPath', 'WebElement')])
+        return super().__new__(cls)
 
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return "\n".join([self.__class__.__name__]+[str(webelement) for webelement in self])
 
     @property
@@ -163,7 +172,7 @@ class WebElementList(list):
     def get(self):
         try: items = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.itemXPath))
         except (NoSuchElementException, TimeoutException, WebDriverException): items = []
-        webelements = [WebElement(self.driver) for i in range(len(items))]
+        webelements = [WebElement(self.driver, self.timeout) for i in range(len(items))]
         for element, webelement in zip(items, webelements): webelement.update(element)
         self.update(webelements)
 
