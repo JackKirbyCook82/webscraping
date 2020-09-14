@@ -12,7 +12,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebChain', 'WebClick', 'WebDoubleClick', 'WebClickDown', 'WebClickRelease', 'WebDragDrop', 'WebMoveTo', 'WebKeyDown', 'WebKeyUp']
+__all__ = ['WebClick', 'WebDoubleClick', 'WebClickDown', 'WebClickRelease', 'WebDragDrop', 'WebMoveTo', 'WebKeyDown', 'WebKeyUp']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -24,78 +24,84 @@ class WebActionFailure(Exception):
     def __str__(self): return "\n{}".format(self.args[0])
 
 
-class WebChain(object):
-    def __init__(self, driver, timeout, *args, **kwargs): 
-        self.__driver, self.__timeout = driver, timeout
-        self.__links = [link(driver, timeout, *args, **kwargs) for link in self.Links]
-    
-    @property
-    def loaded(self): return all([link.loaded for link in self.links]) 
-    def load(self): 
-        print("WebActionChain Loading: {}".format(self.__class__.__name__))
-        for link in self.links: link.load()
-        return self
+class WebActionChain(object):
+    pass
 
-    @property
-    def links(self): return self.__links    
+
+class WebActionSegment(ABC):
+    def __init__(self, driver, timeout, *args, **kwargs):
+        self.__driver, self.__timeout = driver, timeout
+        self.__webactionlinks = [webactionlink(driver, timeout, *args, **kwargs) for webactionlink in self.WebActionLinks]
+    
+    def __len__(self): return len(self.__webactionlinks)
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self): return "\n".join([self.__class__.__name__]+[str(webactionlink) for webactionlink in iter(self)])
+    def __iter__(self): return (webactionlink for webactionlink in self.__webactionlinks)
+    
     @property
     def driver(self): return self.__driver
     @property
-    def timeout(self): return self.__timeout            
-
-    def __call__(self, *args, **kwargs):
-        for link in self.__links: 
-            if not link.loaded: raise EmptyWebActionError(str(link))
-        for segment in self.build():
-            try: segment.perform()
-            except AttributeError: segment(*args, **kwargs)
-
-    def build(self):
-        try: chain = [self.links[0].subscribe(ActionChains(self.driver))]
-        except AttributeError: chain = [self.links[0]]
-        for link in self.links[1:]:
-            if isinstance(chain[-1], ActionChains) and isinstance(link, WebProcess): chain[-1] = link.subscribe(chain[-1])
-            elif isinstance(chain[-1], ActionChains) and isinstance(link, WebOperation): chain.append(link)
-            elif isinstance(chain[-1], WebOperation) and isinstance(link, WebProcess): chain.append(link.subscribe(ActionChains(self.driver)))
-            elif isinstance(chain[-1], WebOperation) and isinstance(link, WebOperation): chain.append(link)
-            else: raise TypeError(type(chain[-1]).__name__, type(link).__name__)
-        return chain
-
-    @classmethod
-    def create(cls, webactions, *args, **attrs):
-        assert isinstance(webactions, list)
-        assert all([issubclass(webaction, WebAction) for webaction in webactions])
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'Links':webactions, **attrs})
-        return wrapper
-
-
-class WebAction(ABC):
-    def __init__(self, driver, timeout, *args, **kwargs):
-        self.__driver, self.__timeout = driver, timeout
-        self.__webelements = [item(driver, timeout) for item in self.WebElements] 
-
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-    def __str__(self): return "\n".join([self.__class__.__name__]+[str(webelement) for webelement in self.webelements])
-         
-    @property
-    def loaded(self): return all([webelement.loaded for webelement in self.webelements])  
+    def loaded(self): return all([webactionlink.loaded for webactionlink in iter(self)])  
     def load(self): 
-        for webelement in self.webelements: webelement.load()
+        for webactionlink in iter(self): webactionlink.load()
         return self
-
+    
     @abstractmethod
     def execute(self, *args, **kwargs): pass
     def __call__(self, *args, **kwargs): 
         if not self.loaded: raise EmptyWebActionError(str(self))
         self.execute(*args, **kwargs)   
 
+    @classmethod
+    def subclasses(cls): return {subclass.webactiontype:subclass for subclass in cls.__subclasses__}
+    @classmethod
+    def create(cls, *webactionlinks):
+        assert len(webactionlinks) >= 1
+        webactiontype = set([webactionlink.webactiontype for webactionlink in webactionlinks])
+        assert len(webactiontype) == 1
+        mainclass = cls.subclasses()[webactiontype[0]] 
+        def wrapper(subclass): return type(subclass.__name__, (subclass, mainclass), {'WebActionLinks':list(webactionlinks)})
+        return wrapper
+
+
+class WebProcessSegment(WebActionSegment):
+    webactiontype = 'process'
+    
+    def execute(self, *args, **kwargs):
+        x = ActionChains(self.driver)
+        for link in iter(self): link(x)
+        x.perform()
+
+class WebOperationSegment(WebActionSegment):
+    webactiontype = 'operation'
+    
+    def execute(self, *args, **kwargs):
+        for link in iter(self): link(*args, **kwargs)
+
+
+class WebActionLink(ABC):
+    def __init__(self, driver, timeout, *args, **kwargs):
+        self.__driver, self.__timeout = driver, timeout
+        self.__webelements = [webelement(driver, timeout, *args, **kwargs) for webelement in self.WebElements] 
+
+    def __len__(self): return len(self.__webelements)
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self): return "\n".join([self.__class__.__name__]+[str(webelement) for webelement in iter(self)])
+    def __iter__(self): return (webelement for webelement in self.__webelements)
+    def __getitem__(self, index): return self.__webelements[index] 
+    
     @property
-    def webelements(self): return self.__webelements  
-    @property
-    def driver(self): return self.__driver
-    @property
-    def timeout(self): return self.__timeout
-   
+    def loaded(self): return all([webelement.loaded for webelement in iter(self)])  
+    def load(self): 
+        for webelement in iter(self): webelement.load()
+        return self
+    
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass
+    def __call__(self, *args, **kwargs): 
+        if not self.loaded: raise EmptyWebActionError(str(self))        
+        self.execute(*args, **kwargs)
+    
     @classmethod
     def create(cls, *webelements, wait=None, **attrs):
         assert len(webelements) >= 1
@@ -104,58 +110,63 @@ class WebAction(ABC):
         return wrapper
 
 
-class WebProcess(WebAction): 
+class WebProcessLink(WebActionLink):
+    webactiontype = 'process'
+    
     @abstractmethod
     def process(self, x): pass
-    def subscribe(self, x): 
-        if not self.loaded: raise EmptyWebActionError(str(self))
-        try: self.process(x)
-        except AttributeError: raise WebActionFailure(str(self))
-        if self.wait: x.pause(self.wait)
-        return x
+    def pause(self, x): 
+        try: x.pause(self.wait)
+        except AttributeError: pass
+    
+    def execute(self, x):
+        self.process(x)
+        self.pause(x)
 
-    def execute(self, *args, **kwargs):
-        x = ActionChains(self.driver)
-        try: self.process(x)
-        except AttributeError: raise WebActionFailure(str(self))
-        x.perform()
-
-
-class WebOperation(WebAction):
+class WebOperationLink(WebActionLink):
+    webactiontype = 'operation'
+    
     @abstractmethod
     def operation(self, *args, **kwargs): pass
+    def pause(self, *args, **kwargs): 
+        try: time.sleep(self.wait)
+        except AttributeError: pass
 
-    def execute(self, *args, **kwargs): 
+    def execute(self, *args, **kwargs):
         self.operation(*args, **kwargs)
-        if self.wait: time.sleep(self.wait)
+        self.pause(*args, **kwargs)
 
+
+class WebClick(WebProcessLink): 
+    def process(self, x): x.click(self[0].element)    
     
-class WebClick(WebProcess): 
-    def process(self, x): x.click(self.webelements[0].element)    
-    
-class WebDoubleClick(WebProcess): 
-    def process(self, x): x.double_click(self.webelements[0].element)
+class WebDoubleClick(WebProcessLink): 
+    def process(self, x): x.double_click(self[0].element)
 
-class WebClickDown(WebProcess): 
-    def process(self, x): x.click_and_hold(self.webelements[0].element)
+class WebClickDown(WebProcessLink): 
+    def process(self, x): x.click_and_hold(self[0].element)
 
-class WebClickRelease(WebProcess):   
-    def process(self, x): x.release(self.webelements[0].element)
+class WebClickRelease(WebProcessLink):   
+    def process(self, x): x.release(self[0].element)
 
-class WebMoveTo(WebProcess): 
-    def process(self, x): x.move_to_element(self.webelements[0].element)
+class WebMoveTo(WebProcessLink): 
+    def process(self, x): x.move_to_element(self[0].element)
  
-class WebKeyDown(WebProcess): 
-    def process(self, x): x.key_down(self.value, self.webelements[0].element)
+class WebKeyDown(WebProcessLink): 
+    def process(self, x): x.key_down(self.value, self[0].element)
     
-class WebKeyUp(WebProcess): 
-    def process(self, x): x.key_up(self.value, self.webelements[0].element)
+class WebKeyUp(WebProcessLink): 
+    def process(self, x): x.key_up(self.value, self[0].element)
 
-class WebDragDrop(WebProcess): 
-    def process(self, x): x.drag_and_drop(self.webelements[0].element, self.webelements[1].element)
+class WebDragDrop(WebProcessLink): 
+    def process(self, x): x.drag_and_drop(self[0].element, self[1].element)
 
-class WebSelect(WebOperation): 
-    def operation(self, *args, select, **kwargs): self.webelements[0].sel(select)
+class WebSelect(WebOperationLink): 
+    def operation(self, *args, select, **kwargs): self[0].sel(select)
+
+
+
+
 
 
 

@@ -184,7 +184,7 @@ class WebElementList(list):
 class WebSelection(WebElement):
     def __len__(self): return len(self.element.options())    
     def __init__(self, *args, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.__select = None
 
     @property
