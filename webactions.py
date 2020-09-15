@@ -28,12 +28,20 @@ class WebActionChain(object):
     def __init__(self, driver, timeout, *args, **kwargs):
         self.__driver, self.__timeout = driver, timeout
         self.__webactionsegments = [webactionsegment(driver, timeout, *args, **kwargs) for webactionsegment in self.WebActionSegments]
+
+    @property
+    def webactionsegments(self): return self.__webactionsegments
+    @property
+    def webactionlinks(self): return [webactionsegment for webactionsegment in self.webactionsegments for webactionlink in webactionsegment.webactionlinks]
+    @property
+    def webelements(self): return list(set([webelement for webactionlink in self.webactionlinks for webelement in webactionlink.webelements]))
     
+    
+    def __iter__(self): return (webactionsegment for webactionsegment in self.__webactionsegments)
     def __len__(self): return len(self.__webactionsegments)
     def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-    def __str__(self): return "\n".join([self.__class__.__name__]+[str(webactionsegment) for webactionsegment in iter(self)])
-    def __iter__(self): return (webactionsegment for webactionsegment in self.__webactionsegments)
-     
+    def __str__(self):  return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))
+        
     def __call__(self, *args, **kwargs): 
         for webactionsegment in iter(self):
             webactionsegment.load()
@@ -41,12 +49,13 @@ class WebActionChain(object):
 
     @classmethod
     def create(cls, *webactionlinks):
+        assert cls == WebActionChain
         assert all([isinstance(collection, tuple) for collection in webactionlinks]) 
-        for collection in webactionlinks: assert all([cls in value.__subclasses__() for value in WebActionLink.registry().values()])
-        if cls == WebActionChain: pass
-        else: raise TypeError(type(cls))
-        name = lambda index: '_'.join([cls.__name__, 'Segment{}'.format(str(index))])
-        webactionsegments = [WebActionSegment(*collection)(type(name(index), (object,), {})) for index, collection in enumerate(webactionlinks, start=1)]
+        for collection in webactionlinks: 
+            for webactionlink in collection:
+                assert any([issubclass(webactionlink, subsubclass) for subclass in WebActionLink.registry().values() for subsubclass in subclass.__subclasses__()])
+        function = lambda index: type('_'.join([cls.__name__, 'Segment{}'.format(index)]), (WebActionSegment,), {})
+        webactionsegments = [WebActionSegment.create(*collection)(function(index)) for index, collection in enumerate(webactionlinks, start=1)]
         def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebActionSegments':webactionsegments})
         return wrapper
 
@@ -56,11 +65,16 @@ class WebActionSegment(ABC):
         self.__driver, self.__timeout = driver, timeout
         self.__webactionlinks = [webactionlink(driver, timeout, *args, **kwargs) for webactionlink in self.WebActionLinks]
     
-    def __len__(self): return len(self.__webactionlinks)
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-    def __str__(self): return "\n".join([self.__class__.__name__]+[str(webactionlink) for webactionlink in iter(self)])
-    def __iter__(self): return (webactionlink for webactionlink in self.__webactionlinks)
+    @property
+    def webactionlinks(self): return self.__webactionlinks
+    @property
+    def webelements(self): return list(set([webelement for webactionlink in self.webactionlinks for webelement in webactionlink.webelements]))
     
+    def __iter__(self): return (webactionlink for webactionlink in self.webactionlinks)
+    def __len__(self): return len(self.webactionlinks)
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self):  return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))
+
     @property
     def driver(self): return self.__driver
     @property
@@ -88,18 +102,13 @@ class WebActionSegment(ABC):
     
     @classmethod
     def create(cls, *webactionlinks):
-        assert all([any([cls in value.__subclasses__() for value in WebActionLink.registry().values()]) for webactionlink in webactionlinks])
-        if cls == WebActionSegment: 
-            webactiontype = set([webactionlink.webactiontype for webactionlink in webactionlinks])[0]
-            assert len(set([webactionlink.webactiontype for webactionlink in webactionlinks])) == 1                        
-            base = cls.registry()[webactiontype]
-        elif cls in WebActionSegment.registry().values():
-            webactiontype = cls.webactiontype
-            assert len(set([webactionlink.webactiontype for webactionlink in webactionlinks])) == 1 
-            assert set([webactionlink.webactiontype for webactionlink in webactionlinks]) == webactiontype
-            base = cls
-        elif any([cls in value.__subclasses__() for value in WebActionSegment.registry().values()]): raise TypeError(type(cls))
-        else: raise TypeError(type(cls))
+        assert cls == WebActionSegment
+        for webactionlink in webactionlinks:
+            assert any([issubclass(webactionlink, subsubclass) for subclass in WebActionLink.registry().values() for subsubclass in subclass.__subclasses__()])
+        webactiontypes = set([webactionlink.webactiontype for webactionlink in webactionlinks])
+        assert len(webactiontypes) == 1
+        webactiontype = list(webactiontypes)[0]                        
+        base = cls.registry()[webactiontype]        
         attrs = {'WebActionLinks':list(webactionlinks)}
         def wrapper(subclass): return type(subclass.__name__, (subclass, base), attrs)
         return wrapper
@@ -123,12 +132,15 @@ class WebActionLink(ABC):
         self.__driver, self.__timeout = driver, timeout
         self.__webelements = [webelement(driver, timeout, *args, **kwargs) for webelement in self.WebElements] 
 
-    def __len__(self): return len(self.__webelements)
+    @property
+    def webelements(self): return self.__webelements
+
+    def __getitem__(self, index): return self.webelements[index] 
+    def __iter__(self): return (webelement for webelement in self.webelements)
+    def __len__(self): return len(self.webelements)
     def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-    def __str__(self): return "\n".join([self.__class__.__name__]+[str(webelement) for webelement in iter(self)])
-    def __iter__(self): return (webelement for webelement in self.__webelements)
-    def __getitem__(self, index): return self.__webelements[index] 
-    
+    def __str__(self): return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))
+        
     @property
     def loaded(self): return all([webelement.loaded for webelement in iter(self)])  
     def load(self): 
@@ -154,10 +166,7 @@ class WebActionLink(ABC):
     
     @classmethod
     def create(cls, webelement, *others, wait=None, **attrs):
-        if cls == WebActionLink: raise TypeError(type(cls)) 
-        elif cls in WebActionLink.registry().values(): raise TypeError(type(cls))
-        elif any([cls in value.__subclasses__() for value in WebActionLink.registry().values()]): pass
-        else: raise TypeError(type(cls))
+        assert cls in [subsubclass for subclass in WebActionLink.registry().values() for subsubclass in subclass.__subclasses__()]
         attrs = {'WebElements':[webelement, *others], 'wait':wait, **attrs}   
         def wrapper(subclass): return type(subclass.__name__, (subclass, cls), attrs)
         return wrapper
@@ -168,8 +177,8 @@ class WebProcessLink(WebActionLink):
     @abstractmethod
     def process(self, x): pass
     def pause(self, x): 
-        try: x.pause(self.wait)
-        except AttributeError: pass
+        if self.wait is not None: x.pause(self.wait)
+        else: pass
     
     def execute(self, x):
         self.process(x)
@@ -180,8 +189,8 @@ class WebOperationLink(WebActionLink):
     @abstractmethod
     def operation(self, *args, **kwargs): pass
     def pause(self, *args, **kwargs): 
-        try: time.sleep(self.wait)
-        except AttributeError: pass
+        if self.wait is not None: time.sleep(self.wait)
+        else: pass
 
     def execute(self, *args, **kwargs):
         self.operation(*args, **kwargs)

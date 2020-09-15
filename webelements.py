@@ -87,13 +87,11 @@ class WebElementLocator(object):
 class WebElementDict(dict):
     keyformat = lambda key: str(key.lower().replace(' ', ''))
     def __getitem__(self, key): return super().__getitem__(self.keyformat(key))
+
     def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout 
     def __new__(cls, *args, **kwargs):
         assert all([hasattr(cls, attr) for attr in ('keyXPath', 'valueXPath', 'WebElement')])
         return super().__new__(cls)
-
-    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
-    def __str__(self): return "\n".join([self.__class__.__name__]+[str(webelement) for webelement in self.values()])
 
     @property
     def loaded(self): return bool(self)    
@@ -142,9 +140,6 @@ class WebElementList(list):
     def __new__(cls, *args, **kwargs):
         assert all([hasattr(cls, attr) for attr in ('itemXPath', 'WebElement')])
         return super().__new__(cls)
-
-    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
-    def __str__(self): return "\n".join([self.__class__.__name__]+[str(webelement) for webelement in self])
 
     @property
     def loaded(self): return bool(self)

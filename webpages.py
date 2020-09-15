@@ -67,7 +67,7 @@ class WebPage(ABC):
         if self.__url is None: raise EmptyWebPageURLError(self)        
  
     def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-    def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])
+#    def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])
 
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
