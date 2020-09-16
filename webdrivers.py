@@ -31,6 +31,12 @@ class EmptyWebDriverError(Exception):
 
 
 class WebDriver(ABC):
+    def __init_subclass__(cls, *args, webpage, options={}, extensions={}, **kwargs):
+        assert isinstance(options, dict) and isinstance(extensions, dict)
+        setattr(cls, 'WebPage', webpage)
+        setattr(cls, 'options', options)
+        setattr(cls, 'extensions', extensions)        
+        
     def __bool__(self): return self.__driver is not None
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
@@ -51,14 +57,6 @@ class WebDriver(ABC):
             self.__success = True
         except MaxWebDriverRetryError:
             self.__success = False            
-    
-    @classmethod
-    def create(cls, webpage, options={}, extentions={}):
-        assert isinstance(options, dict)
-        def wrapper(subclass): 
-            attrs = {'WebPage':webpage, 'options':options, 'extensions':extentions}
-            return type(subclass.__name__, (subclass, cls), attrs)
-        return wrapper  
     
     def controller(self, *args, retry=0, **kwargs):
         try: 
