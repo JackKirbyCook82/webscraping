@@ -57,7 +57,9 @@ def checkCaptcha(webpage, terminate):
     except (NoSuchElementException, TimeoutException, WebDriverException): return False
     
     
-class WebPage(ABC):         
+class WebPage(ABC):      
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])    
     def __getitem__(self, key): return self.__webcontrols[key]          
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
     def __init__(self, driver, timeout, *args, **kwargs): 
@@ -65,9 +67,6 @@ class WebPage(ABC):
         self.__webcontrols = {key:webcontrol(driver, timeout) for key, webcontrol in self.WebControls.items()}       
         self.__url = kwargs.get('url', self.URL)
         if self.__url is None: raise EmptyWebPageURLError(self)        
- 
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-#    def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])
 
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))

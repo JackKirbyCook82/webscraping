@@ -35,14 +35,9 @@ URLSGMTS = ('protocol', 'domain', 'port', 'path', 'parms', 'anchor')
 
 
 class URL(ntuple('URL', ' '.join(URLSGMTS))  ):   
-    def __new__(cls, protocol, domain, port=Port(), path=Path(), parms=Parms(), anchor=Anchor()):
-        return super().__new__(cls, protocol, domain, port, path, parms, anchor)
-    
-    def __str__(self): 
-        return ''.join([str(value) for value in self._asdict().values() if value])
-    
-    def __bool__(self): 
-        return bool(str(self))
+    def __new__(cls, protocol, domain, port=Port(), path=Path(), parms=Parms(), anchor=Anchor()): return super().__new__(cls, protocol, domain, port, path, parms, anchor)
+    def __str__(self): return ''.join([str(value) for value in self._asdict().values() if value])    
+    def __bool__(self): return bool(str(self))
 
 
     

@@ -25,6 +25,10 @@ class WebActionFailure(Exception):
 
 
 class WebActionChain(object):
+    def __iter__(self): return (webactionsegment for webactionsegment in self.__webactionsegments)
+    def __len__(self): return len(self.__webactionsegments)
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __str__(self):  return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))
     def __init__(self, driver, timeout, *args, **kwargs):
         self.__driver, self.__timeout = driver, timeout
         self.__webactionsegments = [webactionsegment(driver, timeout, *args, **kwargs) for webactionsegment in self.WebActionSegments]
@@ -35,13 +39,7 @@ class WebActionChain(object):
     def webactionlinks(self): return [webactionsegment for webactionsegment in self.webactionsegments for webactionlink in webactionsegment.webactionlinks]
     @property
     def webelements(self): return list(set([webelement for webactionlink in self.webactionlinks for webelement in webactionlink.webelements]))
-    
-    
-    def __iter__(self): return (webactionsegment for webactionsegment in self.__webactionsegments)
-    def __len__(self): return len(self.__webactionsegments)
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-    def __str__(self):  return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))
-        
+           
     def __call__(self, *args, **kwargs): 
         for webactionsegment in iter(self):
             webactionsegment.load()
@@ -61,20 +59,19 @@ class WebActionChain(object):
 
 
 class WebActionSegment(ABC):
+    def __iter__(self): return (webactionlink for webactionlink in self.webactionlinks)
+    def __len__(self): return len(self.webactionlinks)
+    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+#    def __str__(self):  return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))    
     def __init__(self, driver, timeout, *args, **kwargs):
         self.__driver, self.__timeout = driver, timeout
         self.__webactionlinks = [webactionlink(driver, timeout, *args, **kwargs) for webactionlink in self.WebActionLinks]
     
     @property
     def webactionlinks(self): return self.__webactionlinks
-    @property
-    def webelements(self): return list(set([webelement for webactionlink in self.webactionlinks for webelement in webactionlink.webelements]))
+#    @property
+#    def webelements(self): return list(set([webelement for webactionlink in self.webactionlinks for webelement in webactionlink.webelements]))
     
-    def __iter__(self): return (webactionlink for webactionlink in self.webactionlinks)
-    def __len__(self): return len(self.webactionlinks)
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-    def __str__(self):  return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))
-
     @property
     def driver(self): return self.__driver
     @property
@@ -128,19 +125,23 @@ class WebOperationSegment(WebActionSegment):
 
 
 class WebActionLink(ABC):
-    def __init__(self, driver, timeout, *args, **kwargs):
-        self.__driver, self.__timeout = driver, timeout
-        self.__webelements = [webelement(driver, timeout, *args, **kwargs) for webelement in self.WebElements] 
-
-    @property
-    def webelements(self): return self.__webelements
-
-    def __getitem__(self, index): return self.webelements[index] 
-    def __iter__(self): return (webelement for webelement in self.webelements)
+    def __getitem__(self, key): return self.webelements[key] 
+    def __iter__(self): return (webelement for webelement in self.webelements.values())
     def __len__(self): return len(self.webelements)
     def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
-    def __str__(self): return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))
-        
+    def __str__(self): return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, str(webelement)]) for key, webelement in self.webelements.items()]))       
+    def __init__(self, driver, timeout, *args, **kwargs):
+        self.__driver, self.__timeout = driver, timeout
+        self.__webelements = {key:webelement(driver, timeout, *args, **kwargs) for key, webelement in self.WebElements.items()} 
+
+    @classmethod
+    @abstractmethod
+    def keys(cls): pass 
+    def values(self): return tuple(self.__webelements.values())
+    def items(self): return self.__webelements.items()
+    @property
+    def webelements(self): return self.__webelements
+       
     @property
     def loaded(self): return all([webelement.loaded for webelement in iter(self)])  
     def load(self): 
@@ -163,12 +164,13 @@ class WebActionLink(ABC):
             cls.__registry[webactiontype] = newsubclass
             return newsubclass
         return wrapper
-    
+      
     @classmethod
-    def create(cls, webelement, *others, wait=None, **attrs):
+    def create(cls, *webelements, wait=None, **kwargs):
         assert cls in [subsubclass for subclass in WebActionLink.registry().values() for subsubclass in subclass.__subclasses__()]
-        attrs = {'WebElements':[webelement, *others], 'wait':wait, **attrs}   
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), attrs)
+        assert len(cls.keys) == len(webelements)
+        webelements = {key:webelement for key, webelement in zip(cls.keys(), webelements)}
+        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'WebElements':webelements, 'wait':wait})
         return wrapper
 
 
@@ -198,32 +200,50 @@ class WebOperationLink(WebActionLink):
 
 
 # WEBACTIONLINKS
-class WebClick(WebProcessLink): 
-    def process(self, x): x.click(self[0].element)    
+class WebClick(WebProcessLink):
+    @classmethod 
+    def keys(cls): return ('click',)
+    def process(self, x): x.click(self['click'].element)    
 
 class WebDoubleClick(WebProcessLink): 
-    def process(self, x): x.double_click(self[0].element)
+    @classmethod
+    def keys(self): return ('click',)
+    def process(self, x): x.double_click(self['click'].element)
 
-class WebClickDown(WebProcessLink): 
-    def process(self, x): x.click_and_hold(self[0].element)
+class WebClickDown(WebProcessLink):
+    @classmethod
+    def keys(self): return ('click',)
+    def process(self, x): x.click_and_hold(self['click'].element)
 
-class WebClickRelease(WebProcessLink):   
-    def process(self, x): x.release(self[0].element)
+class WebClickRelease(WebProcessLink):
+    @classmethod
+    def keys(self): return ('click',)
+    def process(self, x): x.release(self['click'].element)
 
-class WebMoveTo(WebProcessLink): 
-    def process(self, x): x.move_to_element(self[0].element)
+class WebMoveTo(WebProcessLink):
+    @classmethod
+    def keys(self): return ('move',)
+    def process(self, x): x.move_to_element(self['move'].element)
  
 class WebKeyDown(WebProcessLink): 
-    def process(self, x): x.key_down(self.value, self[0].element)
+    @classmethod
+    def keys(self): return ('key',)
+    def process(self, x): x.key_down(self.value, self['key'].element)
     
 class WebKeyUp(WebProcessLink): 
-    def process(self, x): x.key_up(self.value, self[0].element)
+    @classmethod
+    def keys(self): return ('key',)
+    def process(self, x): x.key_up(self.value, self['key'].element)
 
 class WebDragDrop(WebProcessLink): 
-    def process(self, x): x.drag_and_drop(self[0].element, self[1].element)
+    @classmethod
+    def keys(self): return ('from', 'to',)
+    def process(self, x): x.drag_and_drop(self['from'].element, self['to'].element)
 
 class WebSelect(WebOperationLink): 
-    def operation(self, *args, select, **kwargs): self[0].sel(select)
+    @classmethod
+    def keys(self): return ('select',)
+    def operation(self, *args, select, **kwargs): self['select'].sel(select)
 
 
 

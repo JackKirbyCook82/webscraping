@@ -16,7 +16,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelection', 'WebElementDict', 'WebElementList', 'WebData', 'WebTable']
+__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelection', 'WebData', 'WebTable']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -28,14 +28,17 @@ class EmptyWebElementError(Exception):
 class WebElement(object): 
     def __getattr__(self, attr): return self.element.get_attribute(attr)
     def __getitem__(self, key): return self.element.get_attribute(key) 
+    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(self.loaded))    
     def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__element = driver, timeout, None    
+
+    __instance = None
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath')
-        return super().__new__(cls)
+        if cls.__instance is not None: pass 
+        else: cls.__instance = super().__new__(cls)
+        return cls.__instance        
     
-    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(self.loaded))
-
     def get(self):
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
         except (NoSuchElementException, TimeoutException, WebDriverException): element = None        
@@ -76,104 +79,34 @@ class WebElement(object):
         def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'xpath':xpath, **attrs})
         return wrapper 
   
-
-class WebElementLocator(object):
-    def __init__(self, by, value): self.by, self.value = by, value
-    def __call__(self, driver): 
-        try: return driver.find_elements(self.by, self.value)
-        except WebDriverException as error: raise error
-
-
-class WebElementDict(dict):
-    keyformat = lambda key: str(key.lower().replace(' ', ''))
-    def __getitem__(self, key): return super().__getitem__(self.keyformat(key))
-
-    def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout 
-    def __new__(cls, *args, **kwargs):
-        assert all([hasattr(cls, attr) for attr in ('keyXPath', 'valueXPath', 'WebElement')])
-        return super().__new__(cls)
-
-    @property
-    def loaded(self): return bool(self)    
-    @property
-    def driver(self): return self.__driver
-    @property
-    def timeout(self): return self.__timeout
-    @property
-    def elements(self): 
-        if self.loaded: return {key:value for key, value in self.items()}
-        else: raise EmptyWebElementError(str(self))
-
-    def sel(self, value): return self[value]
-    def update(self, webelements): super().__init__(webelements)
-
-    def load(self):
-        if self.loaded: return self
-        print("WebElements Loading: {}".format(self.__class__.__name__))
-        self.get()            
-        return self
     
-    def get(self):
-        try: keys = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.keyXPath))
-        except (NoSuchElementException, TimeoutException, WebDriverException): keys = []
-        try: values = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.valueXPath))
-        except (NoSuchElementException, TimeoutException, WebDriverException): values = []   
-        if len(keys) == len(values): raise ValueError('Keys[{}] != Values[{}]'.format(len(keys), len(values)))
-        elements = {self.keyfunction(key):element for key, element in zip(keys, values)} 
-        webelements = {key:WebElement(self.driver, self.timeout) for key in elements.keys()}
-        assert elements.keys() == webelements.keys()
-        for element, webelement in zip(elements.values(), webelements.values()): webelement.update(element)
-        self.update(webelements)        
-
-    @classmethod
-    def create(cls, keys, values, webelement, **attrs):
-        assert issubclass(webelement, WebElement)
-        for name, attr in attrs.items(): setattr(webelement, name, attr)
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'keyXPath':keys, 'valueXPath':values, 'WebElement':webelement})
-        return wrapper 
-
-
-class WebElementList(list):
-    indexformat = lambda index: int(index)
-    def __getitem__(self, index): return super().__getitem__(self.indexformat(index))
-    def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout   
-    def __new__(cls, *args, **kwargs):
-        assert all([hasattr(cls, attr) for attr in ('itemXPath', 'WebElement')])
-        return super().__new__(cls)
-
-    @property
-    def loaded(self): return bool(self)
-    @property
-    def driver(self): return self.__driver
-    @property
-    def timeout(self): return self.__timeout
-    @property
-    def elements(self): 
-        if self.loaded: return [item for item in self]
-        else: raise EmptyWebElementError(str(self))
-
-    def isel(self, index): return self[index]
-    def update(self, webelements): super().__init__(webelements)
-
-    def load(self):
-        if self.loaded: return self
-        print("WebElements Loading: {}".format(self.__class__.__name__))
-        self.get()            
-        return self
+#class WebElements(list): pass    
     
-    def get(self):
-        try: items = WebDriverWait(self.driver, self.timeout).until(WebElementLocator(By.XPATH, self.itemXPath))
-        except (NoSuchElementException, TimeoutException, WebDriverException): items = []
-        webelements = [WebElement(self.driver, self.timeout) for i in range(len(items))]
-        for element, webelement in zip(items, webelements): webelement.update(element)
-        self.update(webelements)
+    
+class WebClickable(WebElement):    
+    def click(self): self.element.click()
 
+class WebButton(WebClickable): pass
+class WebRadioButton(WebClickable): pass
+class WebCheckBox(WebClickable): pass
+
+    
+class WebInput(WebElement):
+    def click(self): self.element.click()
+    def clear(self): self.element.clear()
+    def fill(self, content): self.element.sendKeys(content)       
+
+
+class WebText(WebElement):
+    def data(self): 
+        try: return self.parser(self.text)
+        except EmptyWebElementError: return None
+    
     @classmethod
-    def create(cls, items, webelement, **attrs):
-        assert issubclass(webelement, WebElement)
-        for name, attr in attrs.items(): setattr(webelement, name, attr)
-        def wrapper(subclass): return type(subclass.__name__, (subclass, cls), {'itemXPath':items, 'WebElement':webelement})
-        return wrapper 
+    def create(cls, xpath, parser=lambda x: str(x), **attrs):
+        assert hasattr(parser, '__call__')
+        def wrapper(self, x): return parser(x)
+        return super().create(xpath, parser=wrapper, **attrs)
 
 
 class WebSelection(WebElement):
@@ -207,38 +140,6 @@ class WebSelection(WebElement):
         else: raise TypeError(type(x).__name__)
     
     
-class WebLink(WebElement):
-    @property
-    def url(self): return str(self.element.href)
-    def click(self): self.element.click()  
-
-
-class WebClickable(WebElement):    
-    def click(self): self.element.click()
-
-class WebButton(WebClickable): pass
-class WebRadioButton(WebClickable): pass
-class WebCheckBox(WebClickable): pass
-
-    
-class WebInput(WebElement):
-    def click(self): self.element.click()
-    def clear(self): self.element.clear()
-    def fill(self, content): self.element.sendKeys(content)       
-
-
-class WebText(WebElement):
-    def data(self): 
-        try: return self.parser(self.text)
-        except EmptyWebElementError: return None
-    
-    @classmethod
-    def create(cls, xpath, parser=lambda x: str(x), **attrs):
-        assert hasattr(parser, '__call__')
-        def wrapper(self, x): return parser(x)
-        return super().create(xpath, parser=wrapper, **attrs)
-
-
 class WebData(WebElement):
     def data(self): 
         if isinstance(self.content, str): 
@@ -272,7 +173,19 @@ class WebTable(WebElement):
 
     @classmethod
     def create(cls, xpath, headerrow=None, indexcolumn=None, **attrs):
-        return super().create(xpath,  headerrow=headerrow, indexcolumn=indexcolumn, **attrs)
+        return super().create(xpath,  headerrow=headerrow, indexcolumn=indexcolumn, **attrs)    
+    
+    
+class WebLink(WebElement):
+    @property
+    def url(self): return str(self.element.href)
+    def click(self): self.element.click()  
+
+
+
+
+
+
 
 
 
