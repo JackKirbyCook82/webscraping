@@ -58,18 +58,18 @@ def checkCaptcha(webpage, terminate):
     
     
 class WebPage(ABC):    
-    def __init_subclass__(cls, *args, url=None, contents={}, **kwargs):
-        assert isinstance(contents, dict)
+    def __init_subclass__(cls, *args, url=None, webactions={}, **kwargs):
+        assert isinstance(webactions, dict)
         setattr(cls, 'URL', url)
-        setattr(cls, 'Contents', contents)
+        setattr(cls, 'WebActions', webactions)
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
     def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])    
-    def __getitem__(self, key): return self.__contents[key]          
+    def __getitem__(self, key): return self.__webactions[key]          
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
     def __init__(self, driver, timeout, *args, **kwargs): 
         self.__driver, self.__timeout = driver, timeout
-        self.__contents = {key:value(driver, timeout) for key, value in self.Contents.items()}       
+        self.__webactions = {key:value(driver, timeout) for key, value in self.WebActions.items()}       
         self.__url = kwargs.get('url', self.URL)
         if self.__url is None: raise EmptyWebPageURLError(self)        
 
