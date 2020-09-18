@@ -27,11 +27,19 @@ class EmptyWebElementError(Exception):
 
 
 class WebElementBase(ABC):
-#    def __init_subclass__(cls, *args, xpath, **kwargs):
-#        setattr(cls, 'xpath', xpath)
+    __registry = []
+    def __init_subclass__(cls, *args, **kwargs):
+        for key, value in kwargs.items(): 
+            if not hasattr(value, '__call__'): setattr(cls, key, value)
+            else: setattr(cls, key, staticmethod(value))        
+        try: 
+            setattr(cls, 'xpath', kwargs['xpath'])
+            cls.__registry.append(cls)
+        except KeyError: pass
 
     __instance = None
     def __new__(cls, *args, **kwargs):
+        assert cls in cls.__registry and hasattr(cls, 'xpath')
         if cls.__instance is None: cls.__instance = super().__new__(cls) 
         return cls.__instance  
 
@@ -106,25 +114,13 @@ class WebInput(WebClickable):
     def fill(self, content): self.element.sendKeys(content)       
 
 
-class WebText(WebElement):
-#    def __init_subclass__(cls, *args, parser=lambda x: str(x), **kwargs):
-#        assert hasattr(parser, '__call__')
-#        super().__init_subclass__(*args, **kwargs)
-#        setattr(cls, 'parser', staticmethod(parser))
-    
+class WebText(WebElement, parser=lambda x: str(x)):
     def data(self): 
         try: return self.parser(self.text)
         except EmptyWebElementError: return None
     
     
-class WebData(WebElement):
-#    def __init_subclass__(cls, *args, parser=lambda x: str(x), parsers={}, **kwargs):
-#        assert isinstance(parsers, dict) and hasattr(parser, '__call__')
-#        assert all([hasattr(item, '__call__') for item in parsers.values()])        
-#        super().__init_subclass__(*args, **kwargs)
-#        setattr(cls, 'parser', staticmethod(parser))
-#        setattr(cls, 'parsers', parsers)
-            
+class WebData(WebElement, parser=lambda x: str(x), parsers={}):
     def data(self): 
         if isinstance(self.content, str): 
             try: return [self.parser(x) for x in re.findall(self.content, self.text)]
@@ -135,18 +131,12 @@ class WebData(WebElement):
         else: raise TypeError(type(self.content))
 
 
-class WebTable(WebElement): 
-#    def __init_subclass__(cls, *args, headerrow=None, indexcolumn=None, **kwargs):
-#        super().__init_subclass__(*args, **kwargs)
-#        setattr(cls, 'headerrow', headerrow)
-#        setattr(cls, 'indexcolumn', indexcolumn)        
-    
+class WebTable(WebElement, tableindex=0, headerrow=None, indexcolumn=None): 
     def parser(self, dataframe, *args, **kwargs): return dataframe
     def dataframe(self): 
-        try: 
-            table = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)[0]
-            return table.to_frame() if not isinstance(table, pd.DataFrame) else table    
-        except IndexError: return None
+        tables = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)
+        if not tables: return None
+        return tables[self.tableindex].to_frame() if not isinstance(tables[self.tableindex], pd.DataFrame) else tables[self.tableindex]   
 
     def table(self, *args, **kwargs): 
         dataframe = self.dataframe()
@@ -154,12 +144,7 @@ class WebTable(WebElement):
         else: return None    
 
 
-class WebSelection(WebElement):
-#    def __init_subclass__(cls, *args, mapping={}, **kwargs):
-#        assert isinstance(mapping, dict)
-#        super().__init_subclass__(*args, **kwargs)
-#        setattr(cls, 'mapping', {key.replace(' ', ''):value for key, value in mapping.items()})
-    
+class WebSelection(WebElement, mapping={}):
     def __len__(self): return len(self.select.options())    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

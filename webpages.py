@@ -58,14 +58,14 @@ def checkCaptcha(webpage, terminate):
     
     
 class WebPage(ABC):    
-    def __init_subclass__(cls, *args, url=None, webactions={}, **kwargs):
-        assert isinstance(webactions, dict)
+    def __init_subclass__(cls, *args, url=None, actions={}, **kwargs):
+        assert isinstance(actions, dict)
         setattr(cls, 'URL', url)
-        setattr(cls, 'WebActions', webactions)
+        setattr(cls, 'WebActions', actions)
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
     def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])    
-    def __getitem__(self, key): return self.__webactions[key]          
+    def __getitem__(self, key): return self.__webprocesses[key]          
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
     def __init__(self, driver, timeout, *args, **kwargs): 
         self.__driver, self.__timeout = driver, timeout

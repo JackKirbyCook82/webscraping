@@ -31,9 +31,9 @@ class EmptyWebDriverError(Exception):
 
 
 class WebDriver(ABC):
-    def __init_subclass__(cls, *args, webpage, options={}, extensions={}, **kwargs):
+    def __init_subclass__(cls, *args, page, options={}, extensions={}, **kwargs):
         assert isinstance(options, dict) and isinstance(extensions, dict)
-        setattr(cls, 'WebPage', webpage)
+        setattr(cls, 'WebPage', page)
         setattr(cls, 'options', options)
         setattr(cls, 'extensions', extensions)        
         
