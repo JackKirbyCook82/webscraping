@@ -43,7 +43,7 @@ class WebProcess(object):
     def __init__(self, driver, timeout, *args, **kwargs):        
         webactiontypes = [set([webaction.type for webaction in webactions]) for webactions in self.WebOperations]
         assert all([len(webactiontype) == 1 for webactiontype in webactiontypes])
-        webactiontypes = [webactiontype[0] for webactiontype in webactiontypes]
+        webactiontypes = [list(webactiontype)[0] for webactiontype in webactiontypes]
         self.__driver, self.__timeout = driver, timeout
         self.__weboperations = tuple([WebOperation.registry()[webactiontype](driver, timeout, *args, webactions=webactions, **kwargs) for webactiontype, webactions in zip(webactiontypes, self.WebOperations)])
         
@@ -51,6 +51,12 @@ class WebProcess(object):
     def weboperations(self): return self.__weboperations
     @property
     def webelements(self): return list(set([webelement for weboperation in self.__weboperations for webelement in weboperation.webelements]))
+
+    @property
+    def loaded(self): return all([weboperation.loaded for weboperation in iter(self)])  
+    def load(self): 
+        for weboperation in iter(self): weboperation.load()
+        return self
     
     def __call__(self, *args, **kwargs): 
         for weboperation in iter(self): 
@@ -98,13 +104,13 @@ class WebOperation(ABC):
 class WebOperationChainable(WebOperation, actiontype='chainable'):
     def execute(self, *args, **kwargs):
         x = ActionChains(self.driver)
-        for link in iter(self): link(x)
+        for webaction in iter(self): webaction(x)
         x.perform()
 
 
 class WebOperationOrderable(WebOperation, actiontype='orderable'):
     def execute(self, *args, **kwargs):
-        for link in iter(self): link(*args, **kwargs)
+        for webaction in iter(self): webaction(*args, **kwargs)
 
 
 class WebAction(object):
@@ -118,7 +124,7 @@ class WebAction(object):
         if not hasattr(cls, 'type'): 
             setattr(cls, 'type', kwargs['actiontype'])
         elif hasattr(cls, 'type') and not hasattr(cls, 'keys'): 
-            setattr(cls, 'keys', _filter([kwargs.get('action', None), *kwargs.get('actions', [])]))       
+            setattr(cls, 'keys', tuple(_filter([kwargs.get('action', None), *kwargs.get('actions', [])])))       
         elif hasattr(cls, 'type') and hasattr(cls, 'keys') and not hasattr(cls, 'values'):
             setattr(cls, 'values', tuple([kwargs[key] for key in cls.keys]))
             setattr(cls, 'wait', wait)
@@ -137,10 +143,7 @@ class WebAction(object):
         
     def __len__(self): return len(self.webelements)
     def __iter__(self): return (webelement for webelement in self.webelements.values())
-    def __getitem__(self, key): 
-        if isinstance(key, str): return {key:value for key, value in zip(self.keys, self.values)}[key]
-        elif isinstance(key, int): return self.values[key]
-        else: raise TypeError(type(key))
+    def __getitem__(self, key): return self.__webelements[key]
 
     @property
     def webelements(self): return self.__webelements
@@ -204,7 +207,7 @@ class WebKeyUp(WebActionChainable, action='key'):
     def process(self, x): x.key_up(self.keyboardvalue, self['key'].content)
 
 class WebDragDrop(WebActionChainable, actions=('drag', 'drop')): 
-    def process(self, x): x.drag_and_drop(self['from'].content, self['to'].content)
+    def process(self, x): x.drag_and_drop(self['drag'].content, self['drop'].content)
 
 class WebSelect(WebActionOrderable, action='select'): 
     def operation(self, *args, select, **kwargs): self['select'].sel(select)

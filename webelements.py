@@ -40,12 +40,18 @@ class WebElementBase(ABC):
     __instance = None
     def __new__(cls, *args, **kwargs):
         assert cls in cls.__registry and hasattr(cls, 'xpath')
-        if cls.__instance is None: cls.__instance = super().__new__(cls) 
+        if cls.__instance is None: 
+            cls.__instance = super().__new__(cls) 
+            cls.__initialized = False
         return cls.__instance  
 
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)    
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(self.loaded))    
-    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__content = driver, timeout, None    
+    def __init__(self, driver, timeout, *args, **kwargs): 
+        if self.__initialized: return
+        self.__driver, self.__timeout = driver, timeout    
+        self.__content = None
+        self.__initialized = True
 
     @property
     def driver(self): return self.__driver
@@ -166,7 +172,6 @@ class WebSelection(WebElement, mapping={}):
     def tsel(self, text): self.select.select_by_visible_text(text)
     def vsel(self, value): self.select.select_by_value(value)
     def sel(self, x):
-        x = x.replace(' ', '')
         if isinstance(x, int): self.isel(x)
         elif isinstance(x, str): 
             try: self.vsel(self.mapping.get(x, x))
