@@ -44,7 +44,7 @@ class WebProcess(object):
         
     def __iter__(self): return (weboperation for weboperation in self.weboperations)
     def __len__(self): return len(self.weboperations)
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)   
+    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)   
     def __str__(self): return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))   
     def __init__(self, driver, timeout, *args, **kwargs):        
         self.__driver, self.__timeout = driver, timeout
@@ -78,7 +78,7 @@ class WebOperation(ABC):
 
     def __iter__(self): return (webaction for webaction in self.webactions)
     def __len__(self): return len(self.webactions)
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
+    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))   
     def __init__(self, driver, timeout, *args, webactions, **kwargs):
         self.__driver, self.__timeout = driver, timeout
@@ -138,7 +138,7 @@ class WebAction(object):
         assert cls in cls.__registry
         return super().__new__(cls)
         
-    def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)    
+    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)    
     def __str__(self): return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, str(webelement)]) for key, webelement in self.webelements.items()]))   
     def __init__(self, driver, timeout, *args, **kwargs):
         self.__driver, self.__timeout = driver, timeout

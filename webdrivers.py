@@ -77,9 +77,6 @@ class WebDriver(ABC):
         page = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
         try: page.load(*args, **kwargs)
         except TimeoutException: self.refresh()
-        page.isLoaded(terminate=True)
-        page.isFailure(terminate=True)
-        page.isCaptcha(terminate=True)
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         
