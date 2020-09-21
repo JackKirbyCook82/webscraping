@@ -49,8 +49,7 @@ class WebElementBase(ABC):
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(self.loaded))    
     def __init__(self, driver, timeout, *args, **kwargs): 
         if self.__initialized: return
-        self.__driver, self.__timeout = driver, timeout    
-        self.__content = None
+        self.__driver, self.__timeout, self.__element = driver, timeout, None    
         self.__initialized = True
 
     @property
@@ -58,19 +57,19 @@ class WebElementBase(ABC):
     @property
     def timeout(self): return self.__timeout
     @property
-    def content(self): 
-        if self.loaded: return self.__content
+    def element(self): 
+        if self.loaded: return self.__element
         else: raise EmptyWebElementError(str(self))
 
     @property
-    def loaded(self): return self.__content is not None
-    def update(self, content): self.__content = content
+    def loaded(self): return self.__element is not None
+    def update(self, element): self.__element = element
     def load(self):
         if self.loaded: return self
         print("WebElement Loading: {}".format(self.__class__.__name__))
-        content = self.get()
-        if content is None: print("WebElement Missing: {}".format(self.__class__.__name__))    
-        else: self.update(content)
+        element = self.get()
+        if element is None: print("WebElement Missing: {}".format(self.__class__.__name__))    
+        else: self.update(element)
         return self
         
     @abstractmethod
@@ -79,13 +78,13 @@ class WebElementBase(ABC):
 
 class WebElement(WebElementBase):
     @property
-    def text(self): return self.content.text 
+    def text(self): return self.element.text 
     @property
-    def html(self): return self.content.get_attribute('outerHTML')   
+    def html(self): return self.element.get_attribute('outerHTML')   
     @property
-    def enabled(self): return self.content.is_enabled()
+    def enabled(self): return self.element.is_enabled()
     @property
-    def displayed(self): return self.content.is_displayed()      
+    def displayed(self): return self.element.is_displayed()      
     
     def get(self): 
         try: element = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_element_located((By.XPATH, self.xpath)))
@@ -94,14 +93,19 @@ class WebElement(WebElementBase):
 
 
 class WebElements(WebElementBase):
+    def __iter__(self): (item for item in self.elements)
+    def __getitem__(self, index): return self.elements[index]
+    
     @property
-    def text(self): return [item.text for item in self.content]
+    def elements(self): return self.element
     @property
-    def enabled(self): return all([item.is_enabled() for item in self.content])
+    def text(self): return [item.text for item in self.elements]
     @property
-    def displayed(self): return all([item.is_displayed() for item in self.content])
+    def enabled(self): return all([item.is_enabled() for item in self.elements])
     @property
-    def empty(self): return not self.content     
+    def displayed(self): return all([item.is_displayed() for item in self.elements])
+    @property
+    def empty(self): return not self.elements
 
     def get(self): 
         try: elements = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.xpath)))
@@ -117,7 +121,7 @@ class WebRadioButton(WebClickable): pass
 class WebCheckBox(WebClickable): pass    
 class WebInput(WebClickable):
     def clear(self): self.element.clear()
-    def fill(self, content): self.element.sendKeys(content)       
+    def fill(self, text): self.element.sendKeys(text)       
 
 
 class WebText(WebElement, parser=lambda x: str(x)):
@@ -128,13 +132,13 @@ class WebText(WebElement, parser=lambda x: str(x)):
     
 class WebData(WebElement, parser=lambda x: str(x), parsers={}):
     def data(self): 
-        if isinstance(self.content, str): 
-            try: return [self.parser(x) for x in re.findall(self.content, self.text)]
+        if isinstance(self.element, str): 
+            try: return [self.parser(x) for x in re.findall(self.element, self.text)]
             except EmptyWebElementError: return None
-        elif isinstance(self.content, dict): 
-            try: return {key:[self.parsers.get(key, self.parser)(x) for x in re.findall(pattern, self.text)] for key, pattern in self.content.items()}
+        elif isinstance(self.element, dict): 
+            try: return {key:[self.parsers.get(key, self.parser)(x) for x in re.findall(pattern, self.text)] for key, pattern in self.element.items()}
             except EmptyWebElementError: return {}
-        else: raise TypeError(type(self.content))
+        else: raise TypeError(type(self.element).__name__)
 
 
 class WebTable(WebElement, tableindex=0, headerrow=None, indexcolumn=None): 
@@ -161,9 +165,9 @@ class WebSelection(WebElement, mapping={}):
         if self.loaded: return self.__select
         else: raise EmptyWebElementError(str(self)) 
 
-    def update(self, content): 
-        super().update(content)
-        self.__select = Select(content) if content is not None else content
+    def update(self, element): 
+        super().update(element)
+        self.__select = Select(element) if element is not None else element
 
     def click(self): self.select.click()      
     def clear(self): self.select.deselect_all()    
@@ -175,7 +179,7 @@ class WebSelection(WebElement, mapping={}):
         if isinstance(x, int): self.isel(x)
         elif isinstance(x, str): 
             try: self.vsel(self.mapping.get(x, x))
-            except NoSuchElementException: self.tsel(x)
+            except : self.tsel(self.mapping.get(x, x))
         else: raise TypeError(type(x).__name__)
     
     
@@ -187,8 +191,8 @@ class WebLink(WebElement):
 
 class WebLinks(WebElements):
     @property
-    def urls(self): return [str(self.item.href) for item in self.content]
-    def click(self, index): self.content[index].click()
+    def urls(self): return [str(item.href) for item in self.elements]
+    def click(self, index): self.elements[index].click()
 
 
 

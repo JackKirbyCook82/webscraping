@@ -24,6 +24,7 @@ FAILURE_XPATH = "//div[@id='main-message']//span[@jsselect='heading']"
 CAPTCHA_XPATH = "//div[@class='captcha-container']" 
 TIMEOUT = 10
 
+
 class WebPageError(Exception):
     def __str__(self):  
         string = "{}: {}".format(self.__class__.__name__, self.args[0])
@@ -60,7 +61,7 @@ def checkCaptcha(webpage, terminate):
 class WebPage(ABC):    
     def __init_subclass__(cls, *args, url=None, actions={}, **kwargs):
         assert isinstance(actions, dict)
-        setattr(cls, 'URL', url)
+        setattr(cls, 'WebURL', url)
         setattr(cls, 'WebActions', actions)
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)     
@@ -70,7 +71,7 @@ class WebPage(ABC):
     def __init__(self, driver, timeout, *args, **kwargs): 
         self.__driver, self.__timeout = driver, timeout
         self.__webactions = {key:value(driver, timeout) for key, value in self.WebActions.items()}       
-        self.__url = kwargs.get('url', self.URL)
+        self.__url = kwargs.get('url', self.WebURL)
         if self.__url is None: raise EmptyWebPageURLError(self)        
 
     def load(self, *args, **kwargs): 

@@ -8,6 +8,7 @@ Created on Tues Sept 1 2020
 
 import time
 from abc import ABC, abstractmethod
+from collections import OrderedDict as ODict
 from selenium.webdriver.common.action_chains import ActionChains
 
 __version__ = "1.0.0"
@@ -34,6 +35,11 @@ class WebProcess(object):
         assert isinstance(actions, list)
         assert all([isinstance(items, tuple) for items in actions])
         assert all([item in WebAction.registry() for items in actions for item in items])
+        actiontypes = [set([action.type for action in items]) for items in actions]
+        assert all([len(actiontype) == 1 for actiontype in actiontypes])
+        actiontypes = [list(actiontype)[0] for actiontype in actiontypes]        
+        assert len(actiontypes) == len(actions)
+        setattr(cls, 'WebActionTypes', actiontypes)
         setattr(cls, 'WebOperations', actions) 
         
     def __iter__(self): return (weboperation for weboperation in self.weboperations)
@@ -41,11 +47,8 @@ class WebProcess(object):
     def __repr__(self): return "{}(driver={}, timeout={})".format(repr(self.__driver), self.__timeout)   
     def __str__(self): return "{}({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.webelements]))   
     def __init__(self, driver, timeout, *args, **kwargs):        
-        webactiontypes = [set([webaction.type for webaction in webactions]) for webactions in self.WebOperations]
-        assert all([len(webactiontype) == 1 for webactiontype in webactiontypes])
-        webactiontypes = [list(webactiontype)[0] for webactiontype in webactiontypes]
         self.__driver, self.__timeout = driver, timeout
-        self.__weboperations = tuple([WebOperation.registry()[webactiontype](driver, timeout, *args, webactions=webactions, **kwargs) for webactiontype, webactions in zip(webactiontypes, self.WebOperations)])
+        self.__weboperations = tuple([WebOperation.registry()[webactiontype](driver, timeout, *args, webactions=webactions, **kwargs) for webactiontype, webactions in zip(self.WebActionTypes, self.WebOperations)])
         
     @property
     def weboperations(self): return self.__weboperations
@@ -53,9 +56,9 @@ class WebProcess(object):
     def webelements(self): return list(set([webelement for weboperation in self.__weboperations for webelement in weboperation.webelements]))
 
     @property
-    def loaded(self): return all([weboperation.loaded for weboperation in iter(self)])  
+    def loaded(self): return self.weboperations[0].load()  
     def load(self): 
-        for weboperation in iter(self): weboperation.load()
+        self.weboperations[0].load()
         return self
     
     def __call__(self, *args, **kwargs): 
@@ -129,7 +132,7 @@ class WebAction(object):
             setattr(cls, 'values', tuple([kwargs[key] for key in cls.keys]))
             setattr(cls, 'wait', wait)
             cls.__registry.append(cls)
-        else: raise TypeError(cls)
+        else: raise TypeError(cls.__name__)
         
     def __new__(cls, *args, **kwargs):
         assert cls in cls.__registry
@@ -139,7 +142,7 @@ class WebAction(object):
     def __str__(self): return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, str(webelement)]) for key, webelement in self.webelements.items()]))   
     def __init__(self, driver, timeout, *args, **kwargs):
         self.__driver, self.__timeout = driver, timeout
-        self.__webelements = {key:value(driver, timeout, *args, **kwargs) for key, value in zip(self.keys, self.values)}         
+        self.__webelements = ODict([(key, value(driver, timeout, *args, **kwargs)) for key, value in zip(self.keys, self.values)])         
         
     def __len__(self): return len(self.webelements)
     def __iter__(self): return (webelement for webelement in self.webelements.values())
@@ -186,28 +189,28 @@ class WebActionOrderable(WebAction, actiontype='orderable'):
 
 
 class WebClick(WebActionChainable, action='click'):
-    def process(self, x): x.click(self['click'].content)    
+    def process(self, x): x.click(self['click'].element)    
 
 class WebDoubleClick(WebActionChainable, action='click'): 
-    def process(self, x): x.double_click(self['click'].content)
+    def process(self, x): x.double_click(self['click'].element)
 
 class WebClickDown(WebActionChainable, action='click'):
-    def process(self, x): x.click_and_hold(self['click'].content)
+    def process(self, x): x.click_and_hold(self['click'].element)
 
 class WebClickRelease(WebActionChainable, action='click'):
-    def process(self, x): x.release(self['click'].content)
+    def process(self, x): x.release(self['click'].element)
 
 class WebMoveTo(WebActionChainable, action='move'):
-    def process(self, x): x.move_to_element(self['move'].content)
+    def process(self, x): x.move_to_element(self['move'].element)
  
 class WebKeyDown(WebActionChainable, action='key'): 
-    def process(self, x): x.key_down(self.keyboardvalue, self['key'].content)
+    def process(self, x): x.key_down(self.keyboardvalue, self['key'].element)
     
 class WebKeyUp(WebActionChainable, action='key'): 
-    def process(self, x): x.key_up(self.keyboardvalue, self['key'].content)
+    def process(self, x): x.key_up(self.keyboardvalue, self['key'].element)
 
 class WebDragDrop(WebActionChainable, actions=('drag', 'drop')): 
-    def process(self, x): x.drag_and_drop(self['drag'].content, self['drop'].content)
+    def process(self, x): x.drag_and_drop(self['drag'].element, self['drop'].element)
 
 class WebSelect(WebActionOrderable, action='select'): 
     def operation(self, *args, select, **kwargs): self['select'].sel(select)
