@@ -12,7 +12,6 @@ from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
-from selenium.common.exceptions import TimeoutException
 
 from webscraping.webelements import EmptyWebElementError
 from webscraping.webactions import EmptyWebActionError
@@ -45,7 +44,7 @@ class WebDriver(ABC):
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
     def __init__(self, file, *args, timeout=50, wait=10, retrys=5, **kwargs): 
-        self.__proxy = kwargs.get('proxy', None)
+        self.proxy = kwargs.get('proxy', None)
         self.__timeout, self.__wait, self.__retrys = timeout, wait, retrys
         self.__driver = None
         self.__success = False
@@ -75,19 +74,19 @@ class WebDriver(ABC):
         options, capabilities = self.setup(*args, **kwargs)
         self.start(options, capabilities)   
         page = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
-        try: page.load(*args, **kwargs)
-        except TimeoutException: self.refresh()
+        page.load(*args, **kwargs)
+        page.checkFailure()
         yield from self.execute(page, *args, **kwargs)
         self.stop(True)        
         
     def setup(self, *args, **kwargs):
         options = Options()
-        options = self.getoptions(options, **self.options)
-        options = self.getextensions(options, **self.extensions)
-        capabilities = self.getcapabilities(*args, **kwargs)
+        options = self.getOptions(options, **self.options)
+        options = self.getExtensions(options, **self.extensions)
+        capabilities = self.getCapabilities(*args, **kwargs)
         try: 
-            proxy = next(self.__proxy)
-            driverproxy = self.getproxy(str(proxy), *args, **kwargs)           
+            proxy = next(self.proxy)
+            driverproxy = self.getProxy(str(proxy), *args, **kwargs)           
             driverproxy.add_to_capabilities(capabilities)                        
         except TypeError: pass   
         return options, capabilities     
@@ -102,8 +101,10 @@ class WebDriver(ABC):
         self.__driver.quit()
         self.__driver = None
         self.__success = success
-        
-    def getoptions(self, options, *args, incognito, headless, images, **kwargs): 
+
+    @classmethod
+    def addOptions(cls, options): setattr(cls, 'options', options)  
+    def getOptions(self, options, *args, incognito, headless, images, **kwargs): 
         options.add_argument("--start-maximized")
         options.add_argument("--disable-notifications")
         if incognito: options.add_argument("--incognito")
@@ -115,16 +116,19 @@ class WebDriver(ABC):
         options.add_experimental_option('useAutomationExtension', False)
         return options
     
-    def getextensions(self, options, *args, **extensions):
+    @classmethod
+    def addExtensions(cls, extensions): setattr(cls, 'extensions', extensions)  
+    def getExtensions(self, options, *args, **extensions):
         for key, value in extensions.items(): options.add_argument('--load-extension={}'.format(value))
         return options
     
-    def getproxy(self, proxy, *args, **kwargs):
+    def addProxy(self, proxy): self.proxy = proxy
+    def getProxy(self, proxy, *args, **kwargs):
         instance = Proxy({'proxyType':ProxyType.MANUAL, 'httpProxy':proxy, 'ftpProxy':proxy, 'sslProxy':proxy})
         instance.autodetect = False
         return instance
 
-    def getcapabilities(self, *args, **kwargs):
+    def getCapabilities(self, *args, **kwargs):
         return DesiredCapabilities.CHROME.copy()
        
     @abstractmethod
@@ -145,8 +149,6 @@ class WebDriver(ABC):
         if self.__driver is None: raise EmptyWebDriverError(str(self))
         else: return self.__driver
 
-    def addproxy(self, proxy): self.__proxy = proxy
-    
     def back(self): self.driver.back
     def forward(self): self.driver.forward
     def sleep(self): time.sleep(self.__wait)

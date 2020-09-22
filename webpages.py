@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import WebDriverException, TimeoutException
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -53,13 +54,22 @@ class WebPage(ABC):
 
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
-        self.driver.get(str(self.url))      
-        confirm = WebDriverWait(self.driver, self.timeout).until(lambda driver: driver.current_url == str(self.url))
-        if not confirm: raise EmptyWebPageError(self)
-        failure = WebDriverWait(self.driver, FAILURE_TIMEOUT).until(EC.presence_of_all_elements_located((By.XPATH, FAILURE_XPATH)))
-        if failure: raise FailureWebPageError(self)
-        captcha = WebDriverWait(self.driver, CAPTCHA_TIMEOUT).until(EC.presence_of_all_elements_located((By.XPATH, CAPTCHA_XPATH)))
-        if captcha: raise CaptchaWebPageError(self)
+        try: self.driver.get(str(self.url))      
+        except WebDriverException as error: 
+            self.checkFailure()
+            raise error
+        
+    def checkFailure(self):
+        try: failure = WebDriverWait(self.driver, FAILURE_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, FAILURE_XPATH)))
+        except TimeoutException: failure = None
+        if failure: raise FailureWebPageError(self, str(failure.text)) 
+        else: pass
+    
+    def checkCaptcha(self):
+        try: captcha = WebDriverWait(self.driver, CAPTCHA_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, CAPTCHA_XPATH)))
+        except TimeoutException: captcha = None
+        if captcha: raise CaptchaWebPageError(self) 
+        else: pass
         
     @property
     def driver(self): return self.__driver  
