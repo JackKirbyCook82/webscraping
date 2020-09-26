@@ -54,7 +54,6 @@ class WebProcess(object):
     def weboperations(self): return self.__weboperations
     @property
     def webelements(self): return list(set([webelement for weboperation in self.__weboperations for webelement in weboperation.webelements]))
-
     @property
     def loaded(self): return self.weboperations[0].load()  
     def load(self): 
@@ -87,8 +86,7 @@ class WebOperation(ABC):
     @property
     def webactions(self): return self.__webactions
     @property
-    def webelements(self): return list(set([webelement for webaction in self.__webactions for webelement in webaction.webelements.values()]))
-        
+    def webelements(self): return list(set([webelement for webaction in self.__webactions for webelement in webaction.webelements.values()]))       
     @property
     def driver(self): return self.__driver
     @property
@@ -150,7 +148,6 @@ class WebAction(object):
 
     @property
     def webelements(self): return self.__webelements
-
     @property
     def loaded(self): return all([webelement.loaded for webelement in iter(self)])  
     def load(self): 

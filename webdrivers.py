@@ -39,13 +39,13 @@ class WebDriver(ABC):
     def __bool__(self): return self.__driver is not None
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
-        content = {'timeout':self.__timeout, 'retrys':self.__retrys, **self.options}
+        content = {'loadtime':self.__loadtime, 'timeout':self.__timeout, 'retrys':self.__retrys, **self.options}
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
-    def __init__(self, file, *args, timeout=50, wait=10, retrys=5, **kwargs): 
+    def __init__(self, file, *args, loadtime=50, timeout=10, wait=10, retrys=5, **kwargs): 
+        self.__loadtime, self.__timeout, self.__wait, self.__retrys = loadtime, timeout, wait, retrys
         self.proxy = kwargs.get('proxy', None)
-        self.__timeout, self.__wait, self.__retrys = timeout, wait, retrys
         self.__driver = None
         self.__success = False
         self.__file = file
@@ -93,7 +93,7 @@ class WebDriver(ABC):
 
     def start(self, options, capabilities): 
         driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
-        driver.set_page_load_timeout(self.timeout)
+        driver.set_page_load_timeout(self.loadtime)
         self.__driver = driver 
         
     def stop(self, success):
@@ -136,6 +136,8 @@ class WebDriver(ABC):
  
     @property
     def success(self): return self.__success    
+    @property
+    def loadtime(self): return self.__loadtime
     @property
     def timeout(self): return self.__timeout    
     @property

@@ -17,7 +17,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebButton', 'WebRadioButton', 'WebRadioButton', 'WebLink', 'WebInput', 'WebSelection', 'WebData', 'WebTable']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebLink', 'WebInput', 'WebSelection', 'WebData', 'WebTable']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -92,25 +92,25 @@ class WebElement(WebElementBase):
         return element
 
 
-class WebElements(WebElementBase):
-    def __iter__(self): (item for item in self.elements)
-    def __getitem__(self, index): return self.elements[index]
+# class WebElements(WebElementBase):
+#     def __iter__(self): (item for item in self.elements)
+#     def __getitem__(self, index): return self.elements[index]
     
-    @property
-    def elements(self): return self.element
-    @property
-    def text(self): return [item.text for item in self.elements]
-    @property
-    def enabled(self): return all([item.is_enabled() for item in self.elements])
-    @property
-    def displayed(self): return all([item.is_displayed() for item in self.elements])
-    @property
-    def empty(self): return not self.elements
+#     @property
+#     def elements(self): return self.element
+#     @property
+#     def text(self): return [item.text for item in self.elements]
+#     @property
+#     def enabled(self): return all([item.is_enabled() for item in self.elements])
+#     @property
+#     def displayed(self): return all([item.is_displayed() for item in self.elements])
+#     @property
+#     def empty(self): return not self.elements
 
-    def get(self): 
-        try: elements = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.xpath)))
-        except (NoSuchElementException, TimeoutException, WebDriverException): elements = None        
-        return elements
+#     def get(self): 
+#         try: elements = WebDriverWait(self.driver, self.timeout).until(EC.presence_of_all_elements_located((By.XPATH, self.xpath)))
+#         except (NoSuchElementException, TimeoutException, WebDriverException): elements = None        
+#         return elements
 
 
 class WebClickable(WebElement):    
@@ -128,6 +128,12 @@ class WebText(WebElement, parser=lambda x: str(x)):
     def data(self): 
         try: return self.parser(self.text)
         except EmptyWebElementError: return None
+    
+    
+class WebLink(WebElement):
+    @property
+    def url(self): return str(self.element.href)
+    def click(self): self.element.click()      
     
     
 class WebData(WebElement, parser=lambda x: str(x), parsers={}):
@@ -183,16 +189,6 @@ class WebSelection(WebElement, mapping={}):
         else: raise TypeError(type(x).__name__)
     
     
-class WebLink(WebElement):
-    @property
-    def url(self): return str(self.element.href)
-    def click(self): self.element.click()  
-
-
-class WebLinks(WebElements):
-    @property
-    def urls(self): return [str(item.href) for item in self.elements]
-    def click(self, index): self.elements[index].click()
 
 
 

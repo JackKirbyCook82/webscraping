@@ -55,7 +55,7 @@ class WebPage(ABC):
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
         try: self.driver.get(str(self.url))      
-        except WebDriverException as error: 
+        except (WebDriverException, TimeoutException) as error: 
             self.checkFailure()
             raise error
         
