@@ -48,7 +48,6 @@ class WebPage(ABC):
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
     def __init__(self, driver, timeout, *args, **kwargs): 
         self.__driver, self.__timeout = driver, timeout
-        self.__webactions = {key:value(driver, timeout) for key, value in self.WebActions.items()}       
         self.__url = kwargs.get('url', self.WebURL)
         if self.__url is None: raise EmptyWebPageURLError(self)        
 

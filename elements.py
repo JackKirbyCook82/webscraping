@@ -23,14 +23,18 @@ class EmptyElementError(Exception):
     
 class Element(object):
     def __init_subclass__(cls, **attrs):
-         for name, attr in attrs.items(): 
-             if not hasattr(attr, '__call__'): setattr(cls, name, attr)
-             else: setattr(cls, name, staticmethod(attr))    
-    
+        attrs = {name:(staticmethod(attr) if hasattr(attr, '__call__') else attr) for name, attr in attrs.items()} 
+        setattr(cls, 'attrs', attrs)
+        
     def __bool__(self): return self.__element is not None
     def __init__(self, element): self.__element = element
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))    
+    def __getattr__(self, attr):
+        try: self.attrs[attr]
+        except KeyError: raise AttributeError(attr)
 
+    @classmethod
+    def update(cls, **attrs): cls.attrs.update({name:(staticmethod(attr) if hasattr(attr, '__call__') else attr) for name, attr in attrs.items()})
     @property
     def element(self): 
         if not self: raise EmptyElementError(str(self)) 
@@ -72,7 +76,6 @@ class Selection(Element):
     def isel(self, index): self.select.select_by_index(index)
     def tsel(self, text): self.select.select_by_visible_text(text)
     def vsel(self, value): self.select.select_by_value(value)
-
     def sel(self, x):
         if isinstance(x, int): self.isel(x)
         elif isinstance(x, str): 
@@ -83,7 +86,9 @@ class Selection(Element):
 
 class Input(Element):
     def clear(self): self.element.clear()
-    def fill(self, text): self.element.sendKeys(text)       
+    def fill(self, text): 
+        self.clear()
+        self.element.sendKeys(text)       
 
 
 class Link(Element):
@@ -92,6 +97,7 @@ class Link(Element):
 
 
 class Text(Element, parser=lambda x: str(x)):
+    @property
     def data(self): 
         try: return self.parser(self.text)
         except EmptyElementError: return None
@@ -99,13 +105,14 @@ class Text(Element, parser=lambda x: str(x)):
 
 class Table(Element, tableindex=0, headerrow=None, indexcolumn=None): 
     def parser(self, dataframe, *args, **kwargs): return dataframe
+    @property
     def dataframe(self): 
         tables = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)
         if not tables: return None
         return tables[self.tableindex].to_frame() if not isinstance(tables[self.tableindex], pd.DataFrame) else tables[self.tableindex]   
-
+    @property
     def table(self, *args, **kwargs): 
-        dataframe = self.dataframe()
+        dataframe = self.dataframe
         if dataframe is not None: return self.parser(dataframe, *args, **kwargs)   
         else: return None    
         

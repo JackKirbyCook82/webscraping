@@ -22,19 +22,22 @@ __license__ = ""
       
 class WebElement(object):
     __registry = []
-    def __init_subclass__(cls, *args, **kwargs): 
-        if 'xpath' in kwargs.keys():
-            setattr(cls, 'xpath', kwargs['xpath'])
-            cls.__registry.append(cls)
-        elif 'element' in kwargs.keys():
-            setattr(cls, 'Element', kwargs['element'])
-        else: raise ValueError('xpath', 'element')
+    def __init_subclass__(cls, *args, xpath=None, element=None, **attrs): 
+        if cls in WebElement.__subclasses__:
+            assert xpath is not None
+            setattr(cls, 'xpath', xpath)
+        else: 
+            assert element is not None and hasattr(cls, 'xpath') and isinstance(element, Element)
+            element.update(**attrs)
+            setattr(cls, 'Element', element)
+            WebElement.__registry.append(cls)
             
     __instance = None
     def __init__(self, driver, timeout, *args, **kwargs): self.element = self.Element(self.get(driver, timeout))    
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.element)))
     def __getattr__(self, attr): return getattr(self.element, attr)
     def __new__(cls, *args, **kwargs):
-        assert cls in cls.__registry and hasattr(cls, 'xpath')
+        assert cls in WebElement.__registry and hasattr(cls, 'xpath') and hasattr(cls, 'Element')
         if cls.__instance is None: cls.__instance = super().__new__(cls) 
         return cls.__instance  
      
@@ -47,18 +50,19 @@ class WebElement(object):
 
 
 class WebElements(list):
-    def __init_subclass__(cls, *args, **kwargs): 
-        if 'xpath' in kwargs.keys():
-            setattr(cls, 'xpath', kwargs['xpath'])
-            cls.__registry.append(cls)
-        elif 'element' in kwargs.keys():
-            assert kwargs['element'] in Element.__subclasses__()
-            setattr(cls, 'Element', kwargs['element'])
-        else: raise ValueError('xpath', 'element')
+    def __init_subclass__(cls, *args, xpath=None, element=None, **attrs): 
+        if cls in WebElements.__subclasses__:
+            assert xpath is not None
+            setattr(cls, 'xpath', xpath)
+        else: 
+            assert element is not None and hasattr(cls, 'xpath') and isinstance(element, Element)
+            element.update(**attrs)
+            setattr(cls, 'Element', element)
 
     def __init__(self, driver, timeout, *args, **kwargs): super().__init__([self.Element(element) for element in self.get(driver, timeout)])
+    def __str__(self): return "{}|({})".format(self.__class__.__name__, ', '.join([str(bool(element)) for element in self]))
     def __new__(cls, *args, **kwargs):
-        assert hasattr(cls, 'xpath')
+        assert hasattr(cls, 'xpath') and hasattr(cls, 'Element')
         return super().__new__(cls)   
         
     def get(self, driver, timeout):
