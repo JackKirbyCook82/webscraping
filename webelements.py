@@ -23,14 +23,14 @@ __license__ = ""
 class WebElement(object):
     __registry = []
     def __init_subclass__(cls, *args, xpath=None, element=None, **attrs): 
-        if cls in WebElement.__subclasses__:
-            assert xpath is not None
-            setattr(cls, 'xpath', xpath)
-        else: 
-            assert element is not None and hasattr(cls, 'xpath') and isinstance(element, Element)
+        if cls in WebElement.__subclasses__():
+            assert element is not None and issubclass(element, Element)
             element.update(**attrs)
             setattr(cls, 'Element', element)
-            WebElement.__registry.append(cls)
+            WebElement.__registry.append(cls)           
+        else: 
+           assert xpath is not None and hasattr(cls, 'xpath')
+           setattr(cls, 'xpath', xpath)
             
     __instance = None
     def __init__(self, driver, timeout, *args, **kwargs): self.element = self.Element(self.get(driver, timeout))    
@@ -51,13 +51,13 @@ class WebElement(object):
 
 class WebElements(list):
     def __init_subclass__(cls, *args, xpath=None, element=None, **attrs): 
-        if cls in WebElements.__subclasses__:
-            assert xpath is not None
-            setattr(cls, 'xpath', xpath)
-        else: 
-            assert element is not None and hasattr(cls, 'xpath') and isinstance(element, Element)
+        if cls in WebElements.__subclasses__():
+            assert element is not None and issubclass(element, Element)
             element.update(**attrs)
             setattr(cls, 'Element', element)
+        else: 
+            assert xpath is not None and hasattr(cls, 'xpath') 
+            setattr(cls, 'xpath', xpath)            
 
     def __init__(self, driver, timeout, *args, **kwargs): super().__init__([self.Element(element) for element in self.get(driver, timeout)])
     def __str__(self): return "{}|({})".format(self.__class__.__name__, ', '.join([str(bool(element)) for element in self]))
