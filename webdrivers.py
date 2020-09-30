@@ -13,9 +13,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 
-from webscraping.webelements import EmptyWebElementError
-from webscraping.webactions import EmptyWebActionError
-from webscraping.webpages import EmptyWebPageError, FailureWebPageError, CaptchaWebPageError
+from webscraping.elements import EmptyElementError
+from webscraping.webpages import EmptyPageError, FailurePageError, CaptchaPageError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -24,8 +23,8 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-class MaxWebDriverRetryError(Exception): pass
-class EmptyWebDriverError(Exception):
+class MaxDriverRetryError(Exception): pass
+class EmptyDriverError(Exception):
     def __str__(self): return "{}\n{}".format(self.__class__.__name__, self.args[0])
 
 
@@ -54,7 +53,7 @@ class WebDriver(ABC):
         try: 
             yield from self.controller(*args, **kwargs)
             self.__success = True
-        except MaxWebDriverRetryError:
+        except MaxDriverRetryError:
             self.__success = False            
     
     def controller(self, *args, retry=0, **kwargs):
@@ -63,12 +62,12 @@ class WebDriver(ABC):
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             yield from self.run(*args, **kwargs)
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
-        except (EmptyWebElementError, EmptyWebActionError, EmptyWebPageError, FailureWebPageError, CaptchaWebPageError, EmptyWebDriverError) as error:
+        except (EmptyElementError, EmptyPageError, FailurePageError, CaptchaPageError, EmptyDriverError) as error:
             self.stop(False)
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error), '\n')
             if retry < self.__retrys: yield from self.controller(*args, retry=retry+1, **kwargs)
-            else: raise MaxWebDriverRetryError(retry)
+            else: raise MaxDriverRetryError(retry)
         
     def run(self, *args, **kwargs): 
         options, capabilities = self.setup(*args, **kwargs)

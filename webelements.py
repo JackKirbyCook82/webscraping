@@ -29,7 +29,7 @@ class WebElement(object):
             setattr(cls, 'Element', element)
             WebElement.__registry.append(cls)           
         else: 
-           assert xpath is not None and hasattr(cls, 'xpath')
+           assert xpath is not None 
            setattr(cls, 'xpath', xpath)
             
     __instance = None
@@ -56,7 +56,7 @@ class WebElements(list):
             element.update(**attrs)
             setattr(cls, 'Element', element)
         else: 
-            assert xpath is not None and hasattr(cls, 'xpath') 
+            assert xpath is not None
             setattr(cls, 'xpath', xpath)            
 
     def __init__(self, driver, timeout, *args, **kwargs): super().__init__([self.Element(element) for element in self.get(driver, timeout)])

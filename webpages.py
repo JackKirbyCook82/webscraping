@@ -30,26 +30,27 @@ class WebPageError(Exception):
         string = "{}: {}".format(self.__class__.__name__, self.args[0])
         return string if not self.args[1:] else "\n".join([string, *self.args[1:]])
 
-class EmptyWebPageError(WebPageError): pass
-class EmptyWebPageURLError(WebPageError): pass
-class FailureWebPageError(WebPageError): pass
-class CaptchaWebPageError(WebPageError): pass
+class EmptyPageError(WebPageError): pass
+class EmptyPageURLError(WebPageError): pass
+class FailurePageError(WebPageError): pass
+class CaptchaPageError(WebPageError): pass
     
     
 class WebPage(ABC):    
-    def __init_subclass__(cls, *args, url=None, actions={}, **kwargs):
-        assert isinstance(actions, dict)
-        setattr(cls, 'WebURL', url)
-        setattr(cls, 'WebActions', actions)
+    def __init_subclass__(cls, *args, url=None, contents={}, **kwargs):
+        assert isinstance(contents, dict)
+        setattr(cls, 'URL', url)
+        setattr(cls, 'Contents', contents)
     
+#    def __getitem__(self, key): return self.__Contents[key](self.__driver, self.__timeout)
+
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
-    def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])    
-    def __getitem__(self, key): return self.__webactions[key]          
+    def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])         
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
     def __init__(self, driver, timeout, *args, **kwargs): 
         self.__driver, self.__timeout = driver, timeout
-        self.__url = kwargs.get('url', self.WebURL)
-        if self.__url is None: raise EmptyWebPageURLError(self)        
+        self.__url = kwargs.get('url', self.URL)
+        if self.__url is None: raise EmptyPageURLError(self)        
 
     def load(self, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
@@ -61,13 +62,13 @@ class WebPage(ABC):
     def checkFailure(self):
         try: failure = WebDriverWait(self.driver, FAILURE_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, FAILURE_XPATH)))
         except TimeoutException: failure = None
-        if failure: raise FailureWebPageError(self, str(failure.text)) 
+        if failure: raise FailurePageError(self, str(failure.text)) 
         else: pass
     
     def checkCaptcha(self):
         try: captcha = WebDriverWait(self.driver, CAPTCHA_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, CAPTCHA_XPATH)))
         except TimeoutException: captcha = None
-        if captcha: raise CaptchaWebPageError(self) 
+        if captcha: raise CaptchaPageError(self) 
         else: pass
         
     @property
