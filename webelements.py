@@ -20,17 +20,20 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
       
+_aslist = lambda items: [items] if not isinstance(items, (tuple, list)) else list(items)
+
+
 class WebElement(object):
     __registry = []
     def __init_subclass__(cls, *args, xpath=None, element=None, **attrs): 
         if cls in WebElement.__subclasses__():
-            assert element is not None and issubclass(element, Element)
-            element.update(**attrs)
-            setattr(cls, 'Element', element)
-            WebElement.__registry.append(cls)           
+            assert element is not None and issubclass(element, Element)           
+            setattr(cls, 'Element', element)                 
         else: 
-           assert xpath is not None 
-           setattr(cls, 'xpath', xpath)
+           assert xpath is not None        
+           cls.Element.update(**attrs)
+           setattr(cls, 'xpath', xpath)  
+           WebElement.__registry.append(cls)    
             
     __instance = None
     def __init__(self, driver, timeout, *args, **kwargs): self.element = self.Element(self.get(driver, timeout))    
@@ -53,10 +56,10 @@ class WebElements(list):
     def __init_subclass__(cls, *args, xpath=None, element=None, **attrs): 
         if cls in WebElements.__subclasses__():
             assert element is not None and issubclass(element, Element)
-            element.update(**attrs)
             setattr(cls, 'Element', element)
         else: 
             assert xpath is not None
+            cls.Element.update(**attrs)
             setattr(cls, 'xpath', xpath)            
 
     def __init__(self, driver, timeout, *args, **kwargs): super().__init__([self.Element(element) for element in self.get(driver, timeout)])
@@ -84,13 +87,6 @@ class WebSelection(WebElement, element=Selection): pass
 class WebLink(WebElement, element=Link): pass
 class WebTexts(WebElements, element=Text): pass
 class WebLinks(WebElements, element=Link): pass
-
-
-
-
-
-
-
 
 
 
