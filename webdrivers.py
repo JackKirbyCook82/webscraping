@@ -42,7 +42,7 @@ class WebDriver(ABC):
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
-    def __init__(self, file, *args, loadtime=50, timeout=10, wait=10, retrys=5, **kwargs): 
+    def __init__(self, file, *args, loadtime=50, timeout=10, wait=5, retrys=5, **kwargs): 
         self.__loadtime, self.__timeout, self.__wait, self.__retrys = loadtime, timeout, wait, retrys
         self.proxy = kwargs.get('proxy', None)
         self.__driver = None

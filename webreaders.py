@@ -92,10 +92,14 @@ class ProxyPool(object):
         return dataframe
   
     @classmethod
+    def fromfile(cls, file): return cls.fromdataframe(pd.read_csv(file, index_col=None, header=0))    
+    @classmethod
     def fromdataframe(cls, dataframe):
         dataframe.columns = [column.lower() for column in dataframe.columns]
         proxys = [Proxy(proxyDomain, proxyPort) for proxyDomain, proxyPort in zip(dataframe['domain'], dataframe['port'])]
         return cls(proxys)    
+    
+
         
 
 class Authenticate(ntuple('Authenticate', 'username password')): 
