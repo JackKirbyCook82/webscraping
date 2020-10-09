@@ -20,8 +20,7 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-WEBELEMENT_REGISTRY = {}
-WEBELEMENTS_REGISTRY = {}
+REGISTRY = {}
       
 _aslist = lambda items: [items] if not isinstance(items, (tuple, list)) else list(items)
 
@@ -43,27 +42,26 @@ class WebElement(object):
         assert key is not None
         cls.Children[key] = child
         
-    def __init_subclass__(cls, *args, xpath=None, element=None, parent=None, key=None, **attrs):
+    def __init_subclass__(cls, *args, xpath=None, element=None, parent=None, key=None, dynamic=False, **attrs):
         if element is not None: setattr(cls, 'Element', element)
         if xpath is not None: setattr(cls, 'xpath', xpath)
         cls.Element.update(**attrs)
         if hasattr(cls, 'xpath') and hasattr(cls, 'Element'): 
             setattr(cls, 'Children', {})
-            if parent is None: WEBELEMENT_REGISTRY[cls.__name__] = cls
-            else: WEBELEMENT_REGISTRY[parent.__name__].addchild(key, cls)
+            setattr(cls, 'dynamic', dynamic)
+            if parent is None: REGISTRY[cls.__name__] = cls
+            else: REGISTRY[parent.__name__].addchild(key, cls)
            
-    __instance = None
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath') and hasattr(cls, 'Element')
-        assert cls.__name__ in WEBELEMENT_REGISTRY.keys() and cls in WEBELEMENT_REGISTRY.values()
-        if cls.__instance is None: cls.__instance = super().__new__(cls) 
-        return cls.__instance  
+        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()
+        if not cls.dynamic: return super().__new__(cls)
+        if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls))
+        return cls.instance
     
     def __init__(self, driver, timeout, *args, **kwargs):
-        if getattr(self, 'initialized', False): return
         self.__element = self.Element(self.get(driver, timeout))
-        self.__children = {key:child(self.element, timeout, *args, **kwargs) for key, child in self.Children.items()}
-        self.initialized = True
+        self.__children = {key:child(self.__element, timeout, *args, **kwargs) for key, child in self.Children.items()}
 
     @property
     def element(self): return self.__element
@@ -72,7 +70,7 @@ class WebElement(object):
     
     def __bool__(self): return bool(self.__element)
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__element)))      
-    def __getattr__(self, attr): return getattr(self.element, attr)   
+    def __getattr__(self, attr): return getattr(self.__element, attr)   
     def __getitem__(self, key): return self.__children[key] 
        
     def get(self, driver, timeout):
@@ -88,19 +86,22 @@ class WebElements(object):
         assert key is not None
         cls.Children[key] = child
     
-    def __init_subclass__(cls, *args, xpath=None, element=None, parent=None, key=None, **attrs):
+    def __init_subclass__(cls, *args, xpath=None, element=None, parent=None, key=None, dynamic=False, **attrs):
         if element is not None: setattr(cls, 'Element', element)
         if xpath is not None: setattr(cls, 'xpath', xpath)
         cls.Element.update(**attrs)
         if hasattr(cls, 'xpath') and hasattr(cls, 'Element'): 
             setattr(cls, 'Children', {})
-            if parent is None: WEBELEMENTS_REGISTRY[cls.__name__] = cls
-            else: WEBELEMENTS_REGISTRY[parent.__name__].addchild(key, cls)
+            setattr(cls, 'dynamic', dynamic)
+            if parent is None: REGISTRY[cls.__name__] = cls
+            else: REGISTRY[parent.__name__].addchild(key, cls)
 
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath') and hasattr(cls, 'Element') 
-        assert cls.__name__ in WEBELEMENTS_REGISTRY.keys() and cls in WEBELEMENTS_REGISTRY.values()
-        return super().__new__(cls)   
+        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()
+        if not cls.dynamic: return super().__new__(cls)
+        if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls))
+        return cls.instance
 
     def __init__(self, driver, timeout, *args, **kwargs):
         self.__elements = [self.Element(element) for element in self.get(driver, timeout)]
@@ -114,8 +115,9 @@ class WebElements(object):
     @property
     def childrens(self): return self.__children
 
-    def __bool__(self): return all([bool(element) for element in self.__elements])
-    def __str__(self): return "{}|({})".format(self.__class__.__name__, ', '.join([str(bool(element)) for element in self.__elements]))  
+    def __bool__(self): return bool(self.__elements)
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__elements)))   
+    def __iter__(self): return ((element, children) for element, children in zip(self.__elements, self.__childrens))
     def __getitem__(self, locator): 
         if isinstance(locator, int): return self.__elements[locator]
         elif isinstance(locator, tuple): 

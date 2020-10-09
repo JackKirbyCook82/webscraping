@@ -53,7 +53,7 @@ class WebPage(ABC):
     def __getitem__(self, key): 
         try: return self.__contents[key]
         except KeyError:
-            self.__contents[key] = self.Contents[key].fromdriver(self.__driver, self.__timeout)
+            self.__contents[key] = self.Contents[key](self.__driver, self.__timeout)
             return self.__contents[key]
 
     def load(self, *args, **kwargs): 
