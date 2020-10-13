@@ -147,7 +147,7 @@ class WebDriver(ABC):
     def html(self): return self.driver.page_source   
     @property
     def driver(self):     
-        if self.__driver is None: raise EmptyWebDriverError(str(self))
+        if self.__driver is None: raise EmptyDriverError(str(self))
         else: return self.__driver
 
     def back(self): self.driver.back
