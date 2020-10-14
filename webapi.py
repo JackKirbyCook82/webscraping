@@ -13,12 +13,12 @@ from webscraping.url import URL, Protocol, Domain, Path, Parms
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['URLAPI', 'Links_WebAPI']
+__all__ = ['URLAPI', 'WebAPI']
 __copyright__ = "Copyright 2020, Jack Kirby Cook"
 __license__ = ""
 
 
-class LinksWebAPIFailureError(Exception): pass
+class WebAPIFailureError(Exception): pass
 
 
 class URLAPI(object):
@@ -39,7 +39,7 @@ class URLAPI(object):
     def parms(self, *args, **kwargs): return Parms()
 
 
-class Links_WebAPI(object):
+class WebAPI(object):
     def __repr__(self): return "{}(file='{}')".format(self.__class__.__name__, self.__file)   
     def __init__(self, file, urlapi, webreader, *args, **kwargs):
         self.__file = file
@@ -51,7 +51,7 @@ class Links_WebAPI(object):
         if self.success: self.record(downloaded, *args, **kwargs) 
         if self.success: print('Scraping Success: {}'.format(self.__class__.__name__))
         else: print('Scraping Failure: {}'.format(self.__class__.__name__))
-        if not self.success: raise LinksWebAPIFailureError()             
+        if not self.success: raise WebAPIFailureError()             
 
     @property
     def success(self): return self.__webreader.success
@@ -63,12 +63,19 @@ class Links_WebAPI(object):
 
     def record(self, downloaded, *args, **kwargs):
         assert isinstance(downloaded, pd.DataFrame)
-        try: dataframe = pd.concat([self.load(self.__file, *args, **kwargs), downloaded], ignore_index=True).drop_duplicates(ignore_index=True)
+        try: dataframe = pd.concat([self.load(), downloaded], ignore_index=True).drop_duplicates(ignore_index=True)
         except FileNotFoundError: dataframe = downloaded        
-        self.save(self.__file, dataframe, *args, **kwargs)        
+        self.save(dataframe)        
 
-    def load(self, file, *args, **kwargs): return dataframe_fromfile(file, index=None, header=0, forceframe=True)  
-    def save(self, file, dataframe, *args, **kwargs): dataframe_tofile(file, dataframe, index=False, header=True)   
+    def load(self): return dataframe_fromfile(self.__file, index=None, header=0, forceframe=True)  
+    def save(self, dataframe): dataframe_tofile(self.__file, dataframe, index=False, header=True)   
+
+
+
+
+
+
+
 
 
 
