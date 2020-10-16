@@ -63,7 +63,7 @@ class WebAPI(object):
 
     def record(self, downloaded, *args, **kwargs):
         assert isinstance(downloaded, pd.DataFrame)
-        try: dataframe = pd.concat([self.load(), downloaded], ignore_index=True).drop_duplicates(ignore_index=True)
+        try: dataframe = pd.concat([self.load(), downloaded], ignore_index=True).drop_duplicates(ignore_index=True, keep='last')
         except FileNotFoundError: dataframe = downloaded        
         self.save(dataframe)        
 
