@@ -15,7 +15,7 @@ from webscraping.elements import Clickable, Link, Text, Table, Input, Selection
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebText', 'WebTable', 'WebInput', 'WebSelection', 'WebLink', 'WebClickables', 'WebLinks']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebText', 'WebTable', 'WebInput', 'WebSelection', 'WebLink', 'WebClickables', 'WebTexts', 'WebLinks']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -143,6 +143,7 @@ class WebSelection(WebElement, element=Selection): pass
 class WebLink(WebElement, element=Link): pass
 
 class WebClickables(WebElements, element=Clickable): pass
+class WebTexts(WebElements, element=Text): pass
 class WebLinks(WebElements, element=Link): pass
 
 
