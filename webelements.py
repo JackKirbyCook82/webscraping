@@ -6,6 +6,8 @@ Created on Mon Dec 30 2019
 
 """
 
+from collections import namedtuple as ntuple
+from collections import OrderedDict as ODict
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -61,7 +63,7 @@ class WebElement(object):
     
     def __init__(self, driver, timeout, *args, **kwargs):
         self.__element = self.Element(self.get(driver, timeout))
-        self.__children = {key:child(self.__element, timeout, *args, **kwargs) for key, child in self.Children.items()}
+        self.__children = ODict([(key, child(self.__element, timeout, *args, **kwargs)) for key, child in self.Children.items()])
 
     @property
     def element(self): return self.__element
@@ -79,6 +81,12 @@ class WebElement(object):
         if element is None: print("WebElement Missing: {}".format(self.__class__.__name__))         
         return element
     
+    
+class Locator(ntuple('Locator', 'element child')): 
+    def __call__(self, webelements):
+        if not self.child: return webelements.elements[self.element]
+        else: return webelements.childrens[self.element][self.child]
+
 
 class WebElements(object):    
     @classmethod
@@ -104,11 +112,8 @@ class WebElements(object):
         return cls.instance
 
     def __init__(self, driver, timeout, *args, **kwargs):
-        self.__elements = [self.Element(element) for element in self.get(driver, timeout)]
-        self.__childrens = [{} for element in self.__elements]
-        for index, webelement in enumerate(self.__elements):
-            self.__children[index]
-            self.__children[index].update({key:child(webelement, timeout, *args, **kwargs) for key, child in self.Children.items()})
+        self.__elements, self.__childrens = [self.Element(element) for element in self.get(driver, timeout)], []
+        for webelement in self.__elements: self.__childrens.append(ODict([(key, child(webelement, timeout, *args, **kwargs)) for key, child in self.Children.items()]))    
 
     @property
     def elements(self): return self.__elements
@@ -116,14 +121,14 @@ class WebElements(object):
     def childrens(self): return self.__children
 
     def __bool__(self): return bool(self.__elements)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__elements)))   
-    def __iter__(self): return ((element, children) for element, children in zip(self.__elements, self.__childrens))
-    def __getitem__(self, locator): 
-        if isinstance(locator, int): return self.__elements[locator]
-        elif isinstance(locator, tuple): 
-            assert len(locator) == 2 and isinstance(locator[0], int) and isinstance(locator[1], str)
-            return self.__children[locator[0]][locator[1]]
-        else: raise TypeError(type(locator).__name__)
+    def __len__(self): return len(self.__elements)
+    def __str__(self): return "{}[{}]|{}".format(self.__class__.__name__, len(self), bool(self.__elements))   
+    def __getitem__(self, locator): return locator(self)
+
+    def loc(self, elementIndex, childKey=None): return Locator(elementIndex, childKey)(self)
+    def iloc(self, elementIndex, childIndex=None): return Locator(elementIndex, childIndex)(self)
+
+#    def __iter__(self): return ((element, children) for element, children in zip(self.__elements, self.__childrens))
         
     def get(self, driver, timeout):
         print("WebElements Loading: {}".format(self.__class__.__name__))
@@ -143,7 +148,6 @@ class WebSelection(WebElement, element=Selection): pass
 class WebLink(WebElement, element=Link): pass
 
 class WebClickables(WebElements, element=Clickable): pass
-class WebButtons(WebElements, element=Clickable): pass
 class WebTexts(WebElements, element=Text): pass
 class WebLinks(WebElements, element=Link): pass
 
