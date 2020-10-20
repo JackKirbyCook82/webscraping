@@ -95,6 +95,8 @@ class Input(Element):
 
 class Link(Element):
     @property
+    def data(self): return str(self.element.href)
+    @property
     def url(self): return str(self.element.href) 
 
 

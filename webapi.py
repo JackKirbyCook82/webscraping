@@ -40,35 +40,44 @@ class URLAPI(object):
 
 
 class WebAPI(object):
-    def __repr__(self): return "{}(file='{}')".format(self.__class__.__name__, self.__file)   
-    def __init__(self, file, urlapi, webreader, *args, **kwargs):
-        self.__file = file
+    def __repr__(self): return "{}(files={})".format(self.__class__.__name__, self.__files)   
+    def __init__(self, files, urlapi, webreader, *args, **kwargs):
+        assert isinstance(files, dict)
+        self.__files = self.__files
         self.__urlapi = urlapi
         self.__webreader = webreader
-    
+ 
     def __call__(self, *args, **kwargs):
         downloaded = self.download(*args, **kwargs)            
-        if self.success: self.record(downloaded, *args, **kwargs) 
-        if self.success: print('Scraping Success: {}'.format(self.__class__.__name__))
+        if self.success: 
+            for dataset, dataframe in downloaded.items(): self.record(dataset, dataframe, *args, **kwargs)
+            print('Scraping Success: {}'.format(self.__class__.__name__))
         else: print('Scraping Failure: {}'.format(self.__class__.__name__))
         if not self.success: raise WebAPIFailureError()             
 
     @property
+    def datasets(self): return tuple(self.__files.keys())
+    @property
     def success(self): return self.__webreader.success
+    
     def download(self, *args, **kwargs):
         url = self.__urlapi(*args, **kwargs)
-        content = [items for items in self.__webreader(*args, url=str(url), **kwargs)]
-        assert all([isinstance(items, dict) for items in content])
-        return pd.DataFrame(content)
+        dataframes = dict.fromkeys(self.__files.keys())
+        for data in self.__webreader(*args, url=str(url), **kwargs): 
+            assert isinstance(data, dict)
+            assert data.keys() == dataframes.keys() and all([isinstance(value, pd.DataFrame) for value in data.values()])
+            for key, dataframe in data.items():
+                if dataframes[key] is None: dataframes[key] = dataframe
+                else: dataframes[key] = pd.concat([dataframes[key], dataframe], ignore_index=True)
+        return dataframes            
 
-    def record(self, downloaded, *args, **kwargs):
-        assert isinstance(downloaded, pd.DataFrame)
-        try: dataframe = pd.concat([self.load(), downloaded], ignore_index=True).drop_duplicates(ignore_index=True, keep='last')
-        except FileNotFoundError: dataframe = downloaded        
-        self.save(dataframe)        
+    def record(self, dataset, dataframe, *args, **kwargs):
+        try: dataframe = pd.concat([self.load(dataset), dataframe], ignore_index=True).drop_duplicates(ignore_index=True, keep='last')
+        except FileNotFoundError: pass        
+        self.save(dataset, dataframe)        
 
-    def load(self): return dataframe_fromfile(self.__file, index=None, header=0, forceframe=True)  
-    def save(self, dataframe): dataframe_tofile(self.__file, dataframe, index=False, header=True)   
+    def load(self, dataset): return dataframe_fromfile(self.__files[dataset], index=None, header=0, forceframe=True)  
+    def save(self, dataset, dataframe): dataframe_tofile(self.__files[dataset], dataframe, index=False, header=True)   
 
 
 

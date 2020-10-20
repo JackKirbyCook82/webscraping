@@ -20,19 +20,6 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-class WebActionChain(object): 
-    def chain(self, action, *args): getattr(self.__actionchain, action)(*args)
-    def __init__(self, driver): self.__actionchain = ActionChains(driver)
-    def __len__(self): return len(self.__actionchain._actions)
-    def __call__(self, *args, **kwargs): 
-        self.__actionchain.perform() 
-
-
-class WebActionFunctions(list):
-    def __call__(self, *args, **kwargs):
-        for function in self: function(*args, **kwargs)
-
-
 class WebActionProcess(object): 
     def __init_subclass__(cls, *args, webactions, **kwargs):
         assert isinstance(webactions, tuple)
@@ -44,8 +31,7 @@ class WebActionProcess(object):
         self.__driver = driver 
         
     def __iter__(self): return self.generator
-    def __call__(self, *args, **kwargs):
-        for webactions in iter(self): webactions(*args, **kwargs)
+    def __call__(self, *args, **kwargs): return all([webactions(*args, **kwargs) for webactions in iter(self)])
 
     def generator(self): 
         webactionchain = WebActionChain(self.__driver)
@@ -80,6 +66,21 @@ def webactionwait(method, wait=None):
     else: raise ValueError(method.__name__)
     update_wrapper(wrapper, method)
     return wrapper
+
+
+class WebActionChain(object): 
+    def chain(self, action, *args): getattr(self.__actionchain, action)(*args)
+    def __init__(self, driver): self.__actionchain = ActionChains(driver)
+    def __len__(self): return len(self.__actionchain._actions)
+    def __call__(self, *args, **kwargs): 
+        self.__actionchain.perform() 
+        return True
+
+
+class WebActionFunctions(list):
+    def __call__(self, *args, **kwargs):
+        for function in self: function(*args, **kwargs)
+        return True
 
 
 class WebAction(object): 
