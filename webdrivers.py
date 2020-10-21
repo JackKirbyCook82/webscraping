@@ -23,15 +23,18 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-class MaxDriverRetryError(Exception): pass
-class EmptyDriverError(Exception):
-    def __str__(self): return "{}\n{}".format(self.__class__.__name__, self.args[0])
+class WebDriverError(Exception):
+    def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
+
+class FailureWebDriverError(WebDriverError): pass
+class MaxDriverRetryError(WebDriverError): pass
+class EmptyDriverError(WebDriverError): pass
 
 
 class WebDriver(ABC):
-    def __init_subclass__(cls, *args, page, options={}, extensions={}, **kwargs):
+    def __init_subclass__(cls, *args, webpage, options={}, extensions={}, **kwargs):
         assert isinstance(options, dict) and isinstance(extensions, dict)
-        setattr(cls, 'WebPage', page)
+        setattr(cls, 'WebPage', webpage)
         setattr(cls, 'options', options)
         setattr(cls, 'extensions', extensions)        
         
@@ -46,37 +49,33 @@ class WebDriver(ABC):
         self.__loadtime, self.__timeout, self.__wait, self.__retrys = loadtime, timeout, wait, retrys
         self.proxy = kwargs.get('proxy', None)
         self.__driver = None
-        self.__success = False
         self.__file = file
                 
-    def __call__(self, *args, **kwargs):
-        try: 
-            yield from self.controller(*args, **kwargs)
-            self.__success = True
-        except MaxDriverRetryError:
-            self.__success = False            
+    def __call__(self, url, *args, **kwargs):
+        try: yield from self.controller(url, *args, **kwargs)
+        except MaxDriverRetryError: raise FailureWebDriverError(self)       
     
-    def controller(self, *args, retry=0, **kwargs):
+    def controller(self, url, *args, retry=0, **kwargs):
         try: 
             print("WebDriver Running: {}".format(self.__class__.__name__))
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
-            yield from self.run(*args, **kwargs)
+            yield from self.run(url, *args, **kwargs)
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
-        except (EmptyElementError, EmptyPageError, FailurePageError, CaptchaPageError, EmptyDriverError) as error:
-            self.stop(False)
+        except (EmptyDriverError, FailurePageError, EmptyPageError, CaptchaPageError, EmptyElementError) as error:
+            self.stop()
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error), '\n')
-            if retry < self.__retrys: yield from self.controller(*args, retry=retry+1, **kwargs)
+            if retry < self.__retrys: yield from self.controller(url, *args, retry=retry+1, **kwargs)
             else: raise MaxDriverRetryError(retry)
         
-    def run(self, *args, **kwargs): 
+    def run(self, url, *args, **kwargs): 
         options, capabilities = self.setup(*args, **kwargs)
         self.start(options, capabilities)   
-        page = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
-        page.load(*args, **kwargs)
-        page.checkFailure()
-        yield from self.execute(page, *args, **kwargs)
-        self.stop(True)        
+        webpage = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
+        webpage.load(url, *args, **kwargs)
+        webpage.checkFailure()
+        yield from self.execute(webpage, *args, **kwargs)
+        self.stop()        
         
     def setup(self, *args, **kwargs):
         options = Options()
@@ -95,11 +94,9 @@ class WebDriver(ABC):
         driver.set_page_load_timeout(self.loadtime)
         self.__driver = driver 
         
-    def stop(self, success):
-        assert isinstance(success, bool)
+    def stop(self):
         self.__driver.quit()
         self.__driver = None
-        self.__success = success
 
     @classmethod
     def addOptions(cls, options): setattr(cls, 'options', options)  
@@ -132,9 +129,7 @@ class WebDriver(ABC):
        
     @abstractmethod
     def execute(self, page, *args, **kwargs): pass
- 
-    @property
-    def success(self): return self.__success    
+  
     @property
     def loadtime(self): return self.__loadtime
     @property

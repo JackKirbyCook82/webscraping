@@ -89,7 +89,7 @@ class Locator(ntuple('Locator', 'element child')):
         else: return webelements.childrens[self.element][self.child]
 
 
-class Generator(ntuple('Generator', 'element children')):
+class Content(ntuple('Generator', 'element children')):
     def __call__(self, *elementAttrs, **childrenAttrs): return {key:value for key, value in self.execute(*elementAttrs, **childrenAttrs)}    
     def execute(self, *elementAttrs, **childrenAttrs):
         for attr in elementAttrs: yield getattr(self.element, attr)
@@ -132,7 +132,7 @@ class WebElements(object):
     def __len__(self): return len(self.__elements)
     def __str__(self): return "{}[{}]|{}".format(self.__class__.__name__, len(self), bool(self.__elements))   
     def __getitem__(self, locator): return locator(self)
-    def __iter__(self): return (Generator(element, children) for element, children in zip(self.__elements, self.__childrens))
+    def __iter__(self): return (Content(element, children) for element, children in zip(self.__elements, self.__childrens))
 
     def loc(self, elementIndex, childKey=None): return Locator(elementIndex, childKey)(self)
     def iloc(self, elementIndex, childIndex=None): return Locator(elementIndex, childIndex)(self)

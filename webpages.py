@@ -12,6 +12,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import WebDriverException, TimeoutException
 
+from webscraping.elements import EmptyElementError
+
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ['WebPage']
@@ -27,38 +29,46 @@ CAPTCHA_XPATH = "//div[@class='captcha-container']"
 
 class WebPageError(Exception):
     def __str__(self):  
-        string = "{}: {}".format(self.__class__.__name__, self.args[0])
+        string = "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)
         return string if not self.args[1:] else "\n".join([string, *self.args[1:]])
 
-class EmptyPageError(WebPageError): pass
-class EmptyPageURLError(WebPageError): pass
-class FailurePageError(WebPageError): pass
-class CaptchaPageError(WebPageError): pass
+class EmptyWebPageError(WebPageError): pass
+class FailureWebPageError(WebPageError): pass
+class CaptchaWebPageError(WebPageError): pass
     
     
 class WebPage(ABC):    
-    def __init_subclass__(cls, *args, url=None, contents={}, **kwargs):
-        assert isinstance(contents, dict)
-        setattr(cls, 'URL', url)
-        setattr(cls, 'Contents', contents)
+    def __init_subclass__(cls, *args, pageNext=None, pageIteration=None, pageContents={}, **kwargs):
+        assert isinstance(pageContents, dict)
+        if pageNext is not None: setattr(cls, 'PageNext', pageNext)
+        if pageIteration is not None: setattr(cls, 'PageIteration', pageIteration)
+        setattr(cls, 'PageContent', pageContents)
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
-    def __str__(self): return "|".join([str(self.__class__.__name__), str(self.__url)])         
+    def __str__(self): return self.__class__.__name__        
+    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__contents = driver, timeout, {}      
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
-    def __init__(self, driver, timeout, *args, **kwargs): 
-        self.__driver, self.__timeout, self.__contents = driver, timeout, {}
-        self.__url = kwargs.get('url', self.URL)
-        if self.__url is None: raise EmptyPageURLError(self)        
-
+    
     def __getitem__(self, key): 
         try: return self.__contents[key]
         except KeyError:
             self.__contents[key] = self.Contents[key](self.__driver, self.__timeout)
             return self.__contents[key]
+ 
+    def __iter__(self): 
+        try: return (data for data in iter(self['iterpage']))
+        except AttributeError: return (data for data in [])
+    
+    def __next__(self): 
+        try: 
+            self['pageNext']()
+            return True
+        except (AttributeError, EmptyElementError): 
+            return False
 
-    def load(self, *args, **kwargs): 
+    def load(self, url, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
-        try: self.driver.get(str(self.url))      
+        try: self.driver.get(str(url))      
         except (WebDriverException, TimeoutException) as error: 
             self.checkFailure()
             raise error
@@ -66,21 +76,19 @@ class WebPage(ABC):
     def checkFailure(self):
         try: failure = WebDriverWait(self.driver, FAILURE_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, FAILURE_XPATH)))
         except TimeoutException: failure = None
-        if failure: raise FailurePageError(self, str(failure.text)) 
+        if failure: raise FailureWebPageError(self, str(failure.text)) 
         else: pass
     
     def checkCaptcha(self):
         try: captcha = WebDriverWait(self.driver, CAPTCHA_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, CAPTCHA_XPATH)))
         except TimeoutException: captcha = None
-        if captcha: raise CaptchaPageError(self) 
+        if captcha: raise CaptchaWebPageError(self) 
         else: pass
         
     @property
     def driver(self): return self.__driver  
     @property
     def timeout(self): return self.__timeout      
-    @property
-    def url(self): return self.__url
  
     @abstractmethod
     def execute(self, *args, **kwargs): pass
