@@ -26,6 +26,13 @@ class WebAPIError(Exception):
 class FailureWebAPIError(WebAPIError): pass
 
 
+def urlsgmt(sgmttype):
+    def decorator(method):
+        def wrapper(self, *args, **kwargs): return sgmttype(method(self, *args, **kwargs))
+        return wrapper
+    return decorator
+
+
 class URLAPI(object):
     def __init_subclass__(cls, *args, protocol, domain, path=[], parms={}, **attrs):
         setattr(cls, '_protocol', protocol)
@@ -33,20 +40,20 @@ class URLAPI(object):
         setattr(cls, '_path', path)
         setattr(cls, '_parms', parms)
         for name, attr in attrs.items(): setattr(cls, name, attr)
-
-    def __repr__(self): return "{}(protocol={}, domain={})".format(self.__class__.__name__, self._protocol, self._domain)
+        cls.protocol = urlsgmt(Protocol)(cls.protocol)
+        cls.domain = urlsgmt(Domain)(cls.domain)
+        cls.path = urlsgmt(Path)(cls.path)
+        cls.parms = urlsgmt(Parms)(cls.parms)
+        
     def __init__(self, *args, **kwargs): pass
-    def __iter__(self): return self.__call__
-    def __call__(self, *args, **kwargs): 
-        for path in self.path(*args, **kwargs): 
-            for parms in self.parms(*args, **kwargs): 
-                yield URL(protocol=self.protocol, domain=self.domain, path=path, parms=parms)
-    
-    def protocol(self, *args, **kwargs): return Protocol(self._protocol)
-    def domain(self, *args, **kwargs): return Domain(self._domain)  
-    def path(self, *args, **kwargs): yield Path(*self._path)
-    def parms(self, *args, **kwargs): yield Parms(**self._parms)
+    def __repr__(self): return "{}(protocol={}, domain={}, path={}, parms={})".format(self.__class__.__name__, self._protocol, self._domain, self._path, self._parms)
+    def __call__(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))
 
+    def protocol(self, *args, **kwargs): return self._protocol.format(**kwargs)
+    def domain(self, *args, **kwargs): return self._domain.format(**kwargs)
+    def path(self, *args, **kwargs): return [item.format(**kwargs) for item in self._path]
+    def parms(self, *args, **kwargs): return {key.format(**kwargs):value.format(**kwargs) for key, value in self._parms.items()}
+    
 
 class WebAPI(object):
     def __repr__(self): return "{}(files={})".format(self.__class__.__name__, self.__files)   
@@ -56,8 +63,11 @@ class WebAPI(object):
         self.__urlapi = urlapi
         self.__webreader = webreader
  
-    def __call__(self, *args, **kwargs):
-        for url in self.__urlapi(*args, **kwargs): self.execute(url, *args, **kwargs)   
+    def __call__(self, *args, **kwargs): 
+        asiter = lambda items: items if isinstance(items, list) else [items]
+        for url in asiter(self.__urlapi(*args, **kwargs)): 
+            assert isinstance(url, (URL, str))
+            self.execute(url, *args, **kwargs)
             
     def execute(self, url, *args, **kwargs):
         try: 
