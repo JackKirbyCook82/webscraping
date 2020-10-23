@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import WebDriverException, TimeoutException
+from selenium.common.exceptions import TimeoutException
 
 from webscraping.elements import EmptyElementError
 
@@ -32,7 +32,6 @@ class WebPageError(Exception):
         string = "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)
         return string if not self.args[1:] else "\n".join([string, *self.args[1:]])
 
-class EmptyWebPageError(WebPageError): pass
 class FailureWebPageError(WebPageError): pass
 class CaptchaWebPageError(WebPageError): pass
     
@@ -46,32 +45,29 @@ class WebPage(ABC):
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return self.__class__.__name__        
-    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__contents = driver, timeout, {}      
+    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__pagecontents = driver, timeout, {}      
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
     
     def __getitem__(self, key): 
-        try: return self.__contents[key]
-        except KeyError:
-            self.__contents[key] = self.Contents[key](self.__driver, self.__timeout)
-            return self.__contents[key]
+        try: return self.__pagecontents[key]
+        except KeyError: pass
+        self.__pagecontents[key] = self.PageContents[key](self.driver, self.timeout)
+        return self.__pagecontents[key]
  
     def __iter__(self): 
-        try: return (data for data in iter(self['iterpage']))
+        try: return (data for data in iter(self.PageIteration(self.driver, self.timeout)))
         except AttributeError: return (data for data in [])
     
     def __next__(self): 
-        try: 
-            self['pageNext']()
-            return True
-        except (AttributeError, EmptyElementError): 
-            return False
+        try: self.PageNext(self.__driver, self.__timeout)
+        except (AttributeError, EmptyElementError): return False
+        return True
 
     def load(self, url, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
-        try: self.driver.get(str(url))      
-        except (WebDriverException, TimeoutException) as error: 
-            self.checkFailure()
-            raise error
+        self.driver.get(str(url))      
+        self.checkFailure()
+        self.checkCaptcha()
         
     def checkFailure(self):
         try: failure = WebDriverWait(self.driver, FAILURE_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, FAILURE_XPATH)))

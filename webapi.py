@@ -44,22 +44,25 @@ class URLAPI(object):
         cls.domain = urlsgmt(Domain)(cls.domain)
         cls.path = urlsgmt(Path)(cls.path)
         cls.parms = urlsgmt(Parms)(cls.parms)
-        
-    def __init__(self, *args, **kwargs): pass
-    def __repr__(self): return "{}(protocol={}, domain={}, path={}, parms={})".format(self.__class__.__name__, self._protocol, self._domain, self._path, self._parms)
-    def __call__(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))
-
+ 
+    def __new__(cls, *args, **kwargs):
+        assert hasattr(cls, '_protocol') and hasattr(cls, '_domain') and hasattr(cls, '_path') and hasattr(cls, '_parms')
+        return super().__new__(cls)
+ 
+    def __repr__(self): return "{}(protocol='{}', domain='{}', path={}, parms={})".format(self.__class__.__name__, self._protocol, self._domain, self._path, self._parms)
+    def __call__(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))        
+  
     def protocol(self, *args, **kwargs): return self._protocol.format(**kwargs)
     def domain(self, *args, **kwargs): return self._domain.format(**kwargs)
     def path(self, *args, **kwargs): return [item.format(**kwargs) for item in self._path]
     def parms(self, *args, **kwargs): return {key.format(**kwargs):value.format(**kwargs) for key, value in self._parms.items()}
-    
+
 
 class WebAPI(object):
-    def __repr__(self): return "{}(files={})".format(self.__class__.__name__, self.__files)   
+    def __repr__(self): return "{}(datasets={})".format(self.__class__.__name__, tuple(self.__files.keys()))   
     def __init__(self, files, urlapi, webreader, *args, **kwargs):
         assert isinstance(files, dict)
-        self.__files = self.__files
+        self.__files = files
         self.__urlapi = urlapi
         self.__webreader = webreader
  
