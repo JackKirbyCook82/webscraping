@@ -51,17 +51,19 @@ class WebElement(object):
         if hasattr(cls, 'xpath') and hasattr(cls, 'Element'): 
             setattr(cls, 'Children', {})
             setattr(cls, 'dynamic', dynamic)
-            if parent is None: REGISTRY[cls.__name__] = cls
-            else: REGISTRY[parent.__name__].addchild(key, cls)
-           
+            if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
+            REGISTRY[cls.__name__] = cls
+
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath') and hasattr(cls, 'Element')
-        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()
+        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()        
+        if not hasattr(cls, 'initialized'): setattr(cls, 'initialized', False)
         if not cls.dynamic: return super().__new__(cls)
         if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls))
         return cls.instance
     
     def __init__(self, driver, timeout, *args, **kwargs):
+        if self.initialized: return
         self.__element = self.Element(self.get(driver, timeout))
         self.__children = ODict([(key, child(self.__element, timeout, *args, **kwargs)) for key, child in self.Children.items()])
 
@@ -109,17 +111,19 @@ class WebElements(object):
         if hasattr(cls, 'xpath') and hasattr(cls, 'Element'): 
             setattr(cls, 'Children', {})
             setattr(cls, 'dynamic', dynamic)
-            if parent is None: REGISTRY[cls.__name__] = cls
-            else: REGISTRY[parent.__name__].addchild(key, cls)
+            if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
+            REGISTRY[cls.__name__] = cls
 
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath') and hasattr(cls, 'Element') 
         assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()
+        if not hasattr(cls, 'initialized'): setattr(cls, 'initialized', False)
         if not cls.dynamic: return super().__new__(cls)
         if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls))
         return cls.instance
 
     def __init__(self, driver, timeout, *args, **kwargs):
+        if self.initialized: return
         self.__elements, self.__childrens = [self.Element(element) for element in self.get(driver, timeout)], []
         for webelement in self.__elements: self.__childrens.append(ODict([(key, child(webelement, timeout, *args, **kwargs)) for key, child in self.Children.items()]))    
 

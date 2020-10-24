@@ -14,7 +14,7 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 
 from webscraping.elements import EmptyElementError
-from webscraping.webpages import EmptyWebPageError, FailureWebPageError, CaptchaWebPageError
+from webscraping.webpages import FailureWebPageError, CaptchaWebPageError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -61,7 +61,7 @@ class WebDriver(ABC):
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             yield from self.run(url, *args, **kwargs)
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
-        except (EmptyDriverError, FailureWebPageError, EmptyWebPageError, CaptchaWebPageError, EmptyElementError) as error:
+        except (EmptyDriverError, FailureWebPageError, CaptchaWebPageError, EmptyElementError) as error:
             self.stop()
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error), '\n')

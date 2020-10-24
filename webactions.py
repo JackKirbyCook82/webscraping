@@ -21,16 +21,16 @@ __license__ = ""
 
 
 class WebActionProcess(object): 
-    def __init_subclass__(cls, *args, webactions, **kwargs):
-        assert isinstance(webactions, tuple)
-        assert all([issubclass(webaction, WebAction) for webaction in webactions])
-        setattr(cls, 'WebActions', webactions)
+    def __init_subclass__(cls, *args, steps, **kwargs):
+        assert isinstance(steps, tuple)
+        assert all([issubclass(step, WebAction) for step in steps])
+        setattr(cls, 'WebActions', steps)
                 
     def __init__(self, driver, timeout, *args, **kwargs): 
         self.__webactions = [webaction(driver, timeout, *args, **kwargs) for webaction in self.WebActions]
         self.__driver = driver 
         
-    def __iter__(self): return self.generator
+    def __iter__(self): return self.generator()
     def __call__(self, *args, **kwargs): return all([webactions(*args, **kwargs) for webactions in iter(self)])
 
     def generator(self): 
@@ -85,11 +85,12 @@ class WebActionFunctions(list):
 
 class WebAction(object): 
     __registry = []
-    def __init_subclass__(cls, *webelements, wait=None, webactiontype=None, **attrs): 
+    def __init_subclass__(cls, on=[], wait=None, webactiontype=None, **attrs): 
         if cls in WebAction.__subclasses__(): 
             assert webactiontype is not None
             setattr(cls, 'webactiontype', webactiontype)
             return
+        webelements = list(on) if isinstance(on, (tuple, list)) else [on]
         assert all([issubclass(webelement, WebElement) for webelement in webelements]) and hasattr(cls, 'webactiontype')
         for name, attr in attrs.items(): setattr(cls, name, staticmethod(attr) if hasattr(attr, '__call__') else attr)
         setattr(cls, 'WebElements', list(webelements))
@@ -102,7 +103,7 @@ class WebAction(object):
     def __getitem__(self, index): return self.__webelements[index]    
     def __init__(self, driver, timeout, *args, **kwargs): self.__webelements = [webelement(driver, timeout, *args, **kwargs) for webelement in self.WebElements]
     def __new__(cls, *args, **kwargs):
-        assert cls in WebAction.__registry and hasattr(cls, 'wait') and hasattr(cls, 'WebElements')
+        assert cls in WebAction.__registry and hasattr(cls, 'WebElements')
         return super().__new__(cls)
     
     def chain(self, webactionchain): raise NotImplementedError('{}.{}()'.format(self.__class__.__name__, 'chain'))

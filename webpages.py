@@ -41,7 +41,7 @@ class WebPage(ABC):
         assert isinstance(pageContents, dict)
         if pageNext is not None: setattr(cls, 'PageNext', pageNext)
         if pageIteration is not None: setattr(cls, 'PageIteration', pageIteration)
-        setattr(cls, 'PageContent', pageContents)
+        setattr(cls, 'PageContents', pageContents)
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return self.__class__.__name__        
@@ -66,8 +66,6 @@ class WebPage(ABC):
     def load(self, url, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
         self.driver.get(str(url))      
-        self.checkFailure()
-        self.checkCaptcha()
         
     def checkFailure(self):
         try: failure = WebDriverWait(self.driver, FAILURE_TIMEOUT).until(EC.presence_of_element_located((By.XPATH, FAILURE_XPATH)))
