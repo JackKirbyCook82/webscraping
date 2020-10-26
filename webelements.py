@@ -23,8 +23,6 @@ __license__ = ""
 
 
 REGISTRY = {}
-      
-_aslist = lambda items: [items] if not isinstance(items, (tuple, list)) else list(items)
 
 
 def getelement(driver, timeout, xpath):
@@ -62,10 +60,10 @@ class WebElement(object):
         if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls))
         return cls.instance
     
-    def __init__(self, driver, timeout, *args, **kwargs):
+    def __init__(self, driver, timeout):
         if self.initialized: return
         self.__element = self.Element(self.get(driver, timeout))
-        self.__children = ODict([(key, child(self.__element, timeout, *args, **kwargs)) for key, child in self.Children.items()])
+        self.__children = ODict([(key, child(self.__element, timeout)) for key, child in self.Children.items()])
 
     @property
     def element(self): return self.__element
@@ -122,10 +120,10 @@ class WebElements(object):
         if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls))
         return cls.instance
 
-    def __init__(self, driver, timeout, *args, **kwargs):
+    def __init__(self, driver, timeout):
         if self.initialized: return
         self.__elements, self.__childrens = [self.Element(element) for element in self.get(driver, timeout)], []
-        for webelement in self.__elements: self.__childrens.append(ODict([(key, child(webelement, timeout, *args, **kwargs)) for key, child in self.Children.items()]))    
+        for webelement in self.__elements: self.__childrens.append(ODict([(key, child(webelement, timeout)) for key, child in self.Children.items()]))    
 
     @property
     def elements(self): return self.__elements

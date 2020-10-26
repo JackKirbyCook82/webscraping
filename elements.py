@@ -56,7 +56,7 @@ class Element(object):
 
 
 class Clickable(Element): 
-    def click(self): self.element.click(())
+    def click(self): self.element.click()
 
 
 class Selection(Element):
