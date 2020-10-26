@@ -9,13 +9,9 @@ Created on Tues Sept 1 2020
 import time
 from abc import ABC, abstractmethod
 from functools import update_wrapper
-from collections import namedtuple as ntuple
-from collections import defaultdict as DDict
 from collections import OrderedDict as ODict
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys 
-
-from utilities.dispatchers import clstype_singledispatcher as typedispatcher
 
 from webscraping.webelements import WebElement
 
@@ -32,15 +28,15 @@ REGISTRY = []
 class WebActionProcess(object): 
     def __init_subclass__(cls, *args, steps, **kwargs):
         for ID, contents in steps:
-            if isinstance(contents, tuple): assert all([isinstance(webaction, WebAction) for webaction in contents])
-            elif isinstance(contents, dict): assert all([isinstance(webaction, WebAction) for values in contents.values() for webaction in values])
+            if isinstance(contents, tuple): assert all([issubclass(webaction, WebAction) for webaction in contents])
+            elif isinstance(contents, dict): assert all([issubclass(webaction, WebAction) for values in contents.values() for webaction in values])
             else: raise TypeError(type(contents).__name__)
         for ID, contents in steps:
             if isinstance(contents, tuple): assert len(set([webaction.type for webaction in contents])) == 1
-            elif isinstance(contents, dict): assert all([set([webaction.type for webaction in values]) == 1 for values in contents.values()])
+            elif isinstance(contents, dict): assert all([len(set([webaction.type for webaction in values])) == 1 for values in contents.values()])
             else: raise TypeError(type(contents).__name__)
-        setattr(cls, 'WebActions', ODict([(ID, DDict(contents) if isinstance(contents, tuple) else contents) for ID, contents in steps]))
- 
+        setattr(cls, 'WebActions', ODict([(ID, contents) for ID, contents in steps]))
+    
     @property
     def driver(self): return self.__driver  
     @property
@@ -50,8 +46,8 @@ class WebActionProcess(object):
     def __call__(self, *args, **kwargs): return all([self.execute(webactionID, webactions, *args, **kwargs) for webactionID, webactions in self.WebActions.items()])
     
     def execute(self, webactionID, webactions, *args, **kwargs):
-        webactions = [webaction for webaction in webactions[kwargs.get(webactionID, None)]]
-        webcollection = WebCollection(self.driver, self.timeout, *webactions)  
+        webactions = webactions[webactionID] if isinstance(webactions, dict) else webactions
+        webcollection = WebCollection.create(self.driver, self.timeout, *webactions)  
         return webcollection(*args, **kwargs)
 
 
@@ -59,20 +55,27 @@ class WebCollection(ABC):
     __registry = {}
     @classmethod
     def registry(cls): return cls.__registry
-    
-    def __init_subclass__(cls, astype): cls.registry[astype] = cls
-    def __new__(cls, driver, timeout, *webactions):
-        if cls in WebCollection.__subclasses__(): return super().__new__(cls)
+    @classmethod
+    def register(cls, key, value): cls.__registry[key] = value
+ 
+    @classmethod
+    def create(cls, driver, timeout, *webactions): 
         astype = set([webaction.type for webaction in webactions])
         assert len(astype) == 1
-        return cls.registry[astype](driver, timeout, *webactions)
+        astype = list(astype)[0]
+        return cls.registry()[astype](driver, timeout, *webactions)           
+ 
+    def __init_subclass__(cls, astype): cls.register(astype, cls)   
+    def __new__(cls, driver, timeout, *webactions):
+        assert cls in WebCollection.registry().values()
+        return super().__new__(cls)
     
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
     def __init__(self, driver, timeout, *webactions): 
         webactions = [webaction(driver, timeout) for webaction in webactions]
         self.setup(driver)
         for webaction in webactions: self.append(webaction)
-                  
+              
     @abstractmethod
     def setup(self, driver): pass
     @abstractmethod
