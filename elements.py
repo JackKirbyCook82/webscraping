@@ -25,8 +25,8 @@ class Element(object):
     def __init_subclass__(cls, **attrs):
         setattr(cls, 'attrs', attrs)
         
-    def __bool__(self): return self.__element is not None
-    def __init__(self, element): self.__element = element
+    def __bool__(self): return self.__domelement is not None
+    def __init__(self, domelement): self.__domelement = domelement
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))    
     def __getattr__(self, attr):
         try: return self.attrs[attr]
@@ -36,34 +36,34 @@ class Element(object):
     def update(cls, **attrs): cls.attrs.update(attrs)
 
     @property
-    def element(self): 
+    def DOMElement(self): 
         if not self: raise EmptyElementError(str(self)) 
-        else: return self.__element
+        else: return self.__domelement
 
     @property
-    def text(self): return self.element.text 
+    def text(self): return self.DOMElement.text 
     @property
-    def html(self): return self.element.get_attribute('outerHTML')   
+    def html(self): return self.DOMElement.get_attribute('outerHTML')   
     @property
-    def enabled(self): return self.element.is_enabled()
+    def enabled(self): return self.DOMElement.is_enabled()
     @property
-    def visible(self): return self.element.is_displayed()    
+    def visible(self): return self.DOMElement.is_displayed()    
     @property
     def stale(self):
-        try: self.element.is_enabled()
+        try: self.DOMElement.is_enabled()
         except StaleElementReferenceException: return True
         return False
 
 
 class Clickable(Element): 
-    def click(self): self.element.click()
+    def click(self): self.DOMElement.click()
 
 
 class Selection(Element):
     def __len__(self): return len(self.select.options())   
-    def __init__(self, element):
-        super().__init__(element)
-        self.__select = Select(element)
+    def __init__(self, domelement):
+        super().__init__(domelement)
+        self.__select = Select(domelement)
     
     @property
     def select(self):
@@ -87,17 +87,17 @@ class Selection(Element):
 
 
 class Input(Element):
-    def clear(self): self.element.clear()
+    def clear(self): self.DOMElement.clear()
     def fill(self, text): 
         self.clear()
-        self.element.sendKeys(text)       
+        self.DOMElement.sendKeys(text)       
 
 
 class Link(Element):
     @property
-    def data(self): return str(self.element.href)
+    def data(self): return str(self.DOMElement.href)
     @property
-    def url(self): return str(self.element.href) 
+    def url(self): return str(self.DOMElement.href) 
 
 
 class Text(Element, parser=lambda x: str(x)):

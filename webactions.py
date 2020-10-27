@@ -86,7 +86,7 @@ class WebCollection(ABC):
 
 class WebChain(WebCollection, astype='chain'): 
     def setup(self, driver): self.__actionchains = ActionChains(driver)    
-    def append(self, webaction, *args): getattr(self.__actionchains, webaction)(*args)
+    def append(self, webaction): webaction.chain(self.__actionchains)
     def execute(self, *args, **kwargs): 
         self.__actionchains.perform()
         return True
@@ -94,7 +94,7 @@ class WebChain(WebCollection, astype='chain'):
     
 class WebQueue(WebCollection, astype='queue'): 
     def setup(self, driver): self.__actionqueue = list()
-    def append(self, webaction, *args): self.__actionqueue.append(webaction)
+    def append(self, webaction): webaction.queue(self.__actionqueue)
     def execute(self, *args, **kwargs): 
         for function in self.__actionqueue: function(*args, **kwargs)
         return True
@@ -103,15 +103,13 @@ class WebQueue(WebCollection, astype='queue'):
 def webactionwait(method, wait=None):
     if not wait: return method
     if method.__name__ == 'chain': 
-        def wrapper(self, webcollection):
-            assert isinstance(webcollection, WebChain)
-            method.chain(self, webcollection)
-            webcollection.append('pause', wait)
+        def wrapper(self, x):
+            method(self, x)
+            x.pause(wait)
     elif method.__name__ == 'queue': 
-        def wrapper(self, webcollection):
-            assert isinstance(webcollection, WebQueue)
-            method.chain(self, webcollection)
-            webcollection.append(lambda *args, **kwargs: time.sleep(wait))
+        def wrapper(self, x):
+            method(self, x)
+            x.append(lambda *args, **kwargs: time.sleep(wait))
     else: raise ValueError(method.__name__)
     update_wrapper(wrapper, method)
     return wrapper
@@ -143,36 +141,34 @@ class WebAction(ABC):
 
 
 class WebMoveTo(WebAction, astype='chain'): 
-    def chain(self, webcollection): webcollection.append('move_to_element', self[0].element)
+    def chain(self, x): x.move_to_element(self[0].element.domelement)
     
 class WebClick(WebAction, astype='chain'): 
-    def chain(self, webcollection): webcollection.append('click', self[0].element)
+    def chain(self, x): x.click(self[0].element.domelement)
     
 class WebDoubleClick(WebAction, astype='chain'): 
-    def chain(self, webcollection): webcollection.append('double_click', self[0].element)
+    def chain(self, x): x.double_click(self[0].element.domelement)
     
 class WebClickDown(WebAction, astype='chain'): 
-    def chain(self, webcollection): webcollection.append('click_and_hold', self[0].element)
+    def chain(self, x): x.click_and_hold(self[0].element.domelement)
     
 class WebClickRelease(WebAction, astype='chain'): 
-    def chain(self, webcollection): webcollection.append('release', self[0].element)
+    def chain(self, x): x.release(self[0].element.domelement)
     
 class WebKeyDown(WebAction, astype='chain'): 
-    def chain(self, webcollection): webcollection.append('key_down', getattr(Keys, self.key.upper()), self[0].element)
+    def chain(self, x): x.key_down(getattr(Keys, self.key.upper()), self[0].element.domelement)
     
 class WebKeyUp(WebAction, astype='chain'): 
-    def chain(self, webcollection): webcollection.append('key_up', getattr(Keys, self.key.upper()), self[0].element)
+    def chain(self, x): x.key_up(getattr(Keys, self.key.upper()), self[0].element.domelement)
     
 class WebDragDrop(WebAction, astype='chain'): 
-    def chain(self, webcollection): webcollection.append('drag_and_drop', self[0].element, self[1].element)
+    def chain(self, x): x.drag_and_drop(self[0].element.domelement, self[1].element.domelement)
  
 class WebFill(WebAction, astype='queue'):
-    def queue(self, webcollection): webcollection.append(lambda *args, **kwargs: self[0].fill(self.text.format(**kwargs)))
+    def queue(self, x): x.append(lambda *args, **kwargs: self[0].fill(self.text.format(**kwargs)))
  
 class WebSelect(WebAction, astype='queue'):
-    def queue(self, webcollection): webcollection.append(lambda *args, select, **kwargs: self[0].sel(select))
- 
-
+    def queue(self, x): x.append(lambda *args, select, **kwargs: self[0].sel(select))
 
 
 

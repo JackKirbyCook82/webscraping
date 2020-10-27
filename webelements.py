@@ -26,17 +26,17 @@ REGISTRY = {}
 
 
 def getelement(driver, timeout, xpath):
-    try: element = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
-    except (NoSuchElementException, TimeoutException, WebDriverException): element = None        
-    return element    
+    try: domelement = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
+    except (NoSuchElementException, TimeoutException, WebDriverException): domelement = None        
+    return domelement    
 
 def getelements(driver, timeout, xpath): 
-    try: elements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
-    except (NoSuchElementException, TimeoutException, WebDriverException): elements = []  
-    return elements
+    try: domelements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
+    except (NoSuchElementException, TimeoutException, WebDriverException): domelements = []  
+    return domelements
     
 
-class WebElement(object):
+class WebElement(ntuple('WebElement', 'initialized')):
     @classmethod
     def addchild(cls, key, child):
         assert key is not None
@@ -54,16 +54,16 @@ class WebElement(object):
 
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath') and hasattr(cls, 'Element')
-        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()        
-        if not hasattr(cls, 'initialized'): setattr(cls, 'initialized', False)
-        if not cls.dynamic: return super().__new__(cls)
-        if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls))
-        return cls.instance
+        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
+        if cls.dynamic: return super().__new__(cls, False)
+        if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls, False))
+        return cls.instance            
     
     def __init__(self, driver, timeout):
         if self.initialized: return
         self.__element = self.Element(self.get(driver, timeout))
         self.__children = ODict([(key, child(self.__element, timeout)) for key, child in self.Children.items()])
+        self.initialized = True
 
     @property
     def element(self): return self.__element
@@ -96,7 +96,7 @@ class Content(ntuple('Generator', 'element children')):
         for key, attr in childrenAttrs.items(): yield getattr(self.children[key], attr)
 
 
-class WebElements(object):    
+class WebElements(ntuple('WebElement', 'initialized')):    
     @classmethod
     def addchild(cls, key, child):
         assert key is not None
@@ -115,15 +115,15 @@ class WebElements(object):
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath') and hasattr(cls, 'Element') 
         assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()
-        if not hasattr(cls, 'initialized'): setattr(cls, 'initialized', False)
-        if not cls.dynamic: return super().__new__(cls)
-        if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls))
-        return cls.instance
+        if cls.dynamic: return super().__new__(cls, False)
+        if not hasattr(cls, 'instance'): setattr(cls, 'instance', super().__new__(cls, False))
+        return cls.instance       
 
     def __init__(self, driver, timeout):
         if self.initialized: return
         self.__elements, self.__childrens = [self.Element(element) for element in self.get(driver, timeout)], []
         for webelement in self.__elements: self.__childrens.append(ODict([(key, child(webelement, timeout)) for key, child in self.Children.items()]))    
+        self.initialized = True
 
     @property
     def elements(self): return self.__elements
