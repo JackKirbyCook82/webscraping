@@ -20,17 +20,17 @@ __copyright__ = "Copyright 2020, Jack Kirby Cook"
 __license__ = ""
 
 
-class WebAPIError(Exception):
-    def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
-
-class FailureWebAPIError(WebAPIError): pass
-
-
 def urlsgmt(sgmttype):
     def decorator(method):
         def wrapper(self, *args, **kwargs): return sgmttype(method(self, *args, **kwargs))
         return wrapper
     return decorator
+
+
+class WebAPIError(Exception):
+    def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
+
+class FailureWebAPIError(WebAPIError): pass
 
 
 class URLAPI(object):

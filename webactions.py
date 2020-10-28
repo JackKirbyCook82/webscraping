@@ -25,6 +25,10 @@ __license__ = ""
 REGISTRY = []
 
 
+class EmptyWebActionsError(Exception): 
+    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
+
+
 class WebActionProcess(object): 
     def __init_subclass__(cls, *args, steps, **kwargs):
         for ID, contents in steps:
@@ -46,7 +50,7 @@ class WebActionProcess(object):
     def __call__(self, *args, **kwargs): return all([self.execute(webactionID, webactions, *args, **kwargs) for webactionID, webactions in self.WebActions.items()])
     
     def execute(self, webactionID, webactions, *args, **kwargs):
-        webactions = webactions[webactionID] if isinstance(webactions, dict) else webactions
+        webactions = webactions[kwargs[webactionID]] if isinstance(webactions, dict) else webactions
         webcollection = WebCollection.create(self.driver, self.timeout, *webactions)  
         return webcollection(*args, **kwargs)
 
@@ -70,12 +74,17 @@ class WebCollection(ABC):
         assert cls in WebCollection.registry().values()
         return super().__new__(cls)
     
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
+    def __bool__(self): return all([bool(webaction) for webaction in self.__webactions])
+    def __str__(self): return "{}\n{}".format(self.__class__.__name__, '\n'.join([str(webaction) for webaction in self.__webactions]))
     def __init__(self, driver, timeout, *webactions): 
-        webactions = [webaction(driver, timeout) for webaction in webactions]
+        self.__webactions = [webaction(driver, timeout) for webaction in webactions]
         self.setup(driver)
-        for webaction in webactions: self.append(webaction)
-              
+            
+    def __call__(self, *args, **kwargs): 
+        if not self: raise EmptyWebActionsError(self)   
+        for webaction in self.__webactions: self.append(webaction)   
+        return self.execute(*args, **kwargs)
+
     @abstractmethod
     def setup(self, driver): pass
     @abstractmethod
@@ -129,6 +138,7 @@ class WebAction(ABC):
         if cls.type == 'queue': setattr(cls, 'queue', webactionwait(cls.queue, wait))
         REGISTRY.append(cls)
 
+    def __bool__(self): return all([bool(webelement) for webelement in self.__webelements])
     def __str__(self): return "{}|({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.__webelements]))
     def __getitem__(self, index): return self.__webelements[index]    
     def __init__(self, driver, timeout): self.__webelements = [webelement(driver, timeout) for webelement in self.WebElements]
@@ -141,28 +151,28 @@ class WebAction(ABC):
 
 
 class WebMoveTo(WebAction, astype='chain'): 
-    def chain(self, x): x.move_to_element(self[0].element.domelement)
+    def chain(self, x): x.move_to_element(self[0].element.DOMElement)
     
 class WebClick(WebAction, astype='chain'): 
-    def chain(self, x): x.click(self[0].element.domelement)
+    def chain(self, x): x.click(self[0].element.DOMElement)
     
 class WebDoubleClick(WebAction, astype='chain'): 
-    def chain(self, x): x.double_click(self[0].element.domelement)
+    def chain(self, x): x.double_click(self[0].element.DOMElement)
     
 class WebClickDown(WebAction, astype='chain'): 
-    def chain(self, x): x.click_and_hold(self[0].element.domelement)
+    def chain(self, x): x.click_and_hold(self[0].element.DOMElement)
     
 class WebClickRelease(WebAction, astype='chain'): 
-    def chain(self, x): x.release(self[0].element.domelement)
+    def chain(self, x): x.release(self[0].element.DOMElement)
     
 class WebKeyDown(WebAction, astype='chain'): 
-    def chain(self, x): x.key_down(getattr(Keys, self.key.upper()), self[0].element.domelement)
+    def chain(self, x): x.key_down(getattr(Keys, self.key.upper()), self[0].element.DOMElement)
     
 class WebKeyUp(WebAction, astype='chain'): 
-    def chain(self, x): x.key_up(getattr(Keys, self.key.upper()), self[0].element.domelement)
+    def chain(self, x): x.key_up(getattr(Keys, self.key.upper()), self[0].element.DOMElement)
     
 class WebDragDrop(WebAction, astype='chain'): 
-    def chain(self, x): x.drag_and_drop(self[0].element.domelement, self[1].element.domelement)
+    def chain(self, x): x.drag_and_drop(self[0].element.domelement, self[1].element.DOMElement)
  
 class WebFill(WebAction, astype='queue'):
     def queue(self, x): x.append(lambda *args, **kwargs: self[0].fill(self.text.format(**kwargs)))
