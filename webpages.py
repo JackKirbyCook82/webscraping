@@ -55,8 +55,8 @@ class WebPage(ABC):
         return self.__pagecontents[key]
  
     def __iter__(self): 
-        try: return (data for data in iter(self.PageIteration(self.driver, self.timeout)))
-        except AttributeError: return (data for data in [])
+        try: return iter(self.PageIteration(self.driver, self.timeout))
+        except AttributeError: return iter([])
     
     def __next__(self): 
         try: self.PageNext(self.__driver, self.__timeout)
