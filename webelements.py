@@ -44,38 +44,33 @@ class EmptyWebItemError(Exception):
 
 class WebElement(object):
     @classmethod
+    def customize(cls, **attrs):
+        newElement = type(cls.Element.__name__, (cls.Element,), attrs)
+        newWebElement = type(cls.__name__, (cls,), {'Element':newElement})
+        return newWebElement
+    
+    @classmethod
     def addchild(cls, key, child):
         assert key is not None
         cls.Children[key] = child
         
-    def __init_subclass__(cls, *args, xpath=None, element=None, parent=None, key=None, dynamic=False, **attrs):
+    def __init_subclass__(cls, *args, element=None, xpath=None, parent=None, key=None, **kwargs):
         if element is not None: setattr(cls, 'Element', element)
-        if xpath is not None: setattr(cls, 'xpath', xpath)
-        cls.Element.update(**attrs)
-        if hasattr(cls, 'xpath') and hasattr(cls, 'Element'): 
+        if xpath is not None: 
+            setattr(cls, 'xpath', xpath)
             setattr(cls, 'Children', {})
-            setattr(cls, 'dynamic', dynamic)
             if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
             REGISTRY[cls.__name__] = cls
 
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath') and hasattr(cls, 'Element')
         assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
-        if cls.dynamic: 
-            instance = super().__new__(cls)
-            instance.initialized = False
-            return instance
-        if hasattr(cls, 'instance'): return cls.instance
-        cls.instance = super().__new__(cls)
-        cls.instance.initialized = False
-        return cls.instance                      
+        return super().__new__(cls)                      
     
     def __init__(self, driver, timeout):
-        if self.initialized: return
         self.__element = self.Element(self.get(driver, timeout))
         self.__children = ODict([(key, child(self.__element, timeout)) for key, child in self.Children.items()])
-        self.initialized = True
-
+    
     @property
     def element(self): return self.__element
     @property
@@ -116,15 +111,20 @@ class WebItem(object):
     
 class WebElementList(object): 
     @classmethod
+    def customize(cls, **attrs):
+        newElement = type(cls.Element.__name__, (cls.Element,), attrs)
+        newWebElement = type(cls.__name__, (cls,), {'Element':newElement})
+        return newWebElement
+    
+    @classmethod
     def addchild(cls, key, child):
         assert key is not None
         cls.Children[key] = child
     
-    def __init_subclass__(cls, *args, xpath=None, element=None, parent=None, key=None, **attrs):
+    def __init_subclass__(cls, *args, element=None, xpath=None, parent=None, key=None, **kwargs):
         if element is not None: setattr(cls, 'Element', element)
-        if xpath is not None: setattr(cls, 'xpath', xpath)
-        cls.Element.update(**attrs)
-        if hasattr(cls, 'xpath') and hasattr(cls, 'Element'): 
+        if xpath is not None: 
+            setattr(cls, 'xpath', xpath)
             setattr(cls, 'Children', {})
             if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
             REGISTRY[cls.__name__] = cls

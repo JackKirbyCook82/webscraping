@@ -21,19 +21,15 @@ class EmptyElementError(Exception):
     def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
     
     
-class Element(object):
-    def __init_subclass__(cls, **attrs):
-        setattr(cls, 'attrs', attrs)
-        
+class Element(object):   
+    attrs = {}
+    def __init_subclass__(cls, **attrs): cls.attrs.update({name:staticmethod(attr) if hasattr(attr, '__call__') else attr for name, attr in attrs.items()})    
     def __bool__(self): return self.__domelement is not None
     def __init__(self, domelement): self.__domelement = domelement
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))    
     def __getattr__(self, attr):
         try: return self.attrs[attr]
         except KeyError: raise AttributeError(attr)
-
-    @classmethod
-    def update(cls, **attrs): cls.attrs.update(attrs)
 
     @property
     def DOMElement(self): 
@@ -59,7 +55,7 @@ class Clickable(Element):
     def click(self): self.DOMElement.click()
 
 
-class Selection(Element):
+class Selection(Element, mapping={}):
     def __len__(self): return len(self.select.options())   
     def __init__(self, domelement):
         super().__init__(domelement)
@@ -79,8 +75,7 @@ class Selection(Element):
     def sel(self, x):
         if isinstance(x, int): self.isel(x)
         elif isinstance(x, str): 
-            try: y = self.mapping.get(x, x)
-            except AttributeError: y = x
+            y = self.mapping.get(x, x)
             try: self.vsel(y)
             except NoSuchElementException: self.tsel(y)
         else: raise TypeError(type(x).__name__)

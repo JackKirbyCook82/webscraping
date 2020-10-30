@@ -125,14 +125,13 @@ def webactionwait(method, wait=None):
 
 
 class WebAction(ABC): 
-    def __init_subclass__(cls, astype=None, on=[], wait=None, **attrs): 
+    def __init_subclass__(cls, astype=None, on=[], wait=None): 
         if cls in WebAction.__subclasses__(): 
             assert astype is not None
             setattr(cls, 'type', astype)
             return
         webelements = list(on) if isinstance(on, (tuple, list)) else [on]
         assert all([issubclass(webelement, WebElement) for webelement in webelements])
-        for name, attr in attrs.items(): setattr(cls, name, staticmethod(attr) if hasattr(attr, '__call__') else attr)
         setattr(cls, 'WebElements', list(webelements))
         if cls.type == 'chain': setattr(cls, 'chain', webactionwait(cls.chain, wait))
         if cls.type == 'queue': setattr(cls, 'queue', webactionwait(cls.queue, wait))
