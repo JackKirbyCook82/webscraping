@@ -17,20 +17,31 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
+REGISTRY = []
+
+
 class EmptyElementError(Exception): 
     def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
     
     
-class Element(object):   
+class Element(object):
     attrs = {}
-    def __init_subclass__(cls, **attrs): cls.attrs.update({name:staticmethod(attr) if hasattr(attr, '__call__') else attr for name, attr in attrs.items()})    
+    def __init_subclass__(cls, **attrs): 
+        newattrs = {key:value for key, value in cls.attrs.items()}
+        newattrs.update(attrs)
+        setattr(cls, 'attrs', newattrs)
+        REGISTRY.append(cls)
+
     def __bool__(self): return self.__domelement is not None
     def __init__(self, domelement): self.__domelement = domelement
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))    
-    def __getattr__(self, attr):
-        try: return self.attrs[attr]
-        except KeyError: raise AttributeError(attr)
-
+    def __getattr__(self, name):
+        try: attr = self.attrs[name]
+        except KeyError: raise AttributeError(name)
+        if not hasattr(attr, '__call__'): return attr
+        wrapper = lambda *args, **kwargs: attr(*args[1:], **kwargs) if isinstance(args[0], self.__class__) else attr(*args, **kwargs)
+        return wrapper
+    
     @property
     def DOMElement(self): 
         if not self: raise EmptyElementError(str(self)) 
@@ -97,9 +108,7 @@ class Link(Element):
 
 class Text(Element, parser=lambda x: str(x)):
     @property
-    def data(self): 
-        try: return self.parser(self.text)
-        except EmptyElementError: return None
+    def data(self): return self.parser(self.text)
 
 
 class Table(Element, tableindex=0, headerrow=None, indexcolumn=None, parser=lambda x: x):
@@ -115,9 +124,3 @@ class Table(Element, tableindex=0, headerrow=None, indexcolumn=None, parser=lamb
         else: return None    
         
 
-        
-        
-        
-        
-        
-        

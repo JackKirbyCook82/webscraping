@@ -16,7 +16,7 @@ from webscraping.elements import Clickable, Link, Text, Table, Input, Selection,
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebText', 'WebTable', 'WebInput', 'WebSelection', 'WebLink']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebText', 'WebTable', 'WebInput', 'WebSelection', 'WebLink', 'WebClickableList']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -45,7 +45,7 @@ class EmptyWebItemError(Exception):
 class WebElement(object):
     @classmethod
     def customize(cls, **attrs):
-        newElement = type(cls.Element.__name__, (cls.Element,), attrs)
+        newElement = type(cls.Element.__name__, (cls.Element,), {}, **attrs)
         newWebElement = type(cls.__name__, (cls,), {'Element':newElement})
         return newWebElement
     
@@ -112,7 +112,7 @@ class WebItem(object):
 class WebElementList(object): 
     @classmethod
     def customize(cls, **attrs):
-        newElement = type(cls.Element.__name__, (cls.Element,), attrs)
+        newElement = type(cls.Element.__name__, (cls.Element,), {}, **attrs)
         newWebElement = type(cls.__name__, (cls,), {'Element':newElement})
         return newWebElement
     
