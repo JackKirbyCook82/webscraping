@@ -12,7 +12,7 @@ from selenium.common.exceptions import StaleElementReferenceException, NoSuchEle
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['Clickable', 'Link', 'Text', 'Table', 'Input', 'Selection']
+__all__ = ['Clickable', 'Link', 'Text', 'ID', 'Table', 'Input', 'Selection']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -49,6 +49,8 @@ class Element(object):
 
     @property
     def text(self): return self.DOMElement.text 
+    @property
+    def ID(self): return self.DOMElement.get_attribute('id')
     @property
     def html(self): return self.DOMElement.get_attribute('outerHTML')   
     @property
@@ -109,6 +111,11 @@ class Link(Element):
 class Text(Element, parser=lambda x: str(x)):
     @property
     def data(self): return self.parser(self.text)
+    
+
+class ID(Element):
+    @property
+    def data(self): return str(self.ID)
 
 
 class Table(Element, tableindex=0, headerrow=None, indexcolumn=None, parser=lambda x: x):
@@ -124,3 +131,5 @@ class Table(Element, tableindex=0, headerrow=None, indexcolumn=None, parser=lamb
         else: return None    
         
 
+
+    

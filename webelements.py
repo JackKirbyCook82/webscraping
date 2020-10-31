@@ -12,11 +12,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
-from webscraping.elements import Clickable, Link, Text, Table, Input, Selection, EmptyElementError
+from webscraping.elements import Clickable, Link, Text, ID, Table, Input, Selection, EmptyElementError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebText', 'WebTable', 'WebInput', 'WebSelection', 'WebLink', 'WebClickableList']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebText', 'WebID', 'WebTable', 'WebInput', 'WebSelection', 'WebLink', 'WebClickableList']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -69,7 +69,7 @@ class WebElement(object):
     
     def __init__(self, driver, timeout):
         self.__element = self.Element(self.get(driver, timeout))
-        self.__children = ODict([(key, child(self.__element, timeout)) for key, child in self.Children.items()])
+        self.__children = ODict([(key, child(self.__element.DOMElement, timeout)) for key, child in self.Children.items()])
     
     @property
     def element(self): return self.__element
@@ -136,9 +136,9 @@ class WebElementList(object):
         
     def __init__(self, driver, timeout):
         elements = [self.Element(domelement) for domelement in self.get(driver, timeout)]
-        childrens = [ODict([(key, child(element.domelement, timeout)) for key, child in self.Children.items()]) for element in elements]
+        childrens = [ODict([(key, child(element.DOMElement, timeout)) for key, child in self.Children.items()]) for element in elements]
         webitemtype = type('_'.join([self.__class__.__name__, 'Item']), (WebItem,), {})
-        self.__webitems = [webitemtype(elements, children) for element, children in zip(elements, childrens)]
+        self.__webitems = [webitemtype(element, children) for element, children in zip(elements, childrens)]
         
     def __bool__(self): return bool(self.__items)
     def __len__(self): return len(self.__items)
@@ -146,9 +146,9 @@ class WebElementList(object):
     def __iter__(self): return (webitem for webitem in self.__webitems)
         
     def get(self, driver, timeout):
-        print("WebElements Loading: {}".format(self.__class__.__name__))
+        print("WebElementList Loading: {}".format(self.__class__.__name__))
         domelements = getelements(driver, timeout, self.xpath)
-        if not domelements: print("WebElements Missing: {}".format(self.__class__.__name__))  
+        if not domelements: print("WebElementList Missing: {}".format(self.__class__.__name__))  
         return domelements
 
 
@@ -157,6 +157,7 @@ class WebButton(WebElement, element=Clickable): pass
 class WebRadioButton(WebElement, element=Clickable): pass
 class WebCheckBox(WebElement, element=Clickable): pass
 class WebText(WebElement, element=Text): pass
+class WebID(WebElement, element=ID): pass
 class WebTable(WebElement, element=Table): pass
 class WebInput(WebElement, element=Input): pass
 class WebSelection(WebElement, element=Selection): pass
