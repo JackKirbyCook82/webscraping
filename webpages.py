@@ -18,10 +18,11 @@ __license__ = ""
 
 
 class WebPage(ABC):    
-    def __init_subclass__(cls, *args, pageNext=None, pageIteration=None, pageContents={}, **kwargs):
+    def __init_subclass__(cls, *args, pageNext=None, pageIteration=None, pageCaptcha=None, pageContents={}, **kwargs):
         assert isinstance(pageContents, dict)
         if pageNext is not None: setattr(cls, 'PageNext', pageNext)
         if pageIteration is not None: setattr(cls, 'PageIteration', pageIteration)
+        if pageCaptcha is None: setattr(cls, 'PageCaptcha', pageCaptcha)
         setattr(cls, 'PageContents', pageContents)
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
@@ -34,7 +35,7 @@ class WebPage(ABC):
         except KeyError: pass
         self.__pagecontents[key] = self.PageContents[key](self.driver, self.timeout)
         return self.__pagecontents[key]
- 
+
     def __iter__(self): 
         try: return iter(self.PageIteration(self.driver, self.timeout))
         except AttributeError: return iter([])
@@ -56,6 +57,13 @@ class WebPage(ABC):
     @abstractmethod
     def execute(self, *args, **kwargs): pass
     
+
+    
+
+
+
+
+
 
 
 

@@ -12,7 +12,7 @@ from selenium.common.exceptions import StaleElementReferenceException, NoSuchEle
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['Clickable', 'Link', 'Text', 'ID', 'Table', 'Input', 'Selection']
+__all__ = ['Clickable', 'Link', 'Text', 'ID', 'Table', 'Input', 'Selection', 'Captcha']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -31,9 +31,9 @@ class Element(object):
         newattrs.update(attrs)
         setattr(cls, 'attrs', newattrs)
         REGISTRY.append(cls)
-
-    def __bool__(self): return self.__domelement is not None
+  
     def __init__(self, domelement): self.__domelement = domelement
+    def __bool__(self): return self.__domelement is not None
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))    
     def __getattr__(self, name):
         try: attr = self.attrs[name]
@@ -79,9 +79,9 @@ class Selection(Element, mapping={}):
         if not self: raise EmptyElementError(str(self))
         else: return self.__select
     
+    def keys(self): return [item.text for item in self.select.options()]
     def click(self): self.select.click()      
     def clear(self): self.select.deselect_all()    
-    def keys(self): return [item.text for item in self.select.options()]
     def isel(self, index): self.select.select_by_index(index)
     def tsel(self, text): self.select.select_by_visible_text(text)
     def vsel(self, value): self.select.select_by_value(value)
@@ -130,6 +130,14 @@ class Table(Element, tableindex=0, headerrow=None, indexcolumn=None, parser=lamb
         if dataframe is not None: return self.parser(dataframe)   
         else: return None    
         
+        
+class Captcha(Element): pass
+
+
+
+
+
+
 
 
     

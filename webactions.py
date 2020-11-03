@@ -137,13 +137,14 @@ class WebAction(ABC):
         if cls.type == 'queue': setattr(cls, 'queue', webactionwait(cls.queue, wait))
         REGISTRY.append(cls)
 
-    def __bool__(self): return all([bool(webelement) for webelement in self.__webelements])
-    def __str__(self): return "{}|({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.__webelements]))
-    def __getitem__(self, index): return self.__webelements[index]    
-    def __init__(self, driver, timeout): self.__webelements = [webelement(driver, timeout) for webelement in self.WebElements]
     def __new__(cls, *args, **kwargs):
         assert cls in REGISTRY and hasattr(cls, 'WebElements')
         return super().__new__(cls)
+
+    def __init__(self, driver, timeout): self.__webelements = [webelement(driver, timeout) for webelement in self.WebElements]    
+    def __bool__(self): return all([bool(webelement) for webelement in self.__webelements])
+    def __str__(self): return "{}|({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.__webelements]))
+    def __getitem__(self, index): return self.__webelements[index]    
 
     def chain(self, webactions): raise NotImplementedError('{}.{}()'.format(self.__class__.__name__, 'chain'))
     def queue(self, webactions): raise NotImplementedError('{}.{}()'.format(self.__class__.__name__, 'queue'))
