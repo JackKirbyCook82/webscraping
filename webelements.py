@@ -188,9 +188,9 @@ class WebTable(WebElement, element=Table): pass
 class WebInput(WebElement, element=Input): pass
 class WebSelection(WebElement, element=Selection): pass
 class WebLink(WebElement, element=Link): pass
-
 class WebCaptcha(WebElement, element=Captcha): 
-    def clear(self, *args, **kwargs):
+    def clear(self):
+        print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
         timeout = lambda dt: int(dt) > CAPTCHA_TIMEOUT
         currenttime = lambda: time.time()
         captcha, starttime = bool(self), currenttime()
@@ -198,7 +198,7 @@ class WebCaptcha(WebElement, element=Captcha):
             captcha = not WebDriverWait(self.driver, self.timeout).until(EC.staleness_of((By.XPATH, self.xpath)))
             time.sleep(CAPTCHA_WAIT)
         if captcha: raise CaptchaError(self)
-        else: pass
+        else: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
 
 
 
