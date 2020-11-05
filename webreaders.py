@@ -6,8 +6,6 @@ Created on Sat Mar 23 2019
 
 """
 
-import os.path
-import json
 import time
 import random
 import requests
@@ -19,40 +17,16 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
 from requests.packages.urllib3.util.retry import Retry
 from collections import namedtuple as ntuple
-from collections import OrderedDict as ODict
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
+from random_user_agent.user_agent import UserAgent
+from random_user_agent.params import SoftwareName, OperatingSystem
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebReader', 'RetryAdapter', 'Proxy', 'ProxyPool', 'Authenticate', 'Headers', 'HeadersPool']
+__all__ = ['WebReader', 'RetryAdapter', 'Proxy', 'ProxyPool', 'Authenticate']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
-
-
-class Headers(ODict): 
-    def __next__(self): return self
-    @classmethod
-    def fromjson(cls, file):
-        if not os.path.isfile(file): raise FileNotFoundError(file)
-        with open(file, 'r') as infile: content = json.load(infile)
-        assert isinstance(content, dict)
-        return cls([(key, value) for key, value in content.items()])  
-  
-class HeadersPool(object):
-    def __iter__(self): return self
-    def __next__(self): return random.choice(self.__pool)
-    def __init__(self, *items):
-        assert all([isinstance(item, Headers) for item in items])
-        self.__pool = items
-       
-    @classmethod
-    def fromjson(cls, file):
-        if not os.path.isfile(file): raise FileNotFoundError(file)
-        with open(file, 'r') as infile: contents = json.load(infile)
-        assert isinstance(contents, list)
-        assert all([isinstance(content, dict) for content in contents])
-        return cls([Headers([(key, value) for key, value in content.items()]) for content in contents])
 
     
 class Proxy(ntuple('Proxy', 'domain port')): 
@@ -100,8 +74,6 @@ class ProxyPool(object):
         return cls(proxys)    
     
 
-        
-
 class Authenticate(ntuple('Authenticate', 'username password')): 
     def __call__(self): return HTTPBasicAuth(self.username, self.password)
 
@@ -118,8 +90,8 @@ class WebReader(object):
         self.__attempts, self.__delay = attempts, delay
         self.__retry = kwargs.get('retry', None)
         self.__authenticate = kwargs.get('authenticate', None)
-        self.__headers = kwargs.get('headers', None)
-        self.__proxy = kwargs.get('proxy', None)
+#        self.__headers = kwargs.get('headers', None)
+#        self.__proxy = kwargs.get('proxy', None)
         self.__lasttime = None
 
     def ready(self, currenttime): return currenttime - self.__lasttime  > self.__delay if self.__lasttime else True
@@ -127,13 +99,13 @@ class WebReader(object):
     def record(self, currenttime): self.__lasttime = currenttime
     def sleep(self, waittime): time.sleep(waittime)
 
-    def getheaders(self): return next(self.__headers) if isinstance(self.__headers, HeadersPool) else self.__headers
-    def getproxy(self): return next(self.__proxy) if isinstance(self.__proxy, ProxyPool) else self.__proxy
+#    def getheaders(self): return next(self.__headers) if isinstance(self.__headers, HeadersPool) else self.__headers
+#    def getproxy(self): return next(self.__proxy) if isinstance(self.__proxy, ProxyPool) else self.__proxy
 
     def __call__(self, url, datatype, *args, **kwargs):
         for attempt in range(self.__attempts):
-            headers, proxy = self.getheaders(), self.getproxy()
-            try: return self.execute(url, datatype, *args, headers=headers, proxy=proxy, **kwargs)
+#            headers, proxy = self.getheaders(), self.getproxy()
+            try: return self.execute(url, datatype, *args, **kwargs)
             except RequestException: pass
         raise RequestException()
     

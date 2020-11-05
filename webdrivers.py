@@ -47,7 +47,6 @@ class WebDriver(ABC):
     
     def __init__(self, file, *args, loadtime=50, timeout=10, wait=5, retrys=5, **kwargs): 
         self.__loadtime, self.__timeout, self.__wait, self.__retrys = loadtime, timeout, wait, retrys
-        self.proxy = kwargs.get('proxy', None)
         self.__driver = None
         self.__file = file
                 
@@ -76,18 +75,6 @@ class WebDriver(ABC):
         yield from self.execute(webpage, *args, **kwargs)
         self.stop()        
         
-    def setup(self, *args, **kwargs):
-        options = Options()
-        options = self.getOptions(options, **self.options)
-        options = self.getExtensions(options, **self.extensions)
-        capabilities = self.getCapabilities(*args, **kwargs)
-        try: 
-            proxy = next(self.proxy)
-            driverproxy = self.getProxy(str(proxy), *args, **kwargs)           
-            driverproxy.add_to_capabilities(capabilities)                        
-        except TypeError: pass   
-        return options, capabilities     
-
     def start(self, options, capabilities): 
         driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
         driver.set_page_load_timeout(self.loadtime)
@@ -95,36 +82,62 @@ class WebDriver(ABC):
         
     def stop(self):
         self.__driver.quit()
-        self.__driver = None
+        self.__driver = None        
+        
+    def setup(self, *args, **kwargs):
+        capabilities = self.getCapabilities(*args, **kwargs)
+        proxy = self.getProxy()
+        useragent = self.getUserAgent()       
+        options = Options()
+        options = self.setOptions(options, *args, useragent=useragent, **kwargs)
+        options = self.setExtensions(options, *args, **kwargs)
+        proxy.add_to_capabilities(capabilities)
+        return options, capabilities            
 
     @classmethod
     def addOptions(cls, options): setattr(cls, 'options', options)  
-    def getOptions(self, options, *args, incognito, headless, images, **kwargs): 
-        options.add_argument("--start-maximized")
-        options.add_argument("--disable-notifications")
-        if incognito: options.add_argument("--incognito")
-        if headless: 
-            options.add_argument("--headless")
-            options.add_argument("--no-sandbox")     
-        if not images: options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
-        return options
-    
     @classmethod
     def addExtensions(cls, extensions): setattr(cls, 'extensions', extensions)  
-    def getExtensions(self, options, *args, **extensions):
-        for key, value in extensions.items(): options.add_argument('--load-extension={}'.format(value))
-        return options
-    
-    def addProxy(self, proxy): self.proxy = proxy
-    def getProxy(self, proxy, *args, **kwargs):
-        instance = Proxy({'proxyType':ProxyType.MANUAL, 'httpProxy':proxy, 'ftpProxy':proxy, 'sslProxy':proxy})
-        instance.autodetect = False
-        return instance
+    def addProxys(self, proxys): setattr(self, 'proxys', proxys)
+    def addUserAgents(self, useragents): setattr(self, 'useragents', useragents)
 
-    def getCapabilities(self, *args, **kwargs):
-        return DesiredCapabilities.CHROME.copy()
+    def setOptions(self, options, *args, **kwargs): pass
+    def setExtensions(self, options, *args, **kwargs): pass
+    
+    def getProxy(self): pass
+    def getUserAgent(self): pass
+
+#    def getOptions(self, options, *args, useragent=None, incognito=False, headless=False, images=True, **kwargs): 
+#        options = Options()
+#        options.add_argument("--start-maximized")
+#        options.add_argument("--disable-notifications")
+#        options.add_argument("--disable-gpu")
+#        options.add_argument("user-agent={}".format(useragent))
+#        if incognito: options.add_argument("--incognito")
+#        if headless: 
+#            options.add_argument("--headless")
+#            options.add_argument("--no-sandbox")     
+#        if not images: options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
+#        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+#        options.add_experimental_option('useAutomationExtension', False)
+#        return options
+    
+#    def getExtensions(self, options, *args, **extensions):
+#        for key, value in extensions.items(): options.add_argument('--load-extension={}'.format(value))
+#        return options
+    
+#    def getProxy(self):
+#        proxy = next(self.proxy)
+#        instance = Proxy({'proxyType':ProxyType.MANUAL, 'httpProxy':str(proxy), 'ftpProxy':str(proxy), 'sslProxy':str(proxy)})
+#        instance.utodetect = False
+#        return instance
+
+#    def getUserAgent(self):
+#        instance = next(self.useragents)
+#        return instance
+
+#    def getCapabilities(self, *args, **kwargs):
+#        return DesiredCapabilities.CHROME.copy()
        
     @abstractmethod
     def execute(self, page, *args, **kwargs): pass
