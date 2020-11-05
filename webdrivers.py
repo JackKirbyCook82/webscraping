@@ -11,7 +11,6 @@ from abc import ABC, abstractmethod
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from selenium.webdriver.common.proxy import Proxy, ProxyType
 
 from webscraping.webelements import EmptyWebElementError, EmptyWebItemError, CaptchaError
 from webscraping.webactions import EmptyWebActionsError
@@ -32,11 +31,10 @@ class EmptyWebDriverError(WebDriverError): pass
 
 
 class WebDriver(ABC):
-    def __init_subclass__(cls, *args, webpage, options={}, extensions={}, **kwargs):
-        assert isinstance(options, dict) and isinstance(extensions, dict)
+    def __init_subclass__(cls, *args, webpage, options={}, **kwargs):
+        assert isinstance(options, dict)
         setattr(cls, 'WebPage', webpage)
-        setattr(cls, 'options', options)
-        setattr(cls, 'extensions', extensions)        
+        setattr(cls, 'options', options) 
         
     def __bool__(self): return self.__driver is not None
     def __str__(self): return self.__class__.__name__
@@ -47,6 +45,7 @@ class WebDriver(ABC):
     
     def __init__(self, file, *args, loadtime=50, timeout=10, wait=5, retrys=5, **kwargs): 
         self.__loadtime, self.__timeout, self.__wait, self.__retrys = loadtime, timeout, wait, retrys
+        self.__headers = kwargs.get('headers', None)
         self.__driver = None
         self.__file = file
                 
@@ -84,60 +83,30 @@ class WebDriver(ABC):
         self.__driver.quit()
         self.__driver = None        
         
-    def setup(self, *args, **kwargs):
-        capabilities = self.getCapabilities(*args, **kwargs)
-        proxy = self.getProxy()
-        useragent = self.getUserAgent()       
-        options = Options()
-        options = self.setOptions(options, *args, useragent=useragent, **kwargs)
-        options = self.setExtensions(options, *args, **kwargs)
-        proxy.add_to_capabilities(capabilities)
+    def setup(self, *args, **kwargs):   
+        capabilities = DesiredCapabilities.CHROME.copy()
+        try: headers = next(self.__headers)['user_agent']
+        except TypeError: headers = self.__headers['user_agent']
+        except AttributeError: headers = None        
+        options = self.getOptions(*args, **self.options, headers=headers, **kwargs)
         return options, capabilities            
 
     @classmethod
     def addOptions(cls, options): setattr(cls, 'options', options)  
-    @classmethod
-    def addExtensions(cls, extensions): setattr(cls, 'extensions', extensions)  
-    def addProxys(self, proxys): setattr(self, 'proxys', proxys)
-    def addUserAgents(self, useragents): setattr(self, 'useragents', useragents)
-
-    def setOptions(self, options, *args, **kwargs): pass
-    def setExtensions(self, options, *args, **kwargs): pass
-    
-    def getProxy(self): pass
-    def getUserAgent(self): pass
-
-#    def getOptions(self, options, *args, useragent=None, incognito=False, headless=False, images=True, **kwargs): 
-#        options = Options()
-#        options.add_argument("--start-maximized")
-#        options.add_argument("--disable-notifications")
-#        options.add_argument("--disable-gpu")
-#        options.add_argument("user-agent={}".format(useragent))
-#        if incognito: options.add_argument("--incognito")
-#        if headless: 
-#            options.add_argument("--headless")
-#            options.add_argument("--no-sandbox")     
-#        if not images: options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
-#        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-#        options.add_experimental_option('useAutomationExtension', False)
-#        return options
-    
-#    def getExtensions(self, options, *args, **extensions):
-#        for key, value in extensions.items(): options.add_argument('--load-extension={}'.format(value))
-#        return options
-    
-#    def getProxy(self):
-#        proxy = next(self.proxy)
-#        instance = Proxy({'proxyType':ProxyType.MANUAL, 'httpProxy':str(proxy), 'ftpProxy':str(proxy), 'sslProxy':str(proxy)})
-#        instance.utodetect = False
-#        return instance
-
-#    def getUserAgent(self):
-#        instance = next(self.useragents)
-#        return instance
-
-#    def getCapabilities(self, *args, **kwargs):
-#        return DesiredCapabilities.CHROME.copy()
+    def getOptions(self, *args, useragent=None, incognito=False, headless=False, images=True, **kwargs): 
+        options = Options()
+        options.add_argument("--start-maximized")
+        options.add_argument("--disable-notifications")
+        options.add_argument("--disable-gpu")
+        if useragent is not None: options.add_argument("user-agent={}".format(useragent))
+        if incognito: options.add_argument("--incognito")
+        if headless: 
+            options.add_argument("--headless")
+            options.add_argument("--no-sandbox")     
+        if not images: options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        return options
        
     @abstractmethod
     def execute(self, page, *args, **kwargs): pass
