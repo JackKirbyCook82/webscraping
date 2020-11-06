@@ -70,7 +70,8 @@ class Headers(list):
               
 
 class WebReader(object):   
-    def __init__(self, *args, attempts=10, delay=3, **kwargs):
+    def __init__(self, datatype, *args, attempts=10, delay=3, **kwargs):
+        self.__datatype = datatype
         self.__attempts, self.__delay = attempts, delay
         self.__retry = kwargs.get('retry', None)
         self.__authenticate = kwargs.get('authenticate', None)
@@ -81,22 +82,30 @@ class WebReader(object):
     def wait(self, currenttime): return max([self.__delay - int(currenttime - self.__lasttime), 0]) if self.__lasttime else 0
     def record(self, currenttime): self.__lasttime = currenttime
     def sleep(self, waittime): time.sleep(waittime)
+    
+    def __call__(self, url, *args, **kwargs):
+        response = self.controller(url, *args, **kwargs)
+        data = self.read(self.datatype, response, *args, **kwargs) 
+        data = self.parser(data, *args, **kwargs)
+        return data
 
-    def __call__(self, url, datatype, *args, **kwargs):
+    def controller(self, url, *args, **kwargs):
         for attempt in range(self.__attempts):
             try: headers = next(self.__headers)
             except TypeError: headers = self.__headers
-            except AttributeError: headers = None
-            try: return self.execute(url, datatype, *args, headers=headers, **kwargs)
+            except AttributeError: headers = None    
+            try: return self.execute(url, *args, headers=headers, **kwargs)
             except RequestException: pass
         raise RequestException()
     
-    def execute(self, url, datatype, *args, headers=None, proxy=None, **kwargs):
+    def execute(self, url, *args, headers=None, cookies=None, **kwargs):
         with requests.Session() as session:
             if self.__retry is not None: 
                 session.mount('http://', self.__retry())
                 session.mount('https://', self.__retry())
-            parms = {'headers':headers, 'proxies':{'http':str(proxy), 'https':str(proxy)}, 'auth':self.__authenticate()}
+            parms = {'headers':headers, 'cookies':cookies, 'auth':self.__authenticate()}
+            try: parms['Referer'] = kwargs['referer']
+            except KeyError: pass
             if not self.ready(time.time()): self.sleep(self.wait(time.time()))
             response = session.get(str(url), **parms)
             self.record(time.time())
@@ -104,19 +113,20 @@ class WebReader(object):
             else: print('URL Request Success:')  
             print(str(url), '\n')
             response.raise_for_status()
-            data = self.parse(datatype, response)
-        return data
+        return response
+
+    def parser(self, data, *args, **kwargs): return data
 
     @keydispatcher
-    def parse(self, datatype, response): raise KeyError(datatype)
-    @parse.register('html')
-    def parseHTML(response): return response.text
-    @parse.register('json')
-    def parseJSON(response): return response.json()
-    @parse.register('zip')
-    def parseZIP(response): return response.content
-    @parse.register('csv')
-    def parseCSV(response): return response.content.decode('utf-8')
+    def read(self, datatype, response): raise KeyError(datatype)
+    @read.register('html')
+    def readHTML(response): return response.text
+    @read.register('json')
+    def readJSON(response): return response.json()
+    @read.register('zip')
+    def readZIP(response): return response.content
+    @read.register('csv')
+    def readCSV(response): return response.content.decode('utf-8')
 
 
 

@@ -85,10 +85,10 @@ class WebDriver(ABC):
         
     def setup(self, *args, **kwargs):   
         capabilities = DesiredCapabilities.CHROME.copy()
-        try: headers = next(self.__headers)['user_agent']
-        except TypeError: headers = self.__headers['user_agent']
-        except AttributeError: headers = None        
-        options = self.getOptions(*args, **self.options, headers=headers, **kwargs)
+        try: useragent = next(self.__headers)['user_agent']
+        except TypeError: useragent = self.__headers['user_agent']
+        except AttributeError: useragent = None        
+        options = self.getOptions(*args, **self.options, useragent=useragent, **kwargs)
         return options, capabilities            
 
     @classmethod
