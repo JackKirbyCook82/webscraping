@@ -120,8 +120,8 @@ class WebItem(object):
         except EmptyElementError: raise EmptyWebItemError(self)    
     
     def execute(self, *elementAttrs, **childrenAttrs):
-        for attr in elementAttrs: yield getattr(self.element, attr)
-        for key, attr in childrenAttrs.items(): yield getattr(self.children[key], attr)
+        for attr in elementAttrs: yield getattr(self.__element, attr)
+        for key, attr in childrenAttrs.items(): yield key, getattr(self.__children[key], attr)
         
     
 class WebElementList(object): 

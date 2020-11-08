@@ -7,6 +7,7 @@ Created on Mon Dec 30 2019
 """
 
 import pandas as pd
+from functools import update_wrapper
 from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException
 
@@ -22,25 +23,25 @@ REGISTRY = []
 
 class EmptyElementError(Exception): 
     def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
+  
+    
+def elementAttribute(mainattr): return mainattr
+def elementFunction(mainfunc):
+    def wrapper(self, *args, **kwargs): return mainfunc(*args, **kwargs)
+    update_wrapper(wrapper, mainfunc)
+    return wrapper
     
     
 class Element(object):
-    attrs = {}
-    def __init_subclass__(cls, **attrs): 
-        newattrs = {key:value for key, value in cls.attrs.items()}
-        newattrs.update(attrs)
-        setattr(cls, 'attrs', newattrs)
+    def __init_subclass__(cls, **attrs):
+        for name, attr in attrs.items(): 
+            if hasattr(attr, '__call__'): setattr(cls, name, elementFunction(attr))            
+            else: setattr(cls, name, elementAttribute(attr))
         REGISTRY.append(cls)
-  
+ 
     def __init__(self, domelement): self.__domelement = domelement
     def __bool__(self): return self.__domelement is not None
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))    
-    def __getattr__(self, name):
-        try: attr = self.attrs[name]
-        except KeyError: raise AttributeError(name)
-        if not hasattr(attr, '__call__'): return attr
-        wrapper = lambda *args, **kwargs: attr(*args[1:], **kwargs) if isinstance(args[0], self.__class__) else attr(*args, **kwargs)
-        return wrapper
     
     @property
     def DOMElement(self): 
@@ -53,6 +54,8 @@ class Element(object):
     def ID(self): return self.DOMElement.get_attribute('id')
     @property
     def html(self): return self.DOMElement.get_attribute('outerHTML')   
+    @property
+    def link(self): return self.DOMElement.get_attribute('href')
     @property
     def enabled(self): return self.DOMElement.is_enabled()
     @property
@@ -103,9 +106,9 @@ class Input(Element):
 
 class Link(Element):
     @property
-    def data(self): return str(self.DOMElement.href)
+    def data(self): return str(self.link)
     @property
-    def url(self): return str(self.DOMElement.href) 
+    def url(self): return str(self.link) 
 
 
 class Text(Element, parser=lambda x: str(x)):

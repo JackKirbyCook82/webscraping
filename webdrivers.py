@@ -45,7 +45,9 @@ class WebDriver(ABC):
     
     def __init__(self, file, *args, loadtime=50, timeout=10, wait=5, retrys=5, **kwargs): 
         self.__loadtime, self.__timeout, self.__wait, self.__retrys = loadtime, timeout, wait, retrys
-        self.__headers = kwargs.get('headers', None)
+        self.__headers = kwargs.get('headers', {})
+        try: self.__options = self.options
+        except AttributeError: self.__options = {}
         self.__driver = None
         self.__file = file
                 
@@ -85,10 +87,8 @@ class WebDriver(ABC):
         
     def setup(self, *args, **kwargs):   
         capabilities = DesiredCapabilities.CHROME.copy()
-        try: useragent = next(self.__headers)['user_agent']
-        except TypeError: useragent = self.__headers['user_agent']
-        except AttributeError: useragent = None        
-        options = self.getOptions(*args, **self.options, useragent=useragent, **kwargs)
+        headers = self.getHeaders(*args, **kwargs)
+        options = self.getOptions(*args, **self.__options, useragent=headers.get('useragent', None), **kwargs)
         return options, capabilities            
 
     @classmethod
@@ -107,6 +107,12 @@ class WebDriver(ABC):
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         return options
+       
+    def getHeaders(self, *args, **kwargs):
+        try: headers = next(self.__headers)
+        except TypeError: headers = self.__headers
+        assert isinstance(headers, dict)
+        return headers
        
     @abstractmethod
     def execute(self, page, *args, **kwargs): pass
