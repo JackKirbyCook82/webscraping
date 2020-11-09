@@ -8,7 +8,6 @@ Created on Mon Dec 30 2019
 
 from abc import ABC, abstractmethod
 
-from webscraping.elements import EmptyElementError
 from webscraping.webelements import EmptyWebElementError, EmptyWebItemError
 from webscraping.webactions import EmptyWebActionsError
 
@@ -55,9 +54,8 @@ class WebPage(ABC):
         return iter(self.PageIteration(self.__driver, self.__timeout))
               
     def __next__(self): 
-        try: self.PageNext(self.__driver, self.__timeout)
-        except (AttributeError, EmptyElementError): return False
-        return True
+        try: return self.PageNext(self.__driver, self.__timeout)()
+        except (AttributeError, EmptyWebElementError, EmptyWebItemError, EmptyWebActionsError): return False
 
     def load(self, url, *args, **kwargs): 
         print("WebPage Loading: {}".format(str(self)))
