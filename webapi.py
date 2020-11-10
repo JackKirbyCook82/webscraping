@@ -49,9 +49,13 @@ class URLAPI(object):
         assert hasattr(cls, '_protocol') and hasattr(cls, '_domain') and hasattr(cls, '_path') and hasattr(cls, '_parms')
         return super().__new__(cls)
  
+    def __init__(self, *args, **kwargs): pass
     def __repr__(self): return "{}(protocol='{}', domain='{}', path={}, parms={})".format(self.__class__.__name__, self._protocol, self._domain, self._path, self._parms)
-    def __call__(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))        
-  
+    def __call__(self, *args, **kwargs):
+        for url in self.generator(*args, **kwargs): yield url
+    
+    def generator(self, *args, **kwargs): yield self.execute(*args, **kwargs)
+    def execute(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))        
     def protocol(self, *args, **kwargs): return self._protocol.format(**kwargs)
     def domain(self, *args, **kwargs): return self._domain.format(**kwargs)
     def path(self, *args, **kwargs): return [item.format(**kwargs) for item in self._path]
@@ -67,8 +71,7 @@ class WebAPI(object):
         self.__webreader = webreader
  
     def __call__(self, *args, **kwargs): 
-        asiter = lambda items: items if isinstance(items, list) else [items]
-        for url in asiter(self.__urlapi(*args, **kwargs)): 
+        for url in self.__urlapi(*args, **kwargs): 
             assert isinstance(url, (URL, str))
             self.execute(url, *args, **kwargs)
             
