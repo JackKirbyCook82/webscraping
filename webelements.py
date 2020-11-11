@@ -77,7 +77,7 @@ class WebElement(object):
         if self: self.__children = ODict([(key, child(self.__element.DOMElement, self.timeout)) for key, child in self.Children.items()])
         else: self.__children = ODict([(key, None) for key, child in self.Children.items()])         
 
-    def __call__(self, *elementAttrs, **childrenAttrs): return {key:value for key, value in self.execute(*elementAttrs, **childrenAttrs)}    
+#    def __call__(self, *elementAttrs, **childrenAttrs): return {key:value for key, value in self.execute(*elementAttrs, **childrenAttrs)}    
     def __bool__(self): return bool(self.__element)
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__element)))      
     def __getitem__(self, key): return self.__children[key] 
@@ -104,14 +104,14 @@ class WebElement(object):
         if domelement is None: print("WebElement Missing: {}".format(self.__class__.__name__))         
         return domelement  
 
-    def execute(self, *elementAttrs, **childrenAttrs):
-        for attr in elementAttrs: yield getattr(self.element, attr)
-        for key, attr in childrenAttrs.items(): yield getattr(self.children[key], attr)   
+#    def execute(self, *elementAttrs, **childrenAttrs):
+#        for attr in elementAttrs: yield getattr(self.element, attr)
+#        for key, attr in childrenAttrs.items(): yield getattr(self.children[key], attr)   
  
     
 class WebItem(object):
     def __init__(self, element, children): self.__element, self.__children = element, children
-    def __call__(self, *elementAttrs, **childrenAttrs): return {key:value for key, value in self.execute(*elementAttrs, **childrenAttrs)}        
+#    def __call__(self, *elementAttrs, **childrenAttrs): return {key:value for key, value in self.execute(*elementAttrs, **childrenAttrs)}        
     def __bool__(self): return bool(self.__element)
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__element)))      
     def __getitem__(self, key): return self.__children[key] 
@@ -119,9 +119,9 @@ class WebItem(object):
         try: return getattr(self.__element, attr)    
         except EmptyElementError: raise EmptyWebItemError(self)    
     
-    def execute(self, *elementAttrs, **childrenAttrs):
-        for attr in elementAttrs: yield getattr(self.__element, attr)
-        for key, attr in childrenAttrs.items(): yield key, getattr(self.__children[key], attr)
+#    def execute(self, *elementAttrs, **childrenAttrs):
+#        for attr in elementAttrs: yield getattr(self.__element, attr)
+#        for key, attr in childrenAttrs.items(): yield key, getattr(self.__children[key], attr)
         
     
 class WebElementList(object): 

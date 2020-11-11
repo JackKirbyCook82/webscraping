@@ -28,7 +28,7 @@ class WebPage(ABC):
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return self.__class__.__name__        
-    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__pagecontents = driver, timeout, {}      
+    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__pagecontents = driver, timeout, {}     
     def __call__(self, *args, **kwargs): 
         try: return self.execute(*args, **kwargs)    
         except (EmptyWebActionsError, EmptyWebElementError, EmptyWebItemError) as error: 
