@@ -56,6 +56,7 @@ class URLAPI(object):
     
     def generator(self, *args, **kwargs): yield self.execute(*args, **kwargs)
     def execute(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))        
+    
     def protocol(self, *args, **kwargs): return self._protocol.format(**kwargs)
     def domain(self, *args, **kwargs): return self._domain.format(**kwargs)
     def path(self, *args, **kwargs): return [item.format(**kwargs) for item in self._path]

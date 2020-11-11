@@ -7,6 +7,7 @@ Created on Mon Dec 30 2019
 """
 
 import time
+from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -45,8 +46,50 @@ class EmptyWebElementError(WebElementError): pass
 class EmptyWebItemError(WebElementError): pass 
 class CaptchaError(WebElementError): pass  
 
+
+class Locator(ntuple('Locator', 'filtration attribute')):
+    attrchar, filterchar = ".", "/"  
     
-class WebElement(object):
+    def __init__(self, *args, **kwargs): pass
+    def __call__(self, webelement):
+        assert isinstance(webelement, (WebElement, WebItem))
+        located = webelement
+        for key in self.filtration: located = located.children[key]
+        return getattr(located, self.attribute)        
+    
+    @classmethod
+    def fromstr(cls, string):
+        try: filtration, attribute = string.split(cls.attrchar)
+        except ValueError: return cls([], string)
+        return cls(filtration.split(cls.filterchar), attribute)
+  
+    
+class WebItem(object):
+    def __init__(self, element, children): self.__element, self.__children = element, children
+    def __call__(self, **kwargs): return {key:self.loc(Locator.fromstr(value)) for key, value in kwargs.items()}     
+    def __bool__(self): return bool(self.__element)
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__element)))      
+ 
+    def __getitem__(self, locator): 
+        if isinstance(locator, str): return self.__children[locator]
+        elif isinstance(locator, Locator): return locator(self)
+        else: raise TypeError(type(locator).__name__)
+        
+    def __getattr__(self, attr): 
+        try: return getattr(self.__element, attr)    
+        except EmptyElementError: raise EmptyWebItemError(self)    
+
+    @property
+    def element(self): return self.__element
+    @property
+    def children(self): return self.__children        
+
+    def loc(self, locator):
+        if not isinstance(locator, Locator): raise TypeError(type(locator).__name__)
+        else: return locator(self)   
+ 
+    
+class WebElement(WebItem):
     @classmethod
     def customize(cls, **attrs):
         newElement = type(cls.Element.__name__, (cls.Element,), {}, **attrs)
@@ -73,30 +116,19 @@ class WebElement(object):
    
     def __init__(self, driver, timeout): 
         self.__driver, self.__timeout = driver, timeout
-        self.__element = self.Element(self.get())
-        if self: self.__children = ODict([(key, child(self.__element.DOMElement, self.timeout)) for key, child in self.Children.items()])
-        else: self.__children = ODict([(key, None) for key, child in self.Children.items()])         
-
-#    def __call__(self, *elementAttrs, **childrenAttrs): return {key:value for key, value in self.execute(*elementAttrs, **childrenAttrs)}    
-    def __bool__(self): return bool(self.__element)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__element)))      
-    def __getitem__(self, key): return self.__children[key] 
-    def __getattr__(self, attr): 
-        try: return getattr(self.__element, attr)    
-        except EmptyElementError: raise EmptyWebElementError(self)    
-    
+        element = self.Element(self.get())
+        if bool(element): children = ODict([(key, child(self.__element.DOMElement, self.timeout)) for key, child in self.Children.items()])
+        else: children = ODict([(key, None) for key, child in self.Children.items()])      
+        super().__init__(element, children)
+        
     def __iter__(self): 
         webitemtype = type('_'.join([self.__class__.__name__, 'Item']), (WebItem,), {})
-        return (webitem for webitem in [webitemtype(self.__element, self.__children)]) 
+        return (webitem for webitem in [webitemtype(self.element, self.children)]) 
     
     @property
     def driver(self): return self.__driver
     @property
     def timeout(self): return self.__timeout
-    @property
-    def element(self): return self.__element
-    @property
-    def children(self): return self.__children    
 
     def get(self):
         print("WebElement Loading: {}".format(self.__class__.__name__))    
@@ -104,26 +136,7 @@ class WebElement(object):
         if domelement is None: print("WebElement Missing: {}".format(self.__class__.__name__))         
         return domelement  
 
-#    def execute(self, *elementAttrs, **childrenAttrs):
-#        for attr in elementAttrs: yield getattr(self.element, attr)
-#        for key, attr in childrenAttrs.items(): yield getattr(self.children[key], attr)   
- 
-    
-class WebItem(object):
-    def __init__(self, element, children): self.__element, self.__children = element, children
-#    def __call__(self, *elementAttrs, **childrenAttrs): return {key:value for key, value in self.execute(*elementAttrs, **childrenAttrs)}        
-    def __bool__(self): return bool(self.__element)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__element)))      
-    def __getitem__(self, key): return self.__children[key] 
-    def __getattr__(self, attr): 
-        try: return getattr(self.__element, attr)    
-        except EmptyElementError: raise EmptyWebItemError(self)    
-    
-#    def execute(self, *elementAttrs, **childrenAttrs):
-#        for attr in elementAttrs: yield getattr(self.__element, attr)
-#        for key, attr in childrenAttrs.items(): yield key, getattr(self.__children[key], attr)
-        
-    
+
 class WebElementList(object): 
     @classmethod
     def customize(cls, **attrs):
