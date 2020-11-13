@@ -49,7 +49,6 @@ class URLAPI(object):
         assert hasattr(cls, '_protocol') and hasattr(cls, '_domain') and hasattr(cls, '_path') and hasattr(cls, '_parms')
         return super().__new__(cls)
  
-    def __init__(self, *args, **kwargs): pass
     def __repr__(self): return "{}(protocol='{}', domain='{}', path={}, parms={})".format(self.__class__.__name__, self._protocol, self._domain, self._path, self._parms)
     def __call__(self, *args, **kwargs):
         for url in self.generator(*args, **kwargs): yield url

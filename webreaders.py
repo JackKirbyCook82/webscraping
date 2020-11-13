@@ -70,8 +70,8 @@ class Headers(list):
               
 
 class WebReader(object):   
-    def __init__(self, datatype, *args, attempts=10, delay=3, **kwargs):
-        self.__datatype = datatype
+    def __init_sublcass__(cls, *args, datatype, **kwargs): setattr(cls, 'datatype', datatype)
+    def __init__(self, *args, attempts=10, delay=3, **kwargs):
         self.__attempts, self.__delay = attempts, delay
         self.__retry = kwargs.get('retry', None)
         self.__authenticate = kwargs.get('authenticate', None)

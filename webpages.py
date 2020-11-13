@@ -72,7 +72,6 @@ class WebPage(ABC):
     def execute(self, *args, **kwargs): pass
     
 
-    
 
 
 
