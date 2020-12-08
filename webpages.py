@@ -13,7 +13,7 @@ from webscraping.webactions import EmptyWebActionsError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebPage']
+__all__ = ['WebPage', 'HTMLPage', 'JSONPage', 'ZIPPage', 'CSVPage']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -72,16 +72,40 @@ class WebPage(ABC):
     def execute(self, *args, **kwargs): pass
     
 
+class HTMLPage(ABC):
+    def __init_subclass__(cls, *args, pageContents={}, **kwargs):
+        assert isinstance(pageContents, dict)
+        setattr(cls, 'PageContents', pageContents)
 
-
-
-
-
-
-
-
-
-
+    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
+    def __str__(self): return self.__class__.__name__        
+    def __init__(self, domtree, *args, **kwargs): self.__domtree, self.__pagecontent = domtree, {} 
+    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
+    def __getitem__(self, key): 
+        try: return self.__pagecontents[key]
+        except KeyError: pass
+        self.__pagecontents[key] = self.PageContents[key](self.__domtree)
+        return self.__pagecontents[key]
+        
+        
+class JSONPage(ABC): pass
+class ZIPPage(ABC): pass
+class CSVPage(ABC): pass      
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
 
 

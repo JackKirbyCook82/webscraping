@@ -6,7 +6,6 @@ Created on Mon Dec 30 2019
 
 """
 
-import time
 from abc import ABC, abstractmethod
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
@@ -25,18 +24,16 @@ __license__ = ""
 class WebDriverError(Exception):
     def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
 
-class FailureWebDriverError(WebDriverError): pass
 class MaxWebDriverRetryError(WebDriverError): pass
-class EmptyWebDriverError(WebDriverError): pass
+class FailureWebDriverError(WebDriverError): pass
 
 
 class WebDriver(ABC):
-    def __init_subclass__(cls, *args, webpage, options={}, **kwargs):
+    def __init_subclass__(cls, *args, page, options={}, **kwargs):
         assert isinstance(options, dict)
-        setattr(cls, 'WebPage', webpage)
+        setattr(cls, 'Page', page)
         setattr(cls, 'options', options) 
         
-    def __bool__(self): return self.__driver is not None
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
         content = {'loadtime':self.__loadtime, 'timeout':self.__timeout, 'retrys':self.__retrys, **self.options}
@@ -48,7 +45,6 @@ class WebDriver(ABC):
         self.__headers = kwargs.get('headers', {})
         try: self.__options = self.options
         except AttributeError: self.__options = {}
-        self.__driver = None
         self.__file = file
                 
     def __call__(self, url, *args, **kwargs):
@@ -59,31 +55,28 @@ class WebDriver(ABC):
         try: 
             print("WebDriver Running: {}".format(self.__class__.__name__))
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
-            yield from self.run(url, *args, **kwargs)
+            options, capabilities = self.setup(*args, **kwargs)
+            driver = self.start(options, capabilities)   
+            page = self.Page(driver, self.timeout, *args, wait=self.wait, **kwargs)
+            page.load(url, *args, **kwargs)
+            yield from self.execute(page, *args, **kwargs)
+            self.stop()  
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
-        except (EmptyWebDriverError, EmptyWebActionsError, EmptyWebElementError, EmptyWebItemError, CaptchaError) as error:
-            self.stop()
+        except (EmptyWebActionsError, EmptyWebElementError, EmptyWebItemError, CaptchaError) as error:
+            try: self.stop()
+            except NameError: pass
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error), '\n')
             if retry < self.__retrys: yield from self.controller(url, *args, retry=retry+1, **kwargs)
-            else: raise MaxWebDriverRetryError(retry)
-        
-    def run(self, url, *args, **kwargs): 
-        options, capabilities = self.setup(*args, **kwargs)
-        self.start(options, capabilities)   
-        webpage = self.WebPage(self.driver, self.timeout, *args, wait=self.wait, **kwargs)
-        webpage.load(url, *args, **kwargs)
-        yield from self.execute(webpage, *args, **kwargs)
-        self.stop()        
+            else: raise MaxWebDriverRetryError(retry)  
         
     def start(self, options, capabilities): 
         driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
         driver.set_page_load_timeout(self.loadtime)
-        self.__driver = driver 
+        return driver 
         
-    def stop(self):
-        self.__driver.quit()
-        self.__driver = None        
+    def stop(self, driver):
+        driver.quit()     
         
     def setup(self, *args, **kwargs):   
         capabilities = DesiredCapabilities.CHROME.copy()
@@ -123,21 +116,12 @@ class WebDriver(ABC):
     def timeout(self): return self.__timeout    
     @property
     def wait(self): return self.__wait
-    @property
-    def url(self): return self.driver.current_url
-    @property
-    def html(self): return self.driver.page_source   
-    @property
-    def driver(self):     
-        if self.__driver is None: raise EmptyWebDriverError(str(self))
-        else: return self.__driver
 
-    def back(self): self.driver.back
-    def forward(self): self.driver.forward
-    def sleep(self): time.sleep(self.__wait)
-    def refresh(self): 
-        self.driver.refresh
-        self.sleep()
+    def __url(self, driver): return driver.current_url
+    def __html(self, driver): return driver.page_source
+    def __back(self, driver): driver.back
+    def __forward(self, driver): driver.forward
+    def __refresh(self, driver): driver.refresh
 
     
 
