@@ -28,7 +28,7 @@ class WebPage(ABC):
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return self.__class__.__name__        
-    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout, self.__pagecontents = driver, timeout, {}     
+    def __init__(self, driver, timeout): self.__driver, self.__timeout, self.__pagecontents = driver, timeout, {}     
     def __call__(self, *args, **kwargs): 
         try: return self.execute(*args, **kwargs)    
         except (EmptyWebActionsError, EmptyWebElementError, EmptyWebItemError) as error: 
@@ -77,15 +77,18 @@ class HTMLPage(ABC):
         assert isinstance(pageContents, dict)
         setattr(cls, 'PageContents', pageContents)
 
-    def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
+    def __repr__(self): return "{}(domtree={})".format(self.__class__.__name__, repr(self.__domtree))     
     def __str__(self): return self.__class__.__name__        
-    def __init__(self, domtree, *args, **kwargs): self.__domtree, self.__pagecontent = domtree, {} 
+    def __init__(self, domtree): self.__domtree, self.__pagecontent = domtree, {} 
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)    
     def __getitem__(self, key): 
         try: return self.__pagecontents[key]
         except KeyError: pass
         self.__pagecontents[key] = self.PageContents[key](self.__domtree)
         return self.__pagecontents[key]
+    
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass
         
         
 class JSONPage(ABC): pass

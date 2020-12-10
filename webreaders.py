@@ -12,6 +12,7 @@ import requests
 import json
 import zipfile
 import random
+from lxml import html
 from abc import ABC, abstractmethod
 from requests.auth import HTTPBasicAuth
 from requests.adapters import HTTPAdapter
@@ -166,13 +167,10 @@ class WebReader(ABC):
     @keydispatcher
     def parse(self, datatype, response): raise KeyError(datatype)
     @parse.register('html')
-    def parseHTML(response): return response.text
+    def parseHTML(response): return html.fromstring(response.content)
     @parse.register('json')
     def parseJSON(response): return response.json()
-    @parse.register('zip')
-    def parseZIP(response): return response.content
-    @parse.register('csv')
-    def parseCSV(response): return response.content.decode('utf-8')
+
 
 
 

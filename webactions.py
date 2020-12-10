@@ -46,7 +46,7 @@ class WebActionProcess(object):
     @property
     def timeout(self): return self.__timeout  
                
-    def __init__(self, driver, timeout, *args, **kwargs): self.__driver, self.__timeout = driver, timeout
+    def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout
     def __call__(self, *args, **kwargs): return all([self.execute(webactionID, webactions, *args, **kwargs) for webactionID, webactions in self.WebActions.items()])
     
     def execute(self, webactionID, webactions, *args, **kwargs):
