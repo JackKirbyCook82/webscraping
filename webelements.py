@@ -14,11 +14,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
-from webscraping.webdom import Clickable, Link, Input, Selection, Captcha, EmptyDOMError
+from webscraping.webdom import Captcha, Clickable, Input, Selection, Link, Text, Table, EmptyDOMError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebText', 'WebID', 'WebTable', 'WebInput', 'WebSelection', 'WebLink', 'WebCaptcha', 'WebClickableList']
+__all__ = []
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -28,26 +28,26 @@ CAPTCHA_WAIT = 30
 CAPTCHA_TIMEOUT = 15 * 60
 
 
-def getelement(driver, timeout, xpath):
-    try: domelement = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
-    except (NoSuchElementException, TimeoutException, WebDriverException): domelement = None        
-    return domelement    
-
-def getelements(driver, timeout, xpath): 
-    try: domelements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
-    except (NoSuchElementException, TimeoutException, WebDriverException): domelements = []  
-    return domelements
-
-def gettree(html, xpath):
-    domtrees = html.xpath(xpath)
-    if len(domtrees) == 0: return None
-    elif len(domtrees) == 1: return domtrees[0]
-    else: raise ValueError(len(domtrees))        
-
-def gettrees(html, xpath):
-    domtrees = html.xpath(xpath)
-    if len(domtrees) == 0: return []
-    else: return domtrees[0]
+#def getelement(driver, timeout, xpath):
+#    try: domelement = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
+#    except (NoSuchElementException, TimeoutException, WebDriverException): domelement = None        
+#    return domelement    
+#
+#def getelements(driver, timeout, xpath): 
+#    try: domelements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
+#    except (NoSuchElementException, TimeoutException, WebDriverException): domelements = []  
+#    return domelements
+#
+#def gettree(html, xpath):
+#    domtrees = html.xpath(xpath)
+#    if len(domtrees) == 0: return None
+#    elif len(domtrees) == 1: return domtrees[0]
+#    else: raise ValueError(len(domtrees))        
+#
+#def gettrees(html, xpath):
+#    domtrees = html.xpath(xpath)
+#    if len(domtrees) == 0: return []
+#    else: return domtrees[0]
 
 
 class WebElementError(Exception):
@@ -101,27 +101,36 @@ class WebItem(object):
  
     
 class WebElement(WebItem):
+    def __init_subclass__(cls, **kwargs):
+        if 'dom' in kwargs.keys(): cls.factory(kwargs.pop('dom'))
+        elif 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
+        else: cls.customize(**kwargs)
+       
     @classmethod
-    def customize(cls, **attrs):
-        newElement = type(cls.Element.__name__, (cls.Element,), {}, **attrs)
-        newWebElement = type(cls.__name__, (cls,), {'Element':newElement})
-        return newWebElement
+    def factory(cls, dom):
+        setattr(cls, 'DOM', dom)
+        
+    @classmethod
+    def create(cls, xpath, parent=None, key=None, **kwargs):
+        setattr(cls, 'xpath', xpath)
+        setattr(cls, 'Children', {})
+        if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
+        REGISTRY[cls.__name__] = cls
+    
+    @classmethod
+    def customize(cls, domtype=None, **attrs):
+        if domtype == 'static': newDOM = cls.DOM.static(**attrs)
+        elif domtype == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
+        else: newDOM = cls.DOM.create(**attrs)
+        return type(cls.__name__, (cls,), {'DOM':newDOM})
     
     @classmethod
     def addchild(cls, key, child):
         assert key is not None
-        cls.Children[key] = child
-        
-    def __init_subclass__(cls, *args, element=None, xpath=None, parent=None, key=None, **kwargs):
-        if element is not None: setattr(cls, 'Element', element)
-        if xpath is not None: 
-            setattr(cls, 'xpath', xpath)
-            setattr(cls, 'Children', {})
-            if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
-            REGISTRY[cls.__name__] = cls
-
+        cls.Children[key] = child    
+    
     def __new__(cls, *args, **kwargs):
-        assert hasattr(cls, 'xpath') and hasattr(cls, 'Element')
+        assert hasattr(cls, 'xpath') and hasattr(cls, 'DOM')
         assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
         return super().__new__(cls)                      
    
@@ -149,27 +158,36 @@ class WebElement(WebItem):
 
 
 class WebElementList(object): 
+    def __init_subclass__(cls, **kwargs):
+        if 'dom' in kwargs.keys(): cls.factory(kwargs.pop('dom'))
+        elif 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
+        else: cls.customize(**kwargs)
+       
     @classmethod
-    def customize(cls, **attrs):
-        newElement = type(cls.Element.__name__, (cls.Element,), {}, **attrs)
-        newWebElement = type(cls.__name__, (cls,), {'Element':newElement})
-        return newWebElement
+    def factory(cls, dom):
+        setattr(cls, 'DOM', dom)
+        
+    @classmethod
+    def create(cls, xpath, parent=None, key=None, **kwargs):
+        setattr(cls, 'xpath', xpath)
+        setattr(cls, 'Children', {})
+        if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
+        REGISTRY[cls.__name__] = cls
+    
+    @classmethod
+    def customize(cls, domtype=None, **attrs):
+        if domtype == 'static': newDOM = cls.DOM.static(**attrs)
+        elif domtype == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
+        else: newDOM = cls.DOM.create(**attrs)
+        return type(cls.__name__, (cls,), {'DOM':newDOM})
     
     @classmethod
     def addchild(cls, key, child):
         assert key is not None
-        cls.Children[key] = child
-    
-    def __init_subclass__(cls, *args, element=None, xpath=None, parent=None, key=None, **kwargs):
-        if element is not None: setattr(cls, 'Element', element)
-        if xpath is not None: 
-            setattr(cls, 'xpath', xpath)
-            setattr(cls, 'Children', {})
-            if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
-            REGISTRY[cls.__name__] = cls
+        cls.Children[key] = child    
     
     def __new__(cls, *args, **kwargs):
-        assert hasattr(cls, 'xpath') and hasattr(cls, 'Element')
+        assert hasattr(cls, 'xpath') and hasattr(cls, 'DOM')
         assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
         return super().__new__(cls)
         
@@ -200,17 +218,17 @@ class WebElementList(object):
 #        return domelements
 
 
-class WebClickableList(WebElementList, element=Clickable): pass
-class WebClickable(WebElement, element=Clickable): pass
-class WebButton(WebElement, element=Clickable): pass
-class WebRadioButton(WebElement, element=Clickable): pass
-class WebCheckBox(WebElement, element=Clickable): pass
-class WebInput(WebElement, element=Input): pass
-class WebSelection(WebElement, element=Selection): pass
-#class WebLink(WebElement, element=Link): pass
-#class WebText(WebElement, element=Text): pass
-#class WebTable(WebElement, element=Table): pass
-class WebCaptcha(WebElement, element=Captcha): 
+class WebClickableList(WebElementList, dom=Clickable): pass
+class WebClickable(WebElement, dom=Clickable): pass
+class WebButton(WebElement, dom=Clickable): pass
+class WebRadioButton(WebElement, dom=Clickable): pass
+class WebCheckBox(WebElement, dom=Clickable): pass
+class WebInput(WebElement, dom=Input): pass
+class WebSelection(WebElement, dom=Selection): pass
+class WebLink(WebElement, dom=Link): pass
+class WebText(WebElement, dom=Text): pass
+class WebTable(WebElement, dom=Table): pass
+class WebCaptcha(WebElement, dom=Captcha): 
     def clear(self):
         print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
         timeout = lambda dt: int(dt) > CAPTCHA_TIMEOUT

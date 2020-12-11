@@ -6,6 +6,7 @@ Created on Mon Dec 30 2019
 
 """
 
+import pandas as pd
 from abc import ABC, abstractmethod
 from functools import update_wrapper
 from selenium.webdriver.support.ui import Select
@@ -14,13 +15,9 @@ from lxml.html import tostring
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['Captcha', 'Clickable', 'Input', 'Selection']
+__all__ = ['Captcha', 'Clickable', 'Input', 'Selection', 'Link', 'Text', 'Table']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
-
-
-ELEMENT_REGISTRY = []
-TREE_REGISTRY = []
 
 
 class EmptyDOMError(Exception): 
@@ -37,12 +34,12 @@ def asFunction(mainfunc):
     return wrapper
   
     
-class DOM(ABC):
-    def __init_subclass__(cls, **attrs):
+class DOM(ABC):     
+    def __init_subclass__(cls, **attrs): 
         for name, attr in attrs.items(): 
             if hasattr(attr, '__call__'): setattr(cls, name, asAttribute(attr))            
-            else: setattr(cls, name, asFunction(attr))  
-    
+            else: setattr(cls, name, asFunction(attr))      
+
     def __init__(self, domcontent): self.__DOMContent = domcontent
     def __bool__(self): return self.__domcontent is not None
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))  
@@ -62,9 +59,8 @@ class DOM(ABC):
     
     
 class Element(DOM):
-    def __init_subclass__(cls, **attrs):
-        super().__init_subclass__(**attrs)    
-        ELEMENT_REGISTRY.append(cls)    
+    @classmethod
+    def create(cls, **attrs): return type(cls.__name__, (cls,), {}, **attrs)
     
     @property
     def DOMElement(self): 
@@ -89,9 +85,8 @@ class Element(DOM):
 
 
 class Tree(DOM):
-    def __init_subclass__(cls, **attrs):
-        super().__init_subclass__(**attrs)       
-        TREE_REGISTRY.append(cls)      
+    @classmethod
+    def create(cls, **attrs): return type(cls.__name__, (cls,), {}, **attrs)
     
     @property
     def DOMTree(self):
@@ -146,35 +141,46 @@ class Input(Element):
         self.DOMElement.sendKeys(text)       
 
 
-#class Link(DOM, parser=lambda x: x):
-#    @property
-#    def url(self): return str(self.link) 
-#    @property
-#    def data(self): return self.parser(self.link)
+class Link(DOM, parser=lambda x: x):
+    @classmethod
+    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Link.__dict__, **attrs)
+    @classmethod
+    def static(cls, **attrs): return type(cls.__name__, (Tree,), Link.__dict__, **attrs)
+    
+    @property
+    def url(self): return str(self.link) 
+    @property
+    def data(self): return self.parser(self.link)
 
 
-#class Text(DOM, parser=lambda x: x):
-#    @property
-#    def data(self): return self.parser(self.text)
+class Text(DOM, parser=lambda x: x): 
+    @classmethod
+    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Link.__dict__, **attrs)
+    @classmethod
+    def static(cls, **attrs): return type(cls.__name__, (Tree,), Link.__dict__, **attrs)
+    
+    @property
+    def data(self): return self.parser(self.text)
     
 
-#class Table(DOM, tableindex=0, headerrow=None, indexcolumn=None, parser=lambda x: x):
-#    @property
-#    def dataframe(self): 
-#        tables = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)
-#        if not tables: return None
-#        return tables[self.tableindex].to_frame() if not isinstance(tables[self.tableindex], pd.DataFrame) else tables[self.tableindex]   
-#    @property
-#    def table(self):
-#        dataframe = self.dataframe
-#        if dataframe is not None: return self.parser(dataframe)   
-#        else: return None    
+class Table(DOM, tableindex=0, headerrow=None, indexcolumn=None, parser=lambda x: x):
+    @classmethod
+    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Link.__dict__, **attrs)
+    @classmethod
+    def static(cls, **attrs): return type(cls.__name__, (Tree,), Link.__dict__, **attrs)
+    
+    @property
+    def dataframe(self): 
+        tables = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)
+        if not tables: return None
+        return tables[self.tableindex].to_frame() if not isinstance(tables[self.tableindex], pd.DataFrame) else tables[self.tableindex]   
+    @property
+    def table(self):
+        dataframe = self.dataframe
+        if dataframe is not None: return self.parser(dataframe)   
+        else: return None    
         
         
-
-    
-    
-
 
 
 
