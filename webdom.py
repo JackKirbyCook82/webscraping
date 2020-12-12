@@ -35,18 +35,28 @@ def asFunction(mainfunc):
   
     
 class DOM(ABC):     
-    def __init_subclass__(cls, **attrs): 
+    def __init_subclass__(cls, scrape=None, **attrs): 
+        if scrape is not None: 
+            assert not hasattr(cls, 'scrape')
+            setattr(cls, 'scrape', scrape)
         for name, attr in attrs.items(): 
             if hasattr(attr, '__call__'): setattr(cls, name, asAttribute(attr))            
             else: setattr(cls, name, asFunction(attr))      
 
+    @classmethod
+    def create(cls, **attrs): return type(cls.__name__, (cls,), {}, **attrs)    
+    
+    def __new__(cls, domcontent):
+        assert hasattr(cls, 'scrape')
+        return super().__new__(cls)
+    
     def __init__(self, domcontent): self.__DOMContent = domcontent
     def __bool__(self): return self.__domcontent is not None
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))  
     
     @property
-    def DOMContent(self): return self.__domcontent
-        
+    def DOMContent(self): return self.__domcontent        
+
     @property
     @abstractmethod
     def html(self): pass    
@@ -58,10 +68,7 @@ class DOM(ABC):
     def link(self): pass
     
     
-class Element(DOM):
-    @classmethod
-    def create(cls, **attrs): return type(cls.__name__, (cls,), {}, **attrs)
-    
+class Element(DOM, scrape='dynamic'):
     @property
     def DOMElement(self): 
         if not self: raise EmptyElementError(str(self)) 
@@ -84,10 +91,7 @@ class Element(DOM):
         return False
 
 
-class Tree(DOM):
-    @classmethod
-    def create(cls, **attrs): return type(cls.__name__, (cls,), {}, **attrs)
-    
+class Tree(DOM, scrape='static'):
     @property
     def DOMTree(self):
         if not self: raise EmptyTreeError(str(self))
@@ -145,7 +149,7 @@ class Link(DOM, parser=lambda x: x):
     @classmethod
     def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Link.__dict__, **attrs)
     @classmethod
-    def static(cls, **attrs): return type(cls.__name__, (Tree,), Link.__dict__, **attrs)
+    def static(cls, **attrs): return type(cls.__name__, (Tree,), Link.__dict__, **attrs)    
     
     @property
     def url(self): return str(self.link) 
@@ -155,9 +159,9 @@ class Link(DOM, parser=lambda x: x):
 
 class Text(DOM, parser=lambda x: x): 
     @classmethod
-    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Link.__dict__, **attrs)
+    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Text.__dict__, **attrs)
     @classmethod
-    def static(cls, **attrs): return type(cls.__name__, (Tree,), Link.__dict__, **attrs)
+    def static(cls, **attrs): return type(cls.__name__, (Tree,), Text.__dict__, **attrs)  
     
     @property
     def data(self): return self.parser(self.text)
@@ -165,9 +169,9 @@ class Text(DOM, parser=lambda x: x):
 
 class Table(DOM, tableindex=0, headerrow=None, indexcolumn=None, parser=lambda x: x):
     @classmethod
-    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Link.__dict__, **attrs)
+    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Table.__dict__, **attrs)
     @classmethod
-    def static(cls, **attrs): return type(cls.__name__, (Tree,), Link.__dict__, **attrs)
+    def static(cls, **attrs): return type(cls.__name__, (Tree,), Table.__dict__, **attrs)  
     
     @property
     def dataframe(self): 

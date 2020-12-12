@@ -76,24 +76,24 @@ class Locator(ntuple('Locator', 'filtration attribute')):
   
     
 class WebItem(object):
-    def __init__(self, element, children): self.__element, self.__children = element, children
+    def __init__(self, parentDOM, childrenDOM={}): self.__parentDOM, self.__childrenDOM = parentDOM, childrenDOM
     def __call__(self, **kwargs): return {key:self.loc(Locator.fromstr(value)) for key, value in kwargs.items()}     
-    def __bool__(self): return bool(self.__element)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__element)))      
+    def __bool__(self): return bool(self.__parentDOM)
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__parentDOM)))      
  
     def __getitem__(self, locator): 
         if isinstance(locator, str): return self.__children[locator]
-        elif isinstance(locator, Locator): return locator(self)
+        elif isinstance(locator, Locator): return self.loc(locator)
         else: raise TypeError(type(locator).__name__)
         
     def __getattr__(self, attr): 
-        try: return getattr(self.__element, attr)    
+        try: return getattr(self.__parentDOM, attr)    
         except EmptyDOMError: raise EmptyWebItemError(self)    
 
     @property
-    def element(self): return self.__element
+    def parentDOM(self): return self.__parentDOM
     @property
-    def children(self): return self.__children        
+    def childrenDOM(self): return self.__childrenDOM        
 
     def loc(self, locator):
         if not isinstance(locator, Locator): raise TypeError(type(locator).__name__)
@@ -102,13 +102,13 @@ class WebItem(object):
     
 class WebElement(WebItem):
     def __init_subclass__(cls, **kwargs):
-        if 'dom' in kwargs.keys(): cls.factory(kwargs.pop('dom'))
+        if 'DOM' in kwargs.keys(): cls.factory(kwargs.pop('DOM'))
         elif 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
-        else: cls.customize(**kwargs)
+        else: cls.custom(**kwargs)
        
     @classmethod
-    def factory(cls, dom):
-        setattr(cls, 'DOM', dom)
+    def factory(cls, DOM):
+        setattr(cls, 'DOM', DOM)
         
     @classmethod
     def create(cls, xpath, parent=None, key=None, **kwargs):
@@ -118,9 +118,9 @@ class WebElement(WebItem):
         REGISTRY[cls.__name__] = cls
     
     @classmethod
-    def customize(cls, domtype=None, **attrs):
-        if domtype == 'static': newDOM = cls.DOM.static(**attrs)
-        elif domtype == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
+    def custom(cls, scrape=None, **attrs):
+        if scrape == 'static': newDOM = cls.DOM.static(**attrs)
+        elif scrape == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
         else: newDOM = cls.DOM.create(**attrs)
         return type(cls.__name__, (cls,), {'DOM':newDOM})
     
@@ -134,6 +134,12 @@ class WebElement(WebItem):
         assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
         return super().__new__(cls)                      
    
+    def __init__(self, source, timeout=None):
+        pass
+ 
+    @property
+    def scrape(self): return self.DOM.scrape
+    
 #    def __init__(self, driver, timeout): 
 #        self.__driver, self.__timeout = driver, timeout
 #        element = self.Element(self.get())
@@ -141,9 +147,9 @@ class WebElement(WebItem):
 #        else: children = ODict([(key, None) for key, child in self.Children.items()])      
 #        super().__init__(element, children)
         
-    def __iter__(self): 
-        webitemtype = type('_'.join([self.__class__.__name__, 'Item']), (WebItem,), {})
-        return (webitem for webitem in [webitemtype(self.element, self.children)]) 
+#    def __iter__(self): 
+#        webitemtype = type('_'.join([self.__class__.__name__, 'Item']), (WebItem,), {})
+#        return (webitem for webitem in [webitemtype(self.element, self.children)]) 
     
 #    @property
 #    def driver(self): return self.__driver
@@ -159,13 +165,13 @@ class WebElement(WebItem):
 
 class WebElementList(object): 
     def __init_subclass__(cls, **kwargs):
-        if 'dom' in kwargs.keys(): cls.factory(kwargs.pop('dom'))
+        if 'DOM' in kwargs.keys(): cls.factory(kwargs.pop('DOM'))
         elif 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
-        else: cls.customize(**kwargs)
+        else: cls.custom(**kwargs)
        
     @classmethod
-    def factory(cls, dom):
-        setattr(cls, 'DOM', dom)
+    def factory(cls, DOM):
+        setattr(cls, 'DOM', DOM)
         
     @classmethod
     def create(cls, xpath, parent=None, key=None, **kwargs):
@@ -175,9 +181,9 @@ class WebElementList(object):
         REGISTRY[cls.__name__] = cls
     
     @classmethod
-    def customize(cls, domtype=None, **attrs):
-        if domtype == 'static': newDOM = cls.DOM.static(**attrs)
-        elif domtype == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
+    def customize(cls, scrape=None, **attrs):
+        if scrape == 'static': newDOM = cls.DOM.static(**attrs)
+        elif scrape == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
         else: newDOM = cls.DOM.create(**attrs)
         return type(cls.__name__, (cls,), {'DOM':newDOM})
     
@@ -189,27 +195,33 @@ class WebElementList(object):
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'xpath') and hasattr(cls, 'DOM')
         assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
-        return super().__new__(cls)
+        return super().__new__(cls)  
         
+    def __init__(self, source, timeout=None):
+        pass
+
+    @property
+    def scrape(self): return self.DOM.scrape    
+    
 #    def __init__(self, driver, timeout): 
 #        self.__driver, self.__timeout = driver, timeout    
 #        elements = [self.Element(domelement) for domelement in self.get()]
 #        childrens = [ODict([(key, child(element.DOMElement, self.timeout)) for key, child in self.Children.items()]) for element in elements]
 #        webitemtype = type('_'.join([self.__class__.__name__, 'Item']), (WebItem,), {})
 #        self.__webitems = [webitemtype(element, children) for element, children in zip(elements, childrens)]      
-    
-    def __bool__(self): return bool(self.__webitems)
-    def __len__(self): return len(self.__webitems)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))
-    def __getitem__(self, index): return self.__webitems[index]
-    def __iter__(self): return (webitem for webitem in self.__webitems)
-    
+
+#    def __bool__(self): return bool(self.__webitems)
+#    def __len__(self): return len(self.__webitems)
+#    def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))
+#    def __getitem__(self, index): return self.__webitems[index]
+#    def __iter__(self): return (webitem for webitem in self.__webitems)
+
 #    @property
 #    def driver(self): return self.__driver
 #    @property
-#    def timeout(self): return self.__timeout        
-    @property
-    def items(self): return self.__webitems
+#    def timeout(self): return self.__timeout     
+#    @property
+#    def items(self): return self.__webitems
     
 #    def get(self):
 #        print("WebElementList Loading: {}".format(self.__class__.__name__))
@@ -218,17 +230,17 @@ class WebElementList(object):
 #        return domelements
 
 
-class WebClickableList(WebElementList, dom=Clickable): pass
-class WebClickable(WebElement, dom=Clickable): pass
-class WebButton(WebElement, dom=Clickable): pass
-class WebRadioButton(WebElement, dom=Clickable): pass
-class WebCheckBox(WebElement, dom=Clickable): pass
-class WebInput(WebElement, dom=Input): pass
-class WebSelection(WebElement, dom=Selection): pass
-class WebLink(WebElement, dom=Link): pass
-class WebText(WebElement, dom=Text): pass
-class WebTable(WebElement, dom=Table): pass
-class WebCaptcha(WebElement, dom=Captcha): 
+class WebClickableList(WebElementList, DOM=Clickable): pass
+class WebClickable(WebElement, DOM=Clickable): pass
+class WebButton(WebElement, DOM=Clickable): pass
+class WebRadioButton(WebElement, DOM=Clickable): pass
+class WebCheckBox(WebElement, DOM=Clickable): pass
+class WebInput(WebElement, DOM=Input): pass
+class WebSelection(WebElement, DOM=Selection): pass
+class WebLink(WebElement, DOM=Link): pass
+class WebText(WebElement, DOM=Text): pass
+class WebTable(WebElement, DOM=Table): pass
+class WebCaptcha(WebElement, DOM=Captcha): 
     def clear(self):
         print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
         timeout = lambda dt: int(dt) > CAPTCHA_TIMEOUT
