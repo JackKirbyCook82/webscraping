@@ -51,7 +51,7 @@ class RetryAdapter(ntuple('RetryAdapter', 'retries backoff httpcodes')):
 
 
 class Headers(list):
-    def __repr__(self): return "{}()".format(self.__class__.__name__, len(self))
+    def __repr__(self): return "{}()".format(self.__class__.__name__)
     def __next__(self): return random.choice(self)
     def __init__(self, headers): 
         assert isinstance(headers, (list, tuple, set))

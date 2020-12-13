@@ -20,42 +20,40 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
-class EmptyDOMError(Exception): 
-    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
-  
-class EmptyElementError(EmptyDOMError): pass
-class EmptyTreeError(EmptyDOMError): pass
-    
-    
 def asAttribute(mainattr): return mainattr
 def asFunction(mainfunc):
     def wrapper(self, *args, **kwargs): return mainfunc(*args, **kwargs)
     update_wrapper(wrapper, mainfunc)
     return wrapper
+
+
+class EmptyWebDOMError(Exception): 
+    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
   
+class EmptyWebElementError(EmptyWebDOMError): pass
+class EmptyWebTreeError(EmptyWebDOMError): pass
+      
     
-class DOM(ABC):     
-    def __init_subclass__(cls, scrape=None, **attrs): 
-        if scrape is not None: 
+class WebDOM(ABC):     
+    def __init_subclass__(cls, **kwargs): 
+        if 'scrape' in kwargs.keys():
             assert not hasattr(cls, 'scrape')
-            setattr(cls, 'scrape', scrape)
-        for name, attr in attrs.items(): 
+            setattr(cls, 'scrape', kwargs.pop('scrape'))
+        for name, attr in kwargs.items(): 
             if hasattr(attr, '__call__'): setattr(cls, name, asAttribute(attr))            
             else: setattr(cls, name, asFunction(attr))      
-
-    @classmethod
-    def create(cls, **attrs): return type(cls.__name__, (cls,), {}, **attrs)    
-    
-    def __new__(cls, domcontent):
+                        
+    def __new__(cls, DOM):
         assert hasattr(cls, 'scrape')
-        return super().__new__(cls)
-    
-    def __init__(self, domcontent): self.__DOMContent = domcontent
-    def __bool__(self): return self.__domcontent is not None
+        assert getattr(cls, 'scrape') is not None
+        return super().__new__(cls)    
+        
+    def __init__(self, DOM): self.__DOM = DOM
+    def __bool__(self): return self.__DOM is not None
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))  
     
     @property
-    def DOMContent(self): return self.__domcontent        
+    def DOM(self): return self.__DOM        
 
     @property
     @abstractmethod
@@ -68,11 +66,11 @@ class DOM(ABC):
     def link(self): pass
     
     
-class Element(DOM, scrape='dynamic'):
+class WebElement(WebDOM, scrape='dynamic'):
     @property
     def DOMElement(self): 
-        if not self: raise EmptyElementError(str(self)) 
-        else: return self.DOMContent
+        if not self: raise EmptyWebElementError(str(self)) 
+        else: return self.DOM
         
     @property
     def html(self): return self.DOMElement.get_attribute('outerHTML')   
@@ -91,11 +89,11 @@ class Element(DOM, scrape='dynamic'):
         return False
 
 
-class Tree(DOM, scrape='static'):
+class WebTree(WebDOM, scrape='static'):
     @property
     def DOMTree(self):
-        if not self: raise EmptyTreeError(str(self))
-        else: return self.DOMContent
+        if not self: raise EmptyWebTreeError(str(self))
+        else: return self.DOM
         
     @property
     def html(self): return tostring(self.DOMTree)     
@@ -105,14 +103,21 @@ class Tree(DOM, scrape='static'):
     def link(self): return str(self.DOMTree.attrib['href'])
 
 
-class Captcha(Element): pass
+class WebVariant(WebDOM, scrape=None):
+    @classmethod
+    def dynamic(cls, **attrs): return type(cls.__name__, (WebElement,), cls.__dict__, **attrs)
+    @classmethod
+    def static(cls, **attrs): return type(cls.__name__, (WebTree,), cls.__dict__, **attrs)       
 
 
-class Clickable(Element): 
+class Captcha(WebElement): pass
+
+
+class Clickable(WebElement): 
     def click(self): self.DOMElement.click()
 
 
-class Selection(Element, mapping={}):
+class Selection(WebElement, mapping={}):
     def __len__(self): return len(self.select.options())   
     def __init__(self, domelement):
         super().__init__(domelement)
@@ -120,7 +125,7 @@ class Selection(Element, mapping={}):
     
     @property
     def select(self):
-        if not self: raise EmptyElementError(str(self))
+        if not self: raise EmptyWebElementError(str(self))
         else: return self.__select
     
     def keys(self): return [item.text for item in self.select.options()]
@@ -138,41 +143,26 @@ class Selection(Element, mapping={}):
         else: raise TypeError(type(x).__name__)
 
 
-class Input(Element):
+class Input(WebElement):
     def clear(self): self.DOMElement.clear()
     def fill(self, text): 
         self.clear()
         self.DOMElement.sendKeys(text)       
 
 
-class Link(DOM, parser=lambda x: x):
-    @classmethod
-    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Link.__dict__, **attrs)
-    @classmethod
-    def static(cls, **attrs): return type(cls.__name__, (Tree,), Link.__dict__, **attrs)    
-    
+class Link(WebVariant, parser=lambda x: x):
     @property
     def url(self): return str(self.link) 
     @property
     def data(self): return self.parser(self.link)
 
 
-class Text(DOM, parser=lambda x: x): 
-    @classmethod
-    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Text.__dict__, **attrs)
-    @classmethod
-    def static(cls, **attrs): return type(cls.__name__, (Tree,), Text.__dict__, **attrs)  
-    
+class Text(WebVariant, parser=lambda x: x): 
     @property
     def data(self): return self.parser(self.text)
     
 
-class Table(DOM, tableindex=0, headerrow=None, indexcolumn=None, parser=lambda x: x):
-    @classmethod
-    def dynamic(cls, **attrs): return type(cls.__name__, (Element,), Table.__dict__, **attrs)
-    @classmethod
-    def static(cls, **attrs): return type(cls.__name__, (Tree,), Table.__dict__, **attrs)  
-    
+class Table(WebVariant, tableindex=0, headerrow=None, indexcolumn=None, parser=lambda x: x):
     @property
     def dataframe(self): 
         tables = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)

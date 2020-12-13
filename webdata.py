@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Dec 30 2019
-@name:   WebElement Objects
+@name:   WebData Objects
 @author: Jack Kirby Cook
 
 """
@@ -14,7 +14,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
-from webscraping.webdom import Captcha, Clickable, Input, Selection, Link, Text, Table, EmptyDOMError
+from webscraping.webdom import Captcha, Clickable, Input, Selection, Link, Text, Table, EmptyWebDOMError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -50,21 +50,22 @@ CAPTCHA_TIMEOUT = 15 * 60
 #    else: return domtrees[0]
 
 
-class WebElementError(Exception):
+class WebContentError(Exception):
     def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
 
-class EmptyWebElementError(WebElementError): pass
-class EmptyWebItemError(WebElementError): pass 
-class CaptchaError(WebElementError): pass  
+class EmptyWebContentError(WebContentError): pass
+class EmptyWebDataError(WebContentError): pass
+class EmptyWebCollectionError(WebContentError): pass 
+class CaptchaError(WebContentError): pass  
+ 
 
-
-class Locator(ntuple('Locator', 'filtration attribute')):
+class WebLocator(ntuple('Locator', 'filtration attribute')):
     attrchar, filterchar = ".", "/"  
     
     def __init__(self, *args, **kwargs): pass
-    def __call__(self, webelement):
-        assert isinstance(webelement, (WebElement, WebItem))
-        located = webelement
+    def __call__(self, webcontent):
+        assert isinstance(webcontent, (WebContent, WebData))
+        located = webcontent
         for key in self.filtration: located = located.children[key]
         return getattr(located, self.attribute)        
     
@@ -73,73 +74,82 @@ class Locator(ntuple('Locator', 'filtration attribute')):
         try: filtration, attribute = string.split(cls.attrchar)
         except ValueError: return cls([], string)
         return cls(filtration.split(cls.filterchar), attribute)
-  
+
     
-class WebItem(object):
-    def __init__(self, parentDOM, childrenDOM={}): self.__parentDOM, self.__childrenDOM = parentDOM, childrenDOM
-    def __call__(self, **kwargs): return {key:self.loc(Locator.fromstr(value)) for key, value in kwargs.items()}     
-    def __bool__(self): return bool(self.__parentDOM)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__parentDOM)))      
+class WebContent(object):
+    def __init__(self, parent, children={}): self.__parent, self.__children = parent, children
+    def __call__(self, **kwargs): return {key:self.loc(WebLocator.fromstr(value)) for key, value in kwargs.items()}     
+    def __bool__(self): return bool(self.__parent)
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__parent)))      
  
     def __getitem__(self, locator): 
         if isinstance(locator, str): return self.__children[locator]
-        elif isinstance(locator, Locator): return self.loc(locator)
+        elif isinstance(locator, WebLocator): return self.loc(locator)
         else: raise TypeError(type(locator).__name__)
         
     def __getattr__(self, attr): 
-        try: return getattr(self.__parentDOM, attr)    
-        except EmptyDOMError: raise EmptyWebItemError(self)    
+        try: return getattr(self.__parent, attr)    
+        except EmptyWebDOMError: raise EmptyWebContentError(self)    
 
     @property
-    def parentDOM(self): return self.__parentDOM
+    def parent(self): return self.__parent
     @property
-    def childrenDOM(self): return self.__childrenDOM        
+    def children(self): return self.__children      
 
-    def loc(self, locator):
-        if not isinstance(locator, Locator): raise TypeError(type(locator).__name__)
-        else: return locator(self)   
+    def loc(self, weblocator):
+        if not isinstance(weblocator, WebLocator): raise TypeError(type(weblocator).__name__)
+        else: return weblocator(self)   
  
     
-class WebElement(WebItem):
-    def __init_subclass__(cls, **kwargs):
-        if 'DOM' in kwargs.keys(): cls.factory(kwargs.pop('DOM'))
-        elif 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
-        else: cls.custom(**kwargs)
+class WebAdapter(object):
+    pass
+    
+    # def __init_subclass__(cls, **kwargs):
+    #     if 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
+    #     elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
+    #     elif 'WebDOM' not in kwargs.keys() and 'xpath' not in kwargs.keys(): cls.custom(**kwargs)
+    #     else: raise ValueError(kwargs)
        
-    @classmethod
-    def factory(cls, DOM):
-        setattr(cls, 'DOM', DOM)
+    # @classmethod
+    # def factory(cls, WebDOM): 
+    #     assert not hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
+    #     setattr(cls, 'WebDOM', WebDOM)
         
-    @classmethod
-    def create(cls, xpath, parent=None, key=None, **kwargs):
-        setattr(cls, 'xpath', xpath)
-        setattr(cls, 'Children', {})
-        if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
-        REGISTRY[cls.__name__] = cls
+    # @classmethod
+    # def custom(cls, scrape=None, **attrs):
+    #     if scrape == 'static': newDOM = cls.DOM.static(**attrs)
+    #     elif scrape == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
+    #     else: newDOM = cls.DOM.create(**attrs)
+    #     return type(cls.__name__, (cls,), {'DOM':newDOM})        
+        
+    # @classmethod
+    # def create(cls, xpath, parent=None, key=None, **kwargs):
+    #     assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
+    #     setattr(cls, 'xpath', xpath)
+    #     setattr(cls, 'Children', {})
+    #     if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
+    #     REGISTRY[cls.__name__] = cls
     
-    @classmethod
-    def custom(cls, scrape=None, **attrs):
-        if scrape == 'static': newDOM = cls.DOM.static(**attrs)
-        elif scrape == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
-        else: newDOM = cls.DOM.create(**attrs)
-        return type(cls.__name__, (cls,), {'DOM':newDOM})
+    # @classmethod
+    # def addchild(cls, key, child):
+    #     assert key is not None
+    #     cls.Children[key] = child    
     
-    @classmethod
-    def addchild(cls, key, child):
-        assert key is not None
-        cls.Children[key] = child    
-    
-    def __new__(cls, *args, **kwargs):
-        assert hasattr(cls, 'xpath') and hasattr(cls, 'DOM')
-        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
-        return super().__new__(cls)                      
+    # def __new__(cls, *args, **kwargs):
+    #     assert hasattr(cls, 'xpath') and hasattr(cls, 'WebDOM')
+    #     assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
+    #     return super().__new__(cls)                      
    
-    def __init__(self, source, timeout=None):
-        pass
+    # def __init__(self, source, timeout=None):
+    #     pass
  
-    @property
-    def scrape(self): return self.DOM.scrape
+    # @property
+    # def scrape(self): return self.WebDOM.scrape
+  
     
+class WebData(WebContent, WebAdapter):
+    pass
+
 #    def __init__(self, driver, timeout): 
 #        self.__driver, self.__timeout = driver, timeout
 #        element = self.Element(self.get())
@@ -163,45 +173,14 @@ class WebElement(WebItem):
 #        return domelement  
 
 
-class WebElementList(object): 
-    def __init_subclass__(cls, **kwargs):
-        if 'DOM' in kwargs.keys(): cls.factory(kwargs.pop('DOM'))
-        elif 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
-        else: cls.custom(**kwargs)
-       
-    @classmethod
-    def factory(cls, DOM):
-        setattr(cls, 'DOM', DOM)
+class WebCollection(WebAdapter): 
+    pass
         
-    @classmethod
-    def create(cls, xpath, parent=None, key=None, **kwargs):
-        setattr(cls, 'xpath', xpath)
-        setattr(cls, 'Children', {})
-        if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
-        REGISTRY[cls.__name__] = cls
-    
-    @classmethod
-    def customize(cls, scrape=None, **attrs):
-        if scrape == 'static': newDOM = cls.DOM.static(**attrs)
-        elif scrape == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
-        else: newDOM = cls.DOM.create(**attrs)
-        return type(cls.__name__, (cls,), {'DOM':newDOM})
-    
-    @classmethod
-    def addchild(cls, key, child):
-        assert key is not None
-        cls.Children[key] = child    
-    
-    def __new__(cls, *args, **kwargs):
-        assert hasattr(cls, 'xpath') and hasattr(cls, 'DOM')
-        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
-        return super().__new__(cls)  
-        
-    def __init__(self, source, timeout=None):
-        pass
+#    def __init__(self, source, timeout=None):
+#        pass
 
-    @property
-    def scrape(self): return self.DOM.scrape    
+#    @property
+#    def scrape(self): return self.DOM.scrape    
     
 #    def __init__(self, driver, timeout): 
 #        self.__driver, self.__timeout = driver, timeout    
@@ -230,17 +209,17 @@ class WebElementList(object):
 #        return domelements
 
 
-class WebClickableList(WebElementList, DOM=Clickable): pass
-class WebClickable(WebElement, DOM=Clickable): pass
-class WebButton(WebElement, DOM=Clickable): pass
-class WebRadioButton(WebElement, DOM=Clickable): pass
-class WebCheckBox(WebElement, DOM=Clickable): pass
-class WebInput(WebElement, DOM=Input): pass
-class WebSelection(WebElement, DOM=Selection): pass
-class WebLink(WebElement, DOM=Link): pass
-class WebText(WebElement, DOM=Text): pass
-class WebTable(WebElement, DOM=Table): pass
-class WebCaptcha(WebElement, DOM=Captcha): 
+class WebClickables(WebCollection, WebDOM=Clickable): pass
+class WebClickable(WebData, WebDOM=Clickable): pass
+class WebButton(WebData, WebDOM=Clickable): pass
+class WebRadioButton(WebData, WebDOM=Clickable): pass
+class WebCheckBox(WebData, WebDOM=Clickable): pass
+class WebInput(WebData, WebDOM=Input): pass
+class WebSelection(WebData, WebDOM=Selection): pass
+class WebLink(WebData, WebDOM=Link): pass
+class WebText(WebData, WebDOM=Text): pass
+class WebTable(WebData, WebDOM=Table): pass
+class WebCaptcha(WebData, WebDOM=Captcha): 
     def clear(self):
         print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
         timeout = lambda dt: int(dt) > CAPTCHA_TIMEOUT
