@@ -28,26 +28,26 @@ CAPTCHA_WAIT = 30
 CAPTCHA_TIMEOUT = 15 * 60
 
 
-#def getelement(driver, timeout, xpath):
-#    try: domelement = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
-#    except (NoSuchElementException, TimeoutException, WebDriverException): domelement = None        
-#    return domelement    
-#
-#def getelements(driver, timeout, xpath): 
-#    try: domelements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
-#    except (NoSuchElementException, TimeoutException, WebDriverException): domelements = []  
-#    return domelements
-#
-#def gettree(html, xpath):
-#    domtrees = html.xpath(xpath)
-#    if len(domtrees) == 0: return None
-#    elif len(domtrees) == 1: return domtrees[0]
-#    else: raise ValueError(len(domtrees))        
-#
-#def gettrees(html, xpath):
-#    domtrees = html.xpath(xpath)
-#    if len(domtrees) == 0: return []
-#    else: return domtrees[0]
+def getelement(driver, timeout, xpath):
+    try: domelement = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
+    except (NoSuchElementException, TimeoutException, WebDriverException): domelement = None        
+    return domelement    
+
+def getelements(driver, timeout, xpath): 
+    try: domelements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
+    except (NoSuchElementException, TimeoutException, WebDriverException): domelements = []  
+    return domelements
+
+def gettree(html, xpath):
+    domtrees = html.xpath(xpath)
+    if len(domtrees) == 0: return None
+    elif len(domtrees) == 1: return domtrees[0]
+    else: raise ValueError(len(domtrees))        
+
+def gettrees(html, xpath):
+    domtrees = html.xpath(xpath)
+    if len(domtrees) == 0: return []
+    else: return domtrees[0]
 
 
 class WebContentError(Exception):
@@ -73,32 +73,7 @@ class WebLocator(ntuple('Locator', 'filtration attribute')):
     def fromstr(cls, string):
         try: filtration, attribute = string.split(cls.attrchar)
         except ValueError: return cls([], string)
-        return cls(filtration.split(cls.filterchar), attribute)
-
-    
-class WebContent(object):
-    def __init__(self, parent, children={}): self.__parent, self.__children = parent, children
-    def __call__(self, **kwargs): return {key:self.loc(WebLocator.fromstr(value)) for key, value in kwargs.items()}     
-    def __bool__(self): return bool(self.__parent)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__parent)))      
- 
-    def __getitem__(self, locator): 
-        if isinstance(locator, str): return self.__children[locator]
-        elif isinstance(locator, WebLocator): return self.loc(locator)
-        else: raise TypeError(type(locator).__name__)
-        
-    def __getattr__(self, attr): 
-        try: return getattr(self.__parent, attr)    
-        except EmptyWebDOMError: raise EmptyWebContentError(self)    
-
-    @property
-    def parent(self): return self.__parent
-    @property
-    def children(self): return self.__children      
-
-    def loc(self, weblocator):
-        if not isinstance(weblocator, WebLocator): raise TypeError(type(weblocator).__name__)
-        else: return weblocator(self)   
+        return cls(filtration.split(cls.filterchar), attribute) 
  
     
 class WebAdapter(object):
@@ -138,16 +113,18 @@ class WebAdapter(object):
         assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
         assert 'scrape' not in kwargs.keys()
         setattr(cls, 'xpath', xpath)
-        setattr(cls, 'Children', {})
+        setattr(cls, 'WebDOMChildren', {})
         if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
         REGISTRY[cls.__name__] = cls        
         
     @classmethod
     def addchild(cls, key, child):
         assert key is not None
-        cls.Children[key] = child      
+        cls.Children[key] = child   
         
-    def __init__(self, source, timeout=None): self.__source, self.__timeout = source, timeout
+    @property
+    def scrape(self): return self.WebDOM.scrape   
+     
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'WebDOM') and hasattr(cls, 'xpath')
         assert hasattr(cls.WebDOM, 'scrape')
@@ -155,70 +132,69 @@ class WebAdapter(object):
         assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
         return super().__new__(cls)       
     
+        
+class WebContent(object):
+    def __init__(self, parent, children={}): self.__parent, self.__children = parent, children
+    def __call__(self, **kwargs): return {key:self.loc(WebLocator.fromstr(value)) for key, value in kwargs.items()}     
+    def __bool__(self): return bool(self.__parent)
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__parent)))      
+ 
+    def __getitem__(self, locator): 
+        if isinstance(locator, str): return self.__children[locator]
+        elif isinstance(locator, WebLocator): return self.loc(locator)
+        else: raise TypeError(type(locator).__name__)
+        
+    def __getattr__(self, attr): 
+        try: return getattr(self.__parent, attr)    
+        except EmptyWebDOMError: raise EmptyWebContentError(self)    
+
     @property
-    def scrape(self): return self.WebDOM.scrape
+    def parent(self): return self.__parent
+    @property
+    def children(self): return self.__children      
+
+    def loc(self, weblocator):
+        if not isinstance(weblocator, WebLocator): raise TypeError(type(weblocator).__name__)
+        else: return weblocator(self)       
+    
   
-    
 class WebData(WebContent, WebAdapter):
-    pass
-
-#    def __init__(self, driver, timeout): 
-#        self.__driver, self.__timeout = driver, timeout
-#        element = self.Element(self.get())
-#        if bool(element): children = ODict([(key, child(self.__element.DOMElement, self.timeout)) for key, child in self.Children.items()])
-#        else: children = ODict([(key, None) for key, child in self.Children.items()])      
-#        super().__init__(element, children)
-        
-#    def __iter__(self): 
-#        webitemtype = type('_'.join([self.__class__.__name__, 'Item']), (WebItem,), {})
-#        return (webitem for webitem in [webitemtype(self.element, self.children)]) 
+    def __init__(self, source, timeout=None):
+        parent = self.WebDOM(self.load(source, timeout))
+        if bool(parent): children = ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()])
+        else: children = ODict([(key, None) for key, WebDOMchild in self.WebDOMChildren.items()])            
+        super(WebContent).__init__(parent, children)  
+      
+    def __iter__(self): 
+        WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
+        return (webitem for webitem in [WebItem(self.parent, self.children)]) 
     
-#    @property
-#    def driver(self): return self.__driver
-#    @property
-#    def timeout(self): return self.__timeout
-
-#    def get(self):
-#        print("WebElement Loading: {}".format(self.__class__.__name__))    
-#        domelement = getelement(self.driver, self.timeout, self.xpath)
-#        if domelement is None: print("WebElement Missing: {}".format(self.__class__.__name__))         
-#        return domelement  
+    def load(self, source, timeout=None):
+        print("WebDOM Loading: {}".format(self.__class__.__name__))    
+        if self.scrape == 'dynamic':  dom = getelement(source, timeout, self.xpath)     
+        elif self.scrape == 'static': dom = gettree(source, self.xpath)
+        else: raise ValueError(self.scrape) 
+        if dom is None: print("WebDOM Missing: {}".format(self.__class__.__name__))         
+        return dom 
 
 
-class WebCollection(WebAdapter): 
-    pass
-        
-#    def __init__(self, source, timeout=None):
-#        pass
+class WebCollection(WebAdapter, list): 
+    def __init__(self, source, timeout=None):
+        parents = [self.WebDOM(dom) for dom in self.load(source, timeout)]
+        childrens = [ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()]) for parent in parents]
+        WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
+        super(list).__init__([WebItem(parent, children) for parent, children in zip(parents, childrens)])
 
-#    @property
-#    def scrape(self): return self.DOM.scrape    
-    
-#    def __init__(self, driver, timeout): 
-#        self.__driver, self.__timeout = driver, timeout    
-#        elements = [self.Element(domelement) for domelement in self.get()]
-#        childrens = [ODict([(key, child(element.DOMElement, self.timeout)) for key, child in self.Children.items()]) for element in elements]
-#        webitemtype = type('_'.join([self.__class__.__name__, 'Item']), (WebItem,), {})
-#        self.__webitems = [webitemtype(element, children) for element, children in zip(elements, childrens)]      
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))
+    def __iter__(self): return (webitem for webitem in self)
 
-#    def __bool__(self): return bool(self.__webitems)
-#    def __len__(self): return len(self.__webitems)
-#    def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))
-#    def __getitem__(self, index): return self.__webitems[index]
-#    def __iter__(self): return (webitem for webitem in self.__webitems)
-
-#    @property
-#    def driver(self): return self.__driver
-#    @property
-#    def timeout(self): return self.__timeout     
-#    @property
-#    def items(self): return self.__webitems
-    
-#    def get(self):
-#        print("WebElementList Loading: {}".format(self.__class__.__name__))
-#        domelements = getelements(self.driver, self.timeout, self.xpath)
-#        if not domelements: print("WebElementList Missing: {}".format(self.__class__.__name__))  
-#        return domelements
+    def load(self, source, timeout=None):
+        print("WebDOMs Loading: {}".format(self.__class__.__name__))
+        if self.scrape == 'dynamic':  doms = getelements(source, timeout, self.xpath)     
+        elif self.scrape == 'static': doms = gettrees(source, self.xpath)
+        else: raise ValueError(self.scrape)         
+        if not doms: print("WebDOMs Missing: {}".format(self.__class__.__name__))  
+        return doms
 
 
 class WebClickables(WebCollection, WebDOM=Clickable): pass

@@ -122,8 +122,8 @@ class WebReader(ABC):
             self.record(time.time())
             response.raise_for_status()
             self.stop(session)
-            data = self.parse(self.datatype, response)
-            page = self.Page(data, *args, **kwargs)
+            pagedata = self.parse(self.datatype, response)
+            page = self.Page(pagedata, *args, **kwargs)
             yield from self.execute(page, *args, **kwargs)            
             print("WebRequest Success: {}".format(self.__class__.__name__), "\n")
         except RequestException as error:
