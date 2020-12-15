@@ -18,7 +18,7 @@ from webscraping.webdom import Captcha, Clickable, Input, Selection, Link, Text,
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = []
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebCaptcha', 'WebClickables']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -102,49 +102,61 @@ class WebContent(object):
  
     
 class WebAdapter(object):
-    pass
-    
-    # def __init_subclass__(cls, **kwargs):
-    #     if 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
-    #     elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
-    #     elif 'WebDOM' not in kwargs.keys() and 'xpath' not in kwargs.keys(): cls.custom(**kwargs)
-    #     else: raise ValueError(kwargs)
+    def __init_subclass__(cls, **kwargs):
+        if 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
+        elif 'WebDOM' not in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' in kwargs.keys(): cls.variant(kwargs.pop('scrape'))        
+        elif 'WebDOM' not in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.customize(**kwargs)  
+        elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
+        else: raise ValueError(kwargs)
        
-    # @classmethod
-    # def factory(cls, WebDOM): 
-    #     assert not hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
-    #     setattr(cls, 'WebDOM', WebDOM)
-        
-    # @classmethod
-    # def custom(cls, scrape=None, **attrs):
-    #     if scrape == 'static': newDOM = cls.DOM.static(**attrs)
-    #     elif scrape == 'dynamic': newDOM = cls.DOM.dynamic(**attrs)
-    #     else: newDOM = cls.DOM.create(**attrs)
-    #     return type(cls.__name__, (cls,), {'DOM':newDOM})        
-        
-    # @classmethod
-    # def create(cls, xpath, parent=None, key=None, **kwargs):
-    #     assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
-    #     setattr(cls, 'xpath', xpath)
-    #     setattr(cls, 'Children', {})
-    #     if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
-    #     REGISTRY[cls.__name__] = cls
-    
-    # @classmethod
-    # def addchild(cls, key, child):
-    #     assert key is not None
-    #     cls.Children[key] = child    
-    
-    # def __new__(cls, *args, **kwargs):
-    #     assert hasattr(cls, 'xpath') and hasattr(cls, 'WebDOM')
-    #     assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
-    #     return super().__new__(cls)                      
-   
-    # def __init__(self, source, timeout=None):
-    #     pass
+    @classmethod
+    def factory(cls, WebDOM): 
+        assert not hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
+        setattr(cls, 'WebDOM', WebDOM)
+       
+    @classmethod
+    def variant(cls, scrape):
+        if scrape == 'dynamic': newDOM = cls.WebDOM.dynamic()
+        elif scrape == 'static': newDOM = cls.WebDOM.static()
+        else: raise ValueError(scrape)
+        return type(cls.__name__, (cls,), {'DOM':newDOM})
  
-    # @property
-    # def scrape(self): return self.WebDOM.scrape
+    @classmethod
+    def dynamic(cls): return cls.variant('dynamic')
+    @classmethod
+    def static(cls): return cls.variant('static')       
+ 
+    @classmethod
+    def customize(cls, **attrs):
+        assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
+        assert 'scrape' not in attrs.keys()
+        newDOM = type(cls.WebDOM.__name__, (cls.WebDOM,), {}, **attrs)
+        return type(cls.__name__, (cls,), {'DOM':newDOM})          
+       
+    @classmethod
+    def create(cls, xpath, parent=None, key=None, **kwargs):
+        assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
+        assert 'scrape' not in kwargs.keys()
+        setattr(cls, 'xpath', xpath)
+        setattr(cls, 'Children', {})
+        if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
+        REGISTRY[cls.__name__] = cls        
+        
+    @classmethod
+    def addchild(cls, key, child):
+        assert key is not None
+        cls.Children[key] = child      
+        
+    def __init__(self, source, timeout=None): self.__source, self.__timeout = source, timeout
+    def __new__(cls, *args, **kwargs):
+        assert hasattr(cls, 'WebDOM') and hasattr(cls, 'xpath')
+        assert hasattr(cls.WebDOM, 'scrape')
+        assert getattr(cls.WebDOM, 'scrape') is not None
+        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
+        return super().__new__(cls)       
+    
+    @property
+    def scrape(self): return self.WebDOM.scrape
   
     
 class WebData(WebContent, WebAdapter):
