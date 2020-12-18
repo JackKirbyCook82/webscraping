@@ -162,7 +162,7 @@ class Text(WebVariant, parser=lambda x: x):
     def data(self): return self.parser(self.text)
     
 
-class Table(WebVariant, tableindex=0, headerrow=None, indexcolumn=None, parser=lambda x: x):
+class Table(WebVariant, tableindex=0, headerrow=0, indexcolumn=None, parser=lambda x: x):
     @property
     def dataframe(self): 
         tables = pd.read_html(self.html, header=self.headerrow, index_col=self.indexcolumn)
