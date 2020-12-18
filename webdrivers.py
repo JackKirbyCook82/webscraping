@@ -11,7 +11,7 @@ from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
-from webscraping.webelements import EmptyWebElementError, EmptyWebItemError, CaptchaError
+from webscraping.webdata import EmptyWebDataError, EmptyWebCollectionError, CaptchaError
 from webscraping.webactions import EmptyWebActionsError
 
 __version__ = "1.0.0"
@@ -29,9 +29,9 @@ class FailureWebDriverError(WebDriverError): pass
 
 
 class WebDriver(ABC):
-    def __init_subclass__(cls, *args, page, options={}, **kwargs):
+    def __init_subclass__(cls, *args, webpage, options={}, **kwargs):
         assert isinstance(options, dict)
-        setattr(cls, 'Page', page)
+        setattr(cls, 'WebPage', webpage)
         setattr(cls, 'options', options) 
         
     def __str__(self): return self.__class__.__name__
@@ -57,12 +57,12 @@ class WebDriver(ABC):
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             options, capabilities = self.setup(*args, **kwargs)
             driver = self.start(options, capabilities)   
-            page = self.Page(driver, self.timeout, *args, wait=self.wait, **kwargs)
-            page.load(url, *args, **kwargs)
-            yield from self.execute(page, *args, **kwargs)
+            webpage = self.WebPage(driver, self.timeout, *args, wait=self.wait, **kwargs)
+            webpage.load(url, *args, **kwargs)
+            yield from self.execute(webpage, *args, **kwargs)
             self.stop()  
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
-        except (EmptyWebActionsError, EmptyWebElementError, EmptyWebItemError, CaptchaError) as error:
+        except (EmptyWebActionsError, EmptyWebDataError, EmptyWebCollectionError, CaptchaError) as error:
             try: self.stop()
             except NameError: pass
             print("WebDriver Failure: {}".format(self.__class__.__name__))

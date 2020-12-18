@@ -78,7 +78,8 @@ class WebLocator(ntuple('Locator', 'filtration attribute')):
     
 class WebAdapter(object):
     def __init_subclass__(cls, **kwargs):
-        if 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
+        if not kwargs: pass
+        elif 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
         elif 'WebDOM' not in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' in kwargs.keys(): cls.variant(kwargs.pop('scrape'))        
         elif 'WebDOM' not in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.customize(**kwargs)  
         elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
@@ -120,7 +121,7 @@ class WebAdapter(object):
     @classmethod
     def addchild(cls, key, child):
         assert key is not None
-        cls.Children[key] = child   
+        cls.WebDOMChildren[key] = child   
         
     @property
     def scrape(self): return self.WebDOM.scrape   
@@ -158,7 +159,7 @@ class WebContent(object):
         else: return weblocator(self)       
     
   
-class WebData(WebContent, WebAdapter):
+class WebData(WebAdapter, WebContent): 
     def __init__(self, source, timeout=None):
         parent = self.WebDOM(self.load(source, timeout))
         if bool(parent): children = ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()])

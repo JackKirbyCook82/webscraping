@@ -105,9 +105,9 @@ class WebTree(WebDOM, scrape='static'):
 
 class WebVariant(WebDOM, scrape=None):
     @classmethod
-    def dynamic(cls): return type(cls.__name__, (WebElement,), cls.__dict__)
+    def dynamic(cls): return type(cls.__name__, (WebElement,), dict(cls.__dict__))
     @classmethod
-    def static(cls): return type(cls.__name__, (WebTree,), cls.__dict__)       
+    def static(cls): return type(cls.__name__, (WebTree,), dict(cls.__dict__))       
 
 
 class Captcha(WebElement): pass

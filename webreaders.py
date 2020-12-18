@@ -24,7 +24,7 @@ from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebReader', 'RetryAdapter', 'Authenticate', 'Headers']
+__all__ = ['WebReader', 'Retrys', 'Authenticate', 'Headers']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
    
@@ -41,7 +41,7 @@ class Authenticate(ntuple('Authenticate', 'username password')):
     def __call__(self): return HTTPBasicAuth(self.username, self.password)
 
 
-class RetryAdapter(ntuple('RetryAdapter', 'retries backoff httpcodes')): 
+class Retrys(ntuple('Retrys', 'retries backoff httpcodes')): 
     def __repr__(self): return "{}(retries={}, backoff={}, httpcodes={})".format(self.__class__.__name__, *self)
     def __new__(cls, retries=3, backoff=0.3, httpcodes=(500, 502, 504)): return super().__new__(cls, retries, backoff, httpcodes)
     def __call__(self): 
@@ -82,8 +82,9 @@ class Headers(list):
               
 
 class WebReader(ABC):   
-    def __init_sublcass__(cls, *args, webpage, **kwargs): 
+    def __init_subclass__(cls, *args, webpage, datatype, **kwargs): 
         setattr(cls, 'WebPage', webpage)
+        setattr(cls, 'datatype', datatype)
        
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
@@ -92,9 +93,9 @@ class WebReader(ABC):
         objects = {attr:getattr(self, attr) for attr in ('retry', 'authenticate', 'headers') if hasattr(self, attr)}
         return "{}({}, {})".format(self.__class__.__name__, asstring(content, str), asstring(objects, repr))    
     
-    def __init__(self, *args, attempts=10, delay=3, **kwargs):
+    def __init__(self, *args, attempts=5, delay=3, **kwargs):
         self.__attempts, self.__delay = attempts, delay
-        try: self.retry = kwargs['retry']
+        try: self.retrys = kwargs['retrys']
         except KeyError: pass
         try: self.authenticate = kwargs['authenticate']
         except KeyError: pass
@@ -115,16 +116,16 @@ class WebReader(ABC):
         try: 
             print("WebRequest: {}".format(self.__class__.__name__))
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))            
-            parms, retry = self.setup(*args, **kwargs)
-            session = self.start(parms, retry)        
+            parms, retrys = self.setup(*args, **kwargs)
+            session = self.start(parms, retrys)        
             if not self.ready(time.time()): self.sleep(self.wait(time.time()))
             response = session.get(str(url), **parms)
             self.record(time.time())
             response.raise_for_status()
             self.stop(session)
-            pagedata = self.parse(self.datatype, response)
-            page = self.Page(pagedata, *args, **kwargs)
-            yield from self.execute(page, *args, **kwargs)            
+            webpagedata = self.parse(self.datatype, response)
+            webpage = self.WebPage(webpagedata, *args, **kwargs)
+            yield from self.execute(webpage, *args, **kwargs)            
             print("WebRequest Success: {}".format(self.__class__.__name__), "\n")
         except RequestException as error:
             try: self.stop(session)
@@ -134,11 +135,11 @@ class WebReader(ABC):
             if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
             else: raise MaxWebRequestAttemptError(attempt)
         
-    def start(self, parms, retry=None):
+    def start(self, parms, retrys=None):
         session = requests.Session() 
-        if retry is not None: 
-            session.mount('http://', self.__retry())
-            session.mount('https://', self.__retry())
+        if retrys is not None: 
+            session.mount('http://', retrys())
+            session.mount('https://', retrys())
         return session
             
     def stop(self, session):
@@ -146,16 +147,16 @@ class WebReader(ABC):
     
     def setup(self, *args, **kwargs):
         auth = self.getAuthenticate(*args, **kwargs)
-        retry = self.getRetry(*args, **kwargs)
+        retrys = self.getRetrys(*args, **kwargs)
         headers = self.getHeaders(*args, **kwargs)
         parms = {'headers':headers, 'auth':auth, 'cookies':kwargs.get('cookies', None)}
         try: parms['Referer'] = kwargs['referer']
         except KeyError: pass
         parms = {key:value for key, value in parms.items() if value is not None}
-        return parms, retry 
+        return parms, retrys
     
     def getAuthenticate(self, *args, **kwargs): return self.authenticate() if hasattr(self, 'authenticate') else None
-    def getRetry(self, *args, **kwargs): return self.retry() if hasattr(self, 'retry') else None
+    def getRetrys(self, *args, **kwargs): return self.retrys() if hasattr(self, 'retry') else None
     def getHeaders(self, *args, **kwargs):
         try: return next(self.headers)
         except TypeError: return self.headers

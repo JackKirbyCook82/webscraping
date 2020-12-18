@@ -13,7 +13,7 @@ from collections import OrderedDict as ODict
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys 
 
-from webscraping.webelements import WebElement
+from webscraping.webdata import WebData
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -131,7 +131,7 @@ class WebAction(ABC):
             setattr(cls, 'type', astype)
             return
         webelements = list(on) if isinstance(on, (tuple, list)) else [on]
-        assert all([issubclass(webelement, WebElement) for webelement in webelements])
+        assert all([issubclass(webelement, WebData) for webelement in webelements])
         setattr(cls, 'WebElements', list(webelements))
         if cls.type == 'chain': setattr(cls, 'chain', webactionwait(cls.chain, wait))
         if cls.type == 'queue': setattr(cls, 'queue', webactionwait(cls.queue, wait))
