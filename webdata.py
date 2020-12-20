@@ -79,44 +79,34 @@ class WebLocator(ntuple('Locator', 'filtration attribute')):
 class WebAdapter(object):
     def __init_subclass__(cls, **kwargs):
         if not kwargs: pass
-        elif 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
-        elif 'WebDOM' not in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' in kwargs.keys(): cls.variant(kwargs.pop('scrape'))        
-        elif 'WebDOM' not in kwargs.keys() and 'xpath' not in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.customize(**kwargs)  
-        elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys() and 'scrape' not in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
+        elif 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
+        elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'))
         else: raise ValueError(kwargs)
        
     @classmethod
     def factory(cls, WebDOM): 
-        assert not hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
+        assert not hasattr(cls, 'xpath')
         setattr(cls, 'WebDOM', WebDOM)
-       
+
     @classmethod
-    def variant(cls, scrape):
-        if scrape == 'dynamic': newDOM = cls.WebDOM.dynamic()
-        elif scrape == 'static': newDOM = cls.WebDOM.static()
-        else: raise ValueError(scrape)
-        return type(cls.__name__, (cls,), {'DOM':newDOM})
- 
+    def asDynamic(cls): return type(cls.__name__, (cls,), {}, **{'WebDOM':cls.WebDOM.asDynamic()})
     @classmethod
-    def dynamic(cls): return cls.variant('dynamic')
-    @classmethod
-    def static(cls): return cls.variant('static')       
+    def asStatic(cls): return type(cls.__name__, (cls,), {}, **{'WebDOM':cls.WebDOM.asStatic()})     
  
     @classmethod
     def customize(cls, **attrs):
         assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
-        assert 'scrape' not in attrs.keys()
-        newDOM = type(cls.WebDOM.__name__, (cls.WebDOM,), {}, **attrs)
-        return type(cls.__name__, (cls,), {'DOM':newDOM})          
+        newWebDOM = type(cls.WebDOM.__name__, (cls.WebDOM,), {}, **attrs)
+        return type(cls.__name__, (cls,), {}, **{'WebDOM':newWebDOM})          
        
     @classmethod
     def create(cls, xpath, parent=None, key=None, **kwargs):
         assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
-        assert 'scrape' not in kwargs.keys()
         setattr(cls, 'xpath', xpath)
         setattr(cls, 'WebDOMChildren', {})
-        if parent is not None: REGISTRY[parent.__name__].addchild(key, cls)
-        REGISTRY[cls.__name__] = cls        
+        if parent is not None: REGISTRY[hash(str(parent))].addchild(key, cls)
+        assert not hash(str(cls)) in REGISTRY.keys()
+        REGISTRY[hash(str(cls))] = cls        
         
     @classmethod
     def addchild(cls, key, child):
@@ -130,7 +120,7 @@ class WebAdapter(object):
         assert hasattr(cls, 'WebDOM') and hasattr(cls, 'xpath')
         assert hasattr(cls.WebDOM, 'scrape')
         assert getattr(cls.WebDOM, 'scrape') is not None
-        assert cls.__name__ in REGISTRY.keys() and cls in REGISTRY.values()  
+        assert hash(str(cls)) in REGISTRY.keys() and cls in REGISTRY.values()  
         return super().__new__(cls)       
     
         
@@ -159,12 +149,12 @@ class WebContent(object):
         else: return weblocator(self)       
     
   
-class WebData(WebAdapter, WebContent): 
+class WebData(WebContent, WebAdapter): 
     def __init__(self, source, timeout=None):
         parent = self.WebDOM(self.load(source, timeout))
         if bool(parent): children = ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()])
         else: children = ODict([(key, None) for key, WebDOMchild in self.WebDOMChildren.items()])            
-        super(WebContent).__init__(parent, children)  
+        super().__init__(parent, children)  
       
     def __iter__(self): 
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
@@ -179,12 +169,12 @@ class WebData(WebAdapter, WebContent):
         return dom 
 
 
-class WebCollection(WebAdapter, list): 
+class WebCollection(list, WebAdapter): 
     def __init__(self, source, timeout=None):
         parents = [self.WebDOM(dom) for dom in self.load(source, timeout)]
         childrens = [ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()]) for parent in parents]
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
-        super(list).__init__([WebItem(parent, children) for parent, children in zip(parents, childrens)])
+        super().__init__([WebItem(parent, children) for parent, children in zip(parents, childrens)])
 
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))
     def __iter__(self): return (webitem for webitem in self)

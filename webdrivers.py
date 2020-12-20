@@ -40,8 +40,8 @@ class WebDriver(ABC):
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
-    def __init__(self, file, *args, loadtime=50, timeout=10, wait=5, retrys=5, **kwargs): 
-        self.__loadtime, self.__timeout, self.__wait, self.__retrys = loadtime, timeout, wait, retrys
+    def __init__(self, file, *args, loadtime=50, timeout=10, retrys=5, **kwargs): 
+        self.__loadtime, self.__timeout, self.__retrys = loadtime, timeout, retrys
         self.__headers = kwargs.get('headers', {})
         try: self.__options = self.options
         except AttributeError: self.__options = {}
@@ -57,7 +57,7 @@ class WebDriver(ABC):
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             options, capabilities = self.setup(*args, **kwargs)
             driver = self.start(options, capabilities)   
-            webpage = self.WebPage(driver, self.timeout, *args, wait=self.wait, **kwargs)
+            webpage = self.WebPage(driver, self.timeout)
             webpage.load(url, *args, **kwargs)
             yield from self.execute(webpage, *args, **kwargs)
             self.stop()  
@@ -114,8 +114,6 @@ class WebDriver(ABC):
     def loadtime(self): return self.__loadtime
     @property
     def timeout(self): return self.__timeout    
-    @property
-    def wait(self): return self.__wait
 
     def __url(self, driver): return driver.current_url
     def __html(self, driver): return driver.page_source

@@ -151,28 +151,28 @@ class WebAction(ABC):
 
 
 class WebMoveTo(WebAction, astype='chain'): 
-    def chain(self, x): x.move_to_element(self[0].element.DOMElement)
+    def chain(self, x): x.move_to_element(self[0].DOMElement)
     
 class WebClick(WebAction, astype='chain'): 
-    def chain(self, x): x.click(self[0].element.DOMElement)
+    def chain(self, x): x.click(self[0].DOMElement)
     
 class WebDoubleClick(WebAction, astype='chain'): 
-    def chain(self, x): x.double_click(self[0].element.DOMElement)
+    def chain(self, x): x.double_click(self[0].DOMElement)
     
 class WebClickDown(WebAction, astype='chain'): 
-    def chain(self, x): x.click_and_hold(self[0].element.DOMElement)
+    def chain(self, x): x.click_and_hold(self[0].DOMElement)
     
 class WebClickRelease(WebAction, astype='chain'): 
-    def chain(self, x): x.release(self[0].element.DOMElement)
+    def chain(self, x): x.release(self[0].DOMElement)
     
 class WebKeyDown(WebAction, astype='chain'): 
-    def chain(self, x): x.key_down(getattr(Keys, self.key.upper()), self[0].element.DOMElement)
+    def chain(self, x): x.key_down(getattr(Keys, self.key.upper()), self[0].DOMElement)
     
 class WebKeyUp(WebAction, astype='chain'): 
-    def chain(self, x): x.key_up(getattr(Keys, self.key.upper()), self[0].element.DOMElement)
+    def chain(self, x): x.key_up(getattr(Keys, self.key.upper()), self[0].DOMElement)
     
 class WebDragDrop(WebAction, astype='chain'): 
-    def chain(self, x): x.drag_and_drop(self[0].element.domelement, self[1].element.DOMElement)
+    def chain(self, x): x.drag_and_drop(self[0].element.domelement, self[1].DOMElement)
  
 class WebFill(WebAction, astype='queue'):
     def queue(self, x): x.append(lambda *args, **kwargs: self[0].fill(self.text.format(**kwargs)))
