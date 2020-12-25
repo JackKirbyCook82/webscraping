@@ -113,7 +113,7 @@ class WebVariant(WebDOM, scrape=None):
 
 
 class Captcha(WebElement, timeout=5*60, frequency=15): 
-    def clear(self, driver):
+    def solve(self, driver):
         wait = WebDriverWait(driver, self.timeout, poll_frequency=self.frequency)
         try: return wait.until(EC.staleness_of(self.DOMElement))
         except TimeoutException: return False  

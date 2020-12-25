@@ -200,9 +200,9 @@ class WebCaptcha(WebData, WebDOM=Captcha):
         super().__init__(driver, timeout)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
     
-    def clear(self, driver):
+    def solve(self, driver):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
-        if not self.DOMElement.clear(): raise CaptchaError(self)
+        if not self.DOMElement.solve(): raise CaptchaError(self)
         else: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))         
 
 

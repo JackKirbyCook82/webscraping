@@ -37,7 +37,7 @@ class WebBrowserPage(ABC):
         except (EmptyWebContentError, EmptyWebActionsError) as error: 
             captcha = self.PageCaptcha(self.driver, self.timeout)
             if not captcha: raise error
-            else: captcha.clear(self.driver)
+            else: captcha.solve(self.driver)
             return self.execute(*args, **kwargs)
     
     def __getitem__(self, key): 
@@ -52,7 +52,7 @@ class WebBrowserPage(ABC):
         if not bool(pageiteration): 
             captcha = self.PageCaptcha(self.driver, self.timeout)
             if not captcha: return iter([])
-            else: captcha.clear(self.driver)
+            else: captcha.solve(self.driver)
         else: return iter(pageiteration)
         return iter(self.PageIteration(self.driver, self.timeout))
               
@@ -64,7 +64,7 @@ class WebBrowserPage(ABC):
         print("WebBrowserPage Loading: {}".format(str(self)))
         self.driver.get(str(url))      
         captcha = self.PageCaptcha(self.driver, self.timeout)
-        if captcha: captcha.clear(self.driver)
+        if captcha: captcha.solve(self.driver)
         
     @property
     def driver(self): return self.__driver  
