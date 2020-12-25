@@ -63,7 +63,7 @@ class WebDriver(ABC):
             self.stop()  
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
         except (EmptyWebActionsError, EmptyWebDataError, EmptyWebCollectionError, CaptchaError) as error:
-            try: self.stop()
+            try: self.stop(driver)
             except NameError: pass
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error), '\n')

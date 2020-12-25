@@ -40,8 +40,8 @@ class WebDOM(ABC):
             assert not hasattr(cls, 'scrape')
             setattr(cls, 'scrape', kwargs.pop('scrape'))
         for name, attr in kwargs.items(): 
-            if hasattr(attr, '__call__'): setattr(cls, name, asAttribute(attr))            
-            else: setattr(cls, name, asFunction(attr))      
+            if hasattr(attr, '__call__'): setattr(cls, name, asFunction(attr))            
+            else: setattr(cls, name, asAttribute(attr))      
                         
     def __new__(cls, DOM):
         assert hasattr(cls, 'scrape')
@@ -110,7 +110,7 @@ class WebVariant(WebDOM, scrape=None):
     def asStatic(cls): return type(cls.__name__, (WebTree,), dict(cls.__dict__))       
 
 
-class Captcha(WebElement): pass
+class Captcha(WebElement, timeout=5*60, frequency=15): pass
 
 
 class Clickable(WebElement): 

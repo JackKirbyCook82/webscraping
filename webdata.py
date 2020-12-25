@@ -6,7 +6,6 @@ Created on Mon Dec 30 2019
 
 """
 
-import time
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 from selenium.webdriver.common.by import By
@@ -24,8 +23,6 @@ __license__ = ""
 
 
 REGISTRY = {}
-CAPTCHA_WAIT = 30
-CAPTCHA_TIMEOUT = 15 * 60
 
 
 def getelement(driver, timeout, xpath):
@@ -57,7 +54,7 @@ class EmptyWebContentError(WebContentError): pass
 class EmptyWebDataError(WebContentError): pass
 class EmptyWebCollectionError(WebContentError): pass 
 class CaptchaError(WebContentError): pass  
- 
+
 
 class WebLocator(ntuple('Locator', 'filtration attribute')):
     attrchar, filterchar = ".", "/"  
@@ -177,7 +174,6 @@ class WebCollection(list, WebAdapter):
         super().__init__([WebItem(parent, children) for parent, children in zip(parents, childrens)])
 
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))
-    def __iter__(self): return (webitem for webitem in self)
 
     def load(self, source, timeout=None):
         print("WebDOMs Loading: {}".format(self.__class__.__name__))
@@ -198,22 +194,19 @@ class WebSelection(WebData, WebDOM=Selection): pass
 class WebLink(WebData, WebDOM=Link): pass
 class WebText(WebData, WebDOM=Text): pass
 class WebTable(WebData, WebDOM=Table): pass
+
 class WebCaptcha(WebData, WebDOM=Captcha): 
-    def clear(self):
-        print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
-        timeout = lambda dt: int(dt) > CAPTCHA_TIMEOUT
-        currenttime = lambda: time.time()
-        captcha, starttime = bool(self), currenttime()
-        while captcha and not timeout(currenttime() - starttime):
-            captcha = not WebDriverWait(self.driver, self.timeout).until(EC.staleness_of((By.XPATH, self.xpath)))
-            time.sleep(CAPTCHA_WAIT)
-        if captcha: raise CaptchaError(self)
-        else: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
-
-
-
-
-
+    def __init__(self, driver, *args, **kwargs):
+        super().__init__(driver)
+        if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
+    
+    def clear(self, driver, *args, **kwargs):
+        print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
+        wait = WebDriverWait(driver, self.timeout, poll_frequency=self.frequency)
+        try: cleared = wait.until(EC.staleness_of(self.DOMElement))
+        except TimeoutException: cleared = False  
+        if not cleared: raise CaptchaError(self)
+        else: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))         
 
 
 
