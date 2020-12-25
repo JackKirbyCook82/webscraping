@@ -41,6 +41,7 @@ class WebDriver(ABC):
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
     def __init__(self, file, *args, loadtime=50, timeout=10, retrys=5, **kwargs): 
+        assert timeout is not None and loadtime is not None
         self.__loadtime, self.__timeout, self.__retrys = loadtime, timeout, retrys
         self.__headers = kwargs.get('headers', {})
         try: self.__options = self.options
@@ -60,7 +61,7 @@ class WebDriver(ABC):
             webpage = self.WebPage(driver, self.timeout)
             webpage.load(url, *args, **kwargs)
             yield from self.execute(webpage, *args, **kwargs)
-            self.stop()  
+            self.stop(driver)  
             print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
         except (EmptyWebActionsError, EmptyWebDataError, EmptyWebCollectionError, CaptchaError) as error:
             try: self.stop(driver)

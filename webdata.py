@@ -26,11 +26,13 @@ REGISTRY = {}
 
 
 def getelement(driver, timeout, xpath):
+    assert timeout is not None
     try: domelement = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
     except (NoSuchElementException, TimeoutException, WebDriverException): domelement = None        
     return domelement    
 
 def getelements(driver, timeout, xpath): 
+    assert timeout is not None
     try: domelements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
     except (NoSuchElementException, TimeoutException, WebDriverException): domelements = []  
     return domelements
@@ -77,7 +79,7 @@ class WebAdapter(object):
     def __init_subclass__(cls, **kwargs):
         if not kwargs: pass
         elif 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
-        elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'))
+        elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
         else: raise ValueError(kwargs)
        
     @classmethod
@@ -167,13 +169,12 @@ class WebData(WebContent, WebAdapter):
 
 
 class WebCollection(list, WebAdapter): 
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))    
     def __init__(self, source, timeout=None):
         parents = [self.WebDOM(dom) for dom in self.load(source, timeout)]
         childrens = [ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()]) for parent in parents]
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
         super().__init__([WebItem(parent, children) for parent, children in zip(parents, childrens)])
-
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))
 
     def load(self, source, timeout=None):
         print("WebDOMs Loading: {}".format(self.__class__.__name__))
@@ -194,18 +195,14 @@ class WebSelection(WebData, WebDOM=Selection): pass
 class WebLink(WebData, WebDOM=Link): pass
 class WebText(WebData, WebDOM=Text): pass
 class WebTable(WebData, WebDOM=Table): pass
-
 class WebCaptcha(WebData, WebDOM=Captcha): 
-    def __init__(self, driver, *args, **kwargs):
-        super().__init__(driver)
+    def __init__(self, driver, timeout):
+        super().__init__(driver, timeout)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
     
-    def clear(self, driver, *args, **kwargs):
+    def clear(self, driver):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
-        wait = WebDriverWait(driver, self.timeout, poll_frequency=self.frequency)
-        try: cleared = wait.until(EC.staleness_of(self.DOMElement))
-        except TimeoutException: cleared = False  
-        if not cleared: raise CaptchaError(self)
+        if not self.DOMElement.clear(): raise CaptchaError(self)
         else: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))         
 
 

@@ -10,7 +10,9 @@ import pandas as pd
 from abc import ABC, abstractmethod
 from functools import update_wrapper
 from selenium.webdriver.support.ui import Select
-from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException, TimeoutException
 from lxml.html import tostring
 
 __version__ = "1.0.0"
@@ -110,9 +112,13 @@ class WebVariant(WebDOM, scrape=None):
     def asStatic(cls): return type(cls.__name__, (WebTree,), dict(cls.__dict__))       
 
 
-class Captcha(WebElement, timeout=5*60, frequency=15): pass
+class Captcha(WebElement, timeout=5*60, frequency=15): 
+    def clear(self, driver):
+        wait = WebDriverWait(driver, self.timeout, poll_frequency=self.frequency)
+        try: return wait.until(EC.staleness_of(self.DOMElement))
+        except TimeoutException: return False  
 
-
+    
 class Clickable(WebElement): 
     def click(self): self.DOMElement.click()
 

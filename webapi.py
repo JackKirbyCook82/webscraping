@@ -78,7 +78,7 @@ class WebAPI(object):
     def execute(self, url, *args, **kwargs):
         try: 
             downloaded = self.download(url, *args, **kwargs)   
-            self.recordall(downloaded, *args, **kwargs) 
+            self.recordall(downloaded) 
             print('Scraping Success: {}\n{}'.format(self.__class__.__name__, str(url)))
         except FailureWebDriverError:               
             print('Scraping Failure: {}\n{}'.format(self.__class__.__name__, str(url)))
@@ -94,11 +94,11 @@ class WebAPI(object):
                 else: dataframes[key] = pd.concat([dataframes[key], dataframe], ignore_index=True)
         return dataframes            
 
-    def recordall(self, dataframes, *args, **kwargs): 
+    def recordall(self, dataframes): 
         assert isinstance(dataframes, dict)
-        for dataset, dataframe in dataframes.items(): self.record(dataset, dataframe, *args, **kwargs)
+        for dataset, dataframe in dataframes.items(): self.record(dataset, dataframe)
 
-    def record(self, dataset, dataframe, *args, **kwargs):
+    def record(self, dataset, dataframe):
         try: dataframe = pd.concat([self.load(dataset), dataframe], ignore_index=True).drop_duplicates(ignore_index=True, keep='last')
         except FileNotFoundError: pass        
         self.save(dataset, dataframe)        

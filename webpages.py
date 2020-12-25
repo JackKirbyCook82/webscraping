@@ -28,40 +28,43 @@ class WebBrowserPage(ABC):
     
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return self.__class__.__name__        
-    def __init__(self, driver, timeout): self.__driver, self.__timeout, self.__pagecontents = driver, timeout, {}     
+    def __init__(self, driver, timeout):
+        assert timeout is not None
+        self.__driver, self.__timeout, self.__pagecontents = driver, timeout, {}     
+    
     def __call__(self, *args, **kwargs): 
         try: return self.execute(*args, **kwargs)    
         except (EmptyWebContentError, EmptyWebActionsError) as error: 
-            captcha = self.PageCaptcha(self.__driver)
+            captcha = self.PageCaptcha(self.driver, self.timeout)
             if not captcha: raise error
-            else: captcha.clear(self.__driver)
+            else: captcha.clear(self.driver)
             return self.execute(*args, **kwargs)
     
     def __getitem__(self, key): 
         try: return self.__pagecontents[key]
         except KeyError: pass
-        self.__pagecontents[key] = self.PageContents[key](self.__driver, self.__timeout)
+        self.__pagecontents[key] = self.PageContents[key](self.driver, self.timeout)
         return self.__pagecontents[key]
 
     def __iter__(self): 
-        try: pageiteration = self.PageIteration(self.__driver, self.__timeout)
+        try: pageiteration = self.PageIteration(self.driver, self.timeout)
         except AttributeError: return iter([])
         if not bool(pageiteration): 
-            captcha = self.PageCaptcha(self.__driver)
+            captcha = self.PageCaptcha(self.driver, self.timeout)
             if not captcha: return iter([])
-            else: captcha.clear(self.__driver)
+            else: captcha.clear(self.driver)
         else: return iter(pageiteration)
-        return iter(self.PageIteration(self.__driver, self.__timeout))
+        return iter(self.PageIteration(self.driver, self.timeout))
               
     def __next__(self): 
-        try: return self.PageNext(self.__driver, self.__timeout)()
+        try: return self.PageNext(self.driver, self.timeout)()
         except (AttributeError, EmptyWebContentError, EmptyWebActionsError): return False
 
     def load(self, url, *args, **kwargs): 
         print("WebBrowserPage Loading: {}".format(str(self)))
         self.driver.get(str(url))      
-        captcha = self.PageCaptcha(self.__driver)
-        if captcha: captcha.clear(self.__driver)
+        captcha = self.PageCaptcha(self.driver, self.timeout)
+        if captcha: captcha.clear(self.driver)
         
     @property
     def driver(self): return self.__driver  
