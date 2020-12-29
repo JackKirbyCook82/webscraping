@@ -61,7 +61,7 @@ class WebBrowserPage(ABC):
         except (AttributeError, EmptyWebContentError, EmptyWebActionsError): return False
 
     def load(self, url, *args, **kwargs): 
-        print("WebBrowserPage Loading: {}".format(str(self)))
+        print("WebBrowserPage Loading: {}\n{}".format(str(self), str(url)))
         self.driver.get(str(url))      
         captcha = self.PageCaptcha(self.driver, self.timeout)
         if captcha: captcha.solve(self.driver)

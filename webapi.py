@@ -52,11 +52,7 @@ class URLAPI(object):
         return super().__new__(cls)
  
     def __repr__(self): return "{}(protocol='{}', domain='{}', path={}, parms={})".format(self.__class__.__name__, self._protocol, self._domain, self._path, self._parms)
-    def __call__(self, *args, **kwargs):
-        for url in self.generator(*args, **kwargs): yield url
-    
-    def generator(self, *args, **kwargs): yield self.execute(*args, **kwargs)
-    def execute(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))        
+    def __call__(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))        
     
     def protocol(self, *args, **kwargs): return self._protocol.format(**kwargs)
     def domain(self, *args, **kwargs): return self._domain.format(**kwargs)
@@ -86,7 +82,7 @@ class WebAPI(ABC):
     
     def __call__(self, *args, **kwargs):
         queue, completed = self.queue(*args, **kwargs), self.completed()
-        assert isinstance(queue, dict) and isinstance(completed, dict)
+        assert isinstance(queue, dict) and isinstance(completed, list)
         queue = {queryID:query for queryID, query in queue.items() if queryID not in completed}
         for queryID, query in queue.items():
             assert isinstance(query, dict)
@@ -120,15 +116,17 @@ class WebAPI(ABC):
         for dataset, dataframe in data.items(): self.record(dataset, dataframe)
         
     def record(self, dataset, dataframe):
-        try: dataframe = pd.concat([self.load(self.file(dataset)), dataframe], ignore_index=True).drop_duplicates(ignore_index=True, keep='last')
+        try: dataframe = pd.concat([self.load(dataset), dataframe], ignore_index=True).drop_duplicates(ignore_index=True, keep='last')
         except FileNotFoundError: pass        
-        self.save(self.file(dataset), dataframe)   
+        self.save(dataset, dataframe)   
 
     def report(self, queryID):
-        with open(self.completedfile, "w") as txtfile: txtfile.write("{}\n".format(str(queryID)))
+        with open(self.completedfile, "a") as txtfile: txtfile.write("{}\n".format(str(queryID)))
     
     def completed(self):
-        with open(self.completedfile, 'r') as txtfile: completed = txtfile.read().split("\n")
+        try: 
+            with open(self.completedfile, "r") as txtfile: completed = txtfile.read().split("\n")
+        except FileNotFoundError: completed = []
         return completed
     
     def filename(self, dataset): return "{}.csv".format(dataset)

@@ -202,7 +202,7 @@ class WebCaptcha(WebData, WebDOM=Captcha):
     
     def solve(self, driver):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
-        if not self.DOMElement.solve(): raise CaptchaError(self)
+        if not self.parent.solve(driver): raise CaptchaError(self)
         else: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))         
 
 
