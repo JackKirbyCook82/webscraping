@@ -7,6 +7,7 @@ Created on Weds Jul 29 2020
 """
 
 import os.path
+import time
 import pandas as pd
 from abc import ABC, abstractmethod
 
@@ -61,27 +62,26 @@ class URLAPI(object):
 
 
 class WebAPI(ABC):
-    def __repr__(self): return "{}(repository='{}')".format(self.__class__.__name__, self.__repository)   
-    def __init__(self, repository, urlapi, webreader, *args, completedfile, **kwargs):
+    def __repr__(self): return "{}(repository='{}', report={}, wait={}, stop={})".format(self.__class__.__name__, self.__repository, self.__report, self.__wait, self.__stop)   
+    def __init__(self, repository, report, urlapi, webreader, *args, wait=10, stop=False, **kwargs):
+        self.__wait, self.__stop = wait, stop
         self.__repository = repository
+        self.__report = report        
         self.__urlapi = urlapi
         self.__webreader = webreader
-        self.__completedfile = completedfile
-   
+
     @property
     def repository(self): return self.__repository
     @property
     def urlapi(self): return self.__urlapi
     @property
     def webreader(self): return self.__webreader
-    @property
-    def completedfile(self): return self.__completedfile
     
     @abstractmethod
     def queue(self, *args, **kwargs): pass
     
     def __call__(self, *args, **kwargs):
-        queue, completed = self.queue(*args, **kwargs), self.completed()
+        queue, completed = self.queue(*args, **kwargs), self.reported()
         assert isinstance(queue, dict) and isinstance(completed, list)
         queue = {queryID:query for queryID, query in queue.items() if queryID not in completed}
         for queryID, query in queue.items():
@@ -90,6 +90,8 @@ class WebAPI(ABC):
             assert isinstance(url, (URL, str))
             self.execute(url, *args, **kwargs)
             self.report(queryID)            
+            if self.__stop: break
+            time.sleep(self.__wait)
 
     def execute(self, url, *args, **kwargs):
         try: 
@@ -121,13 +123,13 @@ class WebAPI(ABC):
         self.save(dataset, dataframe)   
 
     def report(self, queryID):
-        with open(self.completedfile, "a") as txtfile: txtfile.write("{}\n".format(str(queryID)))
+        with open(self.__report, "a") as txtfile: txtfile.write("{}\n".format(str(queryID)))
     
-    def completed(self):
+    def reported(self):
         try: 
-            with open(self.completedfile, "r") as txtfile: completed = txtfile.read().split("\n")
-        except FileNotFoundError: completed = []
-        return completed
+            with open(self.__report, "r") as txtfile: reported = txtfile.read().split("\n")
+        except FileNotFoundError: reported = []
+        return reported[:-1]
     
     def filename(self, dataset): return "{}.csv".format(dataset)
     def file(self, dataset): return os.path.join(self.repository, self.filename(dataset))
