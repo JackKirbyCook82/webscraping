@@ -9,9 +9,11 @@ Created on Weds Jul 29 2020
 import os.path
 import time
 import pandas as pd
+from collections import namedtuple as ntuple
 from abc import ABC, abstractmethod
 
 from utilities.dataframes import dataframe_tofile, dataframe_fromfile
+from utilities.strings import uppercase
 
 from webscraping.url import URL, Protocol, Domain, Path, Parms
 from webscraping.webdrivers import FailureWebDriverError
@@ -34,6 +36,14 @@ class WebAPIError(Exception):
     def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
 
 class FailureWebAPIError(WebAPIError): pass
+
+
+class Report(ntuple('Report', 'dataset added duplicated')):
+    def __str__(self): return "{}(Added: {}, Duplicated: {})".format(uppercase(self.dataset), *self[1:])
+    def __add__(self, other):
+        assert isinstance(other, type(self))
+        assert self.dataset == other.dataset
+        return self.__class__(self.dataset, self.added + other.added, self.duplicated + other.duplicated)
 
 
 class URLAPI(object):
@@ -62,13 +72,13 @@ class URLAPI(object):
 
 
 class WebAPI(ABC):
-    def __repr__(self): return "{}(repository='{}', report={}, wait={}, stop={})".format(self.__class__.__name__, self.__repository, self.__report, self.__wait, self.__stop)   
-    def __init__(self, repository, report, urlapi, webreader, *args, wait=10, stop=False, **kwargs):
-        self.__wait, self.__stop = wait, stop
-        self.__repository = repository
-        self.__report = report        
+    def __repr__(self): return "{}(repository='{}', wait={})".format(self.__class__.__name__, self.__repository, self.__wait)   
+    def __init__(self, repository, urlapi, webreader, *args, wait=10, **kwargs):
+        assert os.path.isdir(repository)
+        self.__repository = repository     
         self.__urlapi = urlapi
         self.__webreader = webreader
+        self.__wait = wait
 
     @property
     def repository(self): return self.__repository
@@ -81,28 +91,24 @@ class WebAPI(ABC):
     def queue(self, *args, **kwargs): pass
     
     def __call__(self, *args, **kwargs):
-        queue, completed = self.queue(*args, **kwargs), self.reported()
-        assert isinstance(queue, dict) and isinstance(completed, list)
-        queue = {queryID:query for queryID, query in queue.items() if queryID not in completed}
-        for queryID, query in queue.items():
+        for queryID, query in self.queue(*args, **kwargs).items():
             assert isinstance(query, dict)
             url = self.urlapi(*args, **query, **kwargs) 
             assert isinstance(url, (URL, str))
-            self.execute(url, *args, **kwargs)
-            self.report(queryID)            
-            if self.__stop: break
+            self.execute(url, *args, **kwargs)        
             time.sleep(self.__wait)
-
+            
     def execute(self, url, *args, **kwargs):
         try: 
             downloaded = self.download(url, *args, **kwargs)   
             assert isinstance(downloaded, dict)
-            self.recordall(**downloaded) 
+            reports = self.recordall(**downloaded) 
             print('Downloading Success: {}\n{}'.format(self.__class__.__name__, str(url)))
+            for report in reports: print(str(report))
         except FailureWebDriverError:               
             print('Downloading Failure: {}\n{}'.format(self.__class__.__name__, str(url)))
-            raise FailureWebAPIError(self)
-               
+            raise FailureWebAPIError(self)   
+             
     def download(self, url, *args, **kwargs):      
         data = {}
         for newdata in self.__webreader(str(url), *args, **kwargs): 
@@ -115,22 +121,20 @@ class WebAPI(ABC):
      
     def recordall(self, **data):
         assert all([isinstance(value, pd.DataFrame) for value in data.values()])
-        for dataset, dataframe in data.items(): self.record(dataset, dataframe)
+        return [self.record(dataset, dataframe) for dataset, dataframe in data.items()]
         
-    def record(self, dataset, dataframe):
-        try: dataframe = pd.concat([self.load(dataset), dataframe], ignore_index=True).drop_duplicates(ignore_index=True, keep='last')
+    def record(self, dataset, downloaded):
+        try: dataframe = self.load(dataset)
         except FileNotFoundError: pass        
-        self.save(dataset, dataframe)   
-
-    def report(self, queryID):
-        with open(self.__report, "a") as txtfile: txtfile.write("{}\n".format(str(queryID)))
-    
-    def reported(self):
-        try: 
-            with open(self.__report, "r") as txtfile: reported = txtfile.read().split("\n")
-        except FileNotFoundError: reported = []
-        return reported[:-1]
-    
+        oldsize = dataframe.index.size
+        dataframe = pd.concat([dataframe, downloaded], ignore_index=True)
+        newsize = dataframe.index.size
+        dataframe = dataframe.drop_duplicates(ignore_index=True, keep='last')   
+        finalsize = dataframe.index.size
+        added, duplicated = finalsize - oldsize, newsize - finalsize     
+        self.save(dataset, dataframe)  
+        return Report(dataset, added, duplicated)
+        
     def filename(self, dataset): return "{}.csv".format(dataset)
     def file(self, dataset): return os.path.join(self.repository, self.filename(dataset))
     def load(self, dataset): return dataframe_fromfile(self.file(dataset), index=None, header=0, forceframe=True)  

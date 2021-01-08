@@ -70,16 +70,25 @@ class Headers(list):
             if header['operation_system'].lower() != 'windows': continue
             headers.append(header)
         return cls(headers)
-        
+   
     @staticmethod
     def loading(file):
-        assert os.path.splitext(file)[-1] == 'zip'
-        with zipfile.ZipFile(file) as zfile:
-            with zfile.open(os.path.basename(file)) as jfile: 
-                for header in jfile:
+        directory, file = os.path.dirname(file), os.path.basename(file)
+        try: filename, filecomp, fileext = str(file).split('.')
+        except ValueError: filename, fileext = str(file).split('.') 
+        try: 
+            zfile = zipfile.ZipFile(os.path.join(directory, '.'.join([filename, filecomp])))
+            with zfile.open('.'.join([filename, fileext])) as xfile:
+                for header in xfile:
                     if hasattr(header, 'decode'): header = header.decode()
                     yield json.loads(header)
-              
+            zfile.close()        
+        except NameError: 
+            with open(os.path.join(directory, '.'.join([filename, fileext]))) as zfile:
+                for header in xfile:
+                    if hasattr(header, 'decode'): header = header.decode()
+                    yield json.loads(header)                      
+                
 
 class WebReader(ABC):   
     def __init_subclass__(cls, *args, webpage, datatype, **kwargs): 
