@@ -24,7 +24,7 @@ from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebReader', 'Retrys', 'Authenticate', 'Headers']
+__all__ = ['WebReader', 'Retrys', 'Authenticate', 'UserAgents', 'Headers']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
    
@@ -50,26 +50,42 @@ class Retrys(ntuple('Retrys', 'retries backoff httpcodes')):
         return adapter     
 
 
-class Headers(list):
-    def __repr__(self): return "{}()".format(self.__class__.__name__)
+class Headers(object):
+    accept_language = 'en-gb'
+    accept_encoding = 'br, gzip, deflate'
+    accept = 'test/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+
+    def __repr__(self): return "{}(useragents={}, referer='{}')".format(self.__class__.__name__, repr(self.__useragents), self.__referer)
+    def __next__(self): return {**self.useragent, **self.referer, **self.accepts}
+    def __init__(self, useragents, *args, referer='http://www.google.com', **kwargs):
+        self.__useragents = useragents
+        self.__referer = referer
+
+    def useragent(self): return {'User-Agent':next(self.__useragent)}
+    def accepts(self): return {'Accept-Language':self.accept_language, 'Accept-Enconding':self.accept_encoding, 'Accept':self.accept}
+    def referer(self): return {'Referer':self.__referer}
+
+
+class UserAgents(list):
+    def __repr__(self): return "{}(size={})".format(self.__class__.__name__, len(self))
     def __next__(self): return random.choice(self)
-    def __init__(self, headers): 
-        assert isinstance(headers, (list, tuple, set))
-        assert len(headers) > 0
-        super().__init__(headers)
-        
+    def __init__(self, useragents): 
+        assert isinstance(useragents, (list, tuple, set))
+        assert len(useragents) > 0
+        super().__init__(list(useragents))
+
     @classmethod
     def load(cls, file, limit=100):
         assert isinstance(limit, int)
-        headers = []
-        for header in cls.loading(file):
-            if len(headers) >= limit: break
-            if header['hardware_type'].lower() != 'computer': continue    
-            if header['software_type'].lower() != 'browser -> web-browser': continue
-            if header['software_name'].lower() != 'chrome': continue
-            if header['operation_system'].lower() != 'windows': continue
-            headers.append(header)
-        return cls(headers)
+        useragents = []
+        for useragent in cls.loading(file):
+            if len(useragents) >= limit: break
+            if useragent['hardware_type'].lower() != 'computer': continue    
+            if useragent['software_type'].lower() != 'browser -> web-browser': continue
+            if useragent['software_name'].lower() != 'chrome': continue
+            if useragent['operating_system'].lower() != 'windows': continue   
+            useragents.append(useragent['user_agent'])
+        return cls(useragents)
    
     @staticmethod
     def loading(file):
@@ -79,15 +95,15 @@ class Headers(list):
         try: 
             zfile = zipfile.ZipFile(os.path.join(directory, '.'.join([filename, filecomp])))
             with zfile.open('.'.join([filename, fileext])) as xfile:
-                for header in xfile:
-                    if hasattr(header, 'decode'): header = header.decode()
-                    yield json.loads(header)
+                for useragent in xfile:
+                    if hasattr(useragent, 'decode'): useragent = useragent.decode()
+                    yield json.loads(useragent)
             zfile.close()        
         except NameError: 
             with open(os.path.join(directory, '.'.join([filename, fileext]))) as zfile:
-                for header in xfile:
-                    if hasattr(header, 'decode'): header = header.decode()
-                    yield json.loads(header)                      
+                for useragent in xfile:
+                    if hasattr(useragent, 'decode'): useragent = useragent.decode()
+                    yield json.loads(useragent)                      
                 
 
 class WebReader(ABC):   
@@ -97,9 +113,9 @@ class WebReader(ABC):
        
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
-        asstring = lambda kwargs, function: ', '.join(['='.join([key, function(value)]) for key, value in content.items()])
+        asstring = lambda kwargs, function: ', '.join(['='.join([key, function(value)]) for key, value in kwargs.items()])
         content = {'attempts':self.__attempts, 'delay':self.__delay}
-        objects = {attr:getattr(self, attr) for attr in ('retry', 'authenticate', 'headers') if hasattr(self, attr)}
+        objects = {attr:getattr(self, attr) for attr in ('retrys', 'authenticate', 'headers') if hasattr(self, attr)}
         return "{}({}, {})".format(self.__class__.__name__, asstring(content, str), asstring(objects, repr))    
     
     def __init__(self, *args, attempts=5, delay=3, **kwargs):
@@ -123,7 +139,7 @@ class WebReader(ABC):
     
     def controller(self, url, *args, attempt=0, **kwargs):
         try: 
-            print("WebRequest: {}".format(self.__class__.__name__))
+            print("WebRequest: {}\n{}".format(self.__class__.__name__, str(url)))            
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))            
             parms, retrys = self.setup(*args, **kwargs)
             session = self.start(parms, retrys)        
@@ -135,12 +151,12 @@ class WebReader(ABC):
             webpagedata = self.parse(self.datatype, response)
             webpage = self.WebPage(webpagedata, *args, **kwargs)
             yield from self.execute(webpage, *args, **kwargs)            
-            print("WebRequest Success: {}".format(self.__class__.__name__), "\n")
+            print("WebRequest Success: {}".format(self.__class__.__name__))
         except RequestException as error:
             try: self.stop(session)
             except NameError: pass
             print("WebRequest Failure: {}".format(self.__class__.__name__))
-            print(str(error), '\n')
+            print(str(error))
             if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
             else: raise MaxWebRequestAttemptError(attempt)
         

@@ -9,6 +9,7 @@ Created on Weds Jul 29 2020
 import os.path
 import time
 import pandas as pd
+from datetime import date as Date
 from collections import namedtuple as ntuple
 from abc import ABC, abstractmethod
 
@@ -38,7 +39,7 @@ class WebAPIError(Exception):
 class FailureWebAPIError(WebAPIError): pass
 
 
-class Report(ntuple('Report', 'dataset added duplicated')):
+class APIReport(ntuple('APIReport', 'dataset added duplicated')):
     def __str__(self): return "{}(Added: {}, Duplicated: {})".format(uppercase(self.dataset), *self[1:])
     def __add__(self, other):
         assert isinstance(other, type(self))
@@ -62,9 +63,14 @@ class URLAPI(object):
         assert hasattr(cls, '_protocol') and hasattr(cls, '_domain') and hasattr(cls, '_path') and hasattr(cls, '_parms')
         return super().__new__(cls)
  
-    def __repr__(self): return "{}(protocol='{}', domain='{}', path={}, parms={})".format(self.__class__.__name__, self._protocol, self._domain, self._path, self._parms)
-    def __call__(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))        
-    
+    def __repr__(self): return "{}(protocol='{}', domain='{}', path={}, parms={})".format(self.__class__.__name__, self._protocol, self._domain, self._path, self._parms)    
+    def __call__(self, *args, **kwargs): 
+        url = self.execute(*args, **kwargs)
+        return url if url else self.construct(*args, **kwargs)    
+
+    def execute(self, *args, **kwargs): return kwargs.get('link', kwargs.get('url', None))
+    def construct(self, *args, **kwargs): return URL(protocol=self.protocol(*args, **kwargs), domain=self.domain(*args, **kwargs), path=self.path(*args, **kwargs), parms=self.parms(*args, **kwargs))    
+
     def protocol(self, *args, **kwargs): return self._protocol.format(**kwargs)
     def domain(self, *args, **kwargs): return self._domain.format(**kwargs)
     def path(self, *args, **kwargs): return [item.format(**kwargs) for item in self._path]
@@ -72,6 +78,9 @@ class URLAPI(object):
 
 
 class WebAPI(ABC):
+    recordedTag = 'recorded'
+    recordedFormat = "%m/%d/%Y"
+    
     def __repr__(self): return "{}(repository='{}', wait={})".format(self.__class__.__name__, self.__repository, self.__wait)   
     def __init__(self, repository, urlapi, webreader, *args, wait=10, **kwargs):
         assert os.path.isdir(repository)
@@ -91,7 +100,7 @@ class WebAPI(ABC):
     def queue(self, *args, **kwargs): pass
     
     def __call__(self, *args, **kwargs):
-        for queryID, query in self.queue(*args, **kwargs).items():
+        for query in self.queue(*args, **kwargs).items():
             assert isinstance(query, dict)
             url = self.urlapi(*args, **query, **kwargs) 
             assert isinstance(url, (URL, str))
@@ -102,6 +111,7 @@ class WebAPI(ABC):
         try: 
             downloaded = self.download(url, *args, **kwargs)   
             assert isinstance(downloaded, dict)
+            downloaded[self.recordedTag] = Date.today().shrftime(self.recordedFormat)
             reports = self.recordall(**downloaded) 
             print('Downloading Success: {}\n{}'.format(self.__class__.__name__, str(url)))
             for report in reports: print(str(report))
@@ -129,11 +139,11 @@ class WebAPI(ABC):
         oldsize = dataframe.index.size
         dataframe = pd.concat([dataframe, downloaded], ignore_index=True)
         newsize = dataframe.index.size
-        dataframe = dataframe.drop_duplicates(ignore_index=True, keep='last')   
+        dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column != self.recordedTag], ignore_index=True, keep='last')   
         finalsize = dataframe.index.size
         added, duplicated = finalsize - oldsize, newsize - finalsize     
         self.save(dataset, dataframe)  
-        return Report(dataset, added, duplicated)
+        return APIReport(dataset, added, duplicated)
         
     def filename(self, dataset): return "{}.csv".format(dataset)
     def file(self, dataset): return os.path.join(self.repository, self.filename(dataset))
