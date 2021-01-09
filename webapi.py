@@ -8,8 +8,9 @@ Created on Weds Jul 29 2020
 
 import os.path
 import time
+import random
 import pandas as pd
-from datetime import date as Date
+from datetime import datetime as Date
 from collections import namedtuple as ntuple
 from abc import ABC, abstractmethod
 
@@ -26,25 +27,26 @@ __copyright__ = "Copyright 2020, Jack Kirby Cook"
 __license__ = ""
 
 
-def urlsgmt(sgmttype):
-    def decorator(method):
-        def wrapper(self, *args, **kwargs): return sgmttype(method(self, *args, **kwargs))
-        return wrapper
-    return decorator
-
-
 class WebAPIError(Exception):
     def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
 
 class FailureWebAPIError(WebAPIError): pass
 
 
-class APIReport(ntuple('APIReport', 'dataset added duplicated')):
-    def __str__(self): return "{}(Added: {}, Duplicated: {})".format(uppercase(self.dataset), *self[1:])
+class APIReport(ntuple('APIReport', 'dataset file added duplicated')):
+    def __repr__(self): return "{}(dataset='{}', file-'{}', added={}, duplicated={}".format(*self)
+    def __str__(self): return "{}(Added: {}, Duplicated: {})".format(uppercase(self.dataset), self.added, self.duplicated)
     def __add__(self, other):
         assert isinstance(other, type(self))
         assert self.dataset == other.dataset
         return self.__class__(self.dataset, self.added + other.added, self.duplicated + other.duplicated)
+
+
+def urlsgmt(sgmttype):
+    def decorator(method):
+        def wrapper(self, *args, **kwargs): return sgmttype(method(self, *args, **kwargs))
+        return wrapper
+    return decorator
 
 
 class URLAPI(object):
@@ -79,15 +81,21 @@ class URLAPI(object):
 
 class WebAPI(ABC):
     recordedTag = 'recorded'
-    recordedFormat = "%m/%d/%Y"
+    recordedFormat = "%Y/%m/%d"
+    recoredParser = lambda x: Date.fromisoformat(x)
     
     def __repr__(self): return "{}(repository='{}', wait={})".format(self.__class__.__name__, self.__repository, self.__wait)   
-    def __init__(self, repository, urlapi, webreader, *args, wait=10, **kwargs):
+    def __init__(self, repository, urlapi, webreader, *args, wait=5, filetype='csv', compression=None, **kwargs):
         assert os.path.isdir(repository)
         self.__repository = repository     
         self.__urlapi = urlapi
         self.__webreader = webreader
         self.__wait = wait
+        self.__filetype = filetype
+        self.__compression = compression
+        if isinstance(wait, int): pass
+        elif isinstance(wait, tuple): assert len(wait) == 2
+        else: raise TypeError(type(wait))
 
     @property
     def repository(self): return self.__repository
@@ -98,6 +106,11 @@ class WebAPI(ABC):
     
     @abstractmethod
     def queue(self, *args, **kwargs): pass
+
+    def sleep(self):
+        if isinstance(self.__wait, int): time.sleep(self.__wait)
+        elif isinstance(self.__wait, tuple): time.sleep(random.uniform(*self.__wait))
+        else: raise TypeError(type(self.__wait))
     
     def __call__(self, *args, **kwargs):
         for query in self.queue(*args, **kwargs).items():
@@ -105,13 +118,14 @@ class WebAPI(ABC):
             url = self.urlapi(*args, **query, **kwargs) 
             assert isinstance(url, (URL, str))
             self.execute(url, *args, **kwargs)        
-            time.sleep(self.__wait)
-            
+            try: self.sleep()
+            except AttributeError: pass
+        
     def execute(self, url, *args, **kwargs):
         try: 
             downloaded = self.download(url, *args, **kwargs)   
             assert isinstance(downloaded, dict)
-            downloaded[self.recordedTag] = Date.today().shrftime(self.recordedFormat)
+            downloaded[self.recordedTag] = Date.today().isoformat()
             reports = self.recordall(**downloaded) 
             print('Downloading Success: {}\n{}'.format(self.__class__.__name__, str(url)))
             for report in reports: print(str(report))
@@ -143,9 +157,9 @@ class WebAPI(ABC):
         finalsize = dataframe.index.size
         added, duplicated = finalsize - oldsize, newsize - finalsize     
         self.save(dataset, dataframe)  
-        return APIReport(dataset, added, duplicated)
+        return APIReport(dataset, self.file(dataset), added, duplicated)
         
-    def filename(self, dataset): return "{}.csv".format(dataset)
+    def filename(self, dataset): return '.'.join([dataset, self.__compression, self.__filetype]) if self.__compression else '.'.join([dataset, self.__filetype])
     def file(self, dataset): return os.path.join(self.repository, self.filename(dataset))
     def load(self, dataset): return dataframe_fromfile(self.file(dataset), index=None, header=0, forceframe=True)  
     def save(self, dataset, dataframe): dataframe_tofile(self.file(dataset), dataframe, index=False, header=True)  

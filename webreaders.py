@@ -7,7 +7,6 @@ Created on Sat Mar 23 2019
 """
 
 import os.path
-import time
 import requests
 import json
 import zipfile
@@ -113,25 +112,16 @@ class WebReader(ABC):
        
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
-        asstring = lambda kwargs, function: ', '.join(['='.join([key, function(value)]) for key, value in kwargs.items()])
-        content = {'attempts':self.__attempts, 'delay':self.__delay}
-        objects = {attr:getattr(self, attr) for attr in ('retrys', 'authenticate', 'headers') if hasattr(self, attr)}
-        return "{}({}, {})".format(self.__class__.__name__, asstring(content, str), asstring(objects, repr))    
+        content = {attr:getattr(self, attr) for attr in ('retrys', 'authenticate', 'headers') if hasattr(self, attr)}
+        return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, repr(value)]) for key, value in content.items()]))    
     
-    def __init__(self, *args, attempts=5, delay=3, **kwargs):
-        self.__attempts, self.__delay = attempts, delay
+    def __init__(self, *args, **kwargs):
         try: self.retrys = kwargs['retrys']
         except KeyError: pass
         try: self.authenticate = kwargs['authenticate']
         except KeyError: pass
         try: self.headers = kwargs['headers']
         except KeyError: pass
-        self.__lasttime = None
-
-    def ready(self, currenttime): return currenttime - self.__lasttime  > self.__delay if self.__lasttime else True
-    def wait(self, currenttime): return max([self.__delay - int(currenttime - self.__lasttime), 0]) if self.__lasttime else 0
-    def record(self, currenttime): self.__lasttime = currenttime
-    def sleep(self, waittime): time.sleep(waittime)
        
     def __call__(self, url, *args, **kwargs):
         try: yield from self.controller(url, *args, **kwargs)
@@ -143,22 +133,19 @@ class WebReader(ABC):
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))            
             parms, retrys = self.setup(*args, **kwargs)
             session = self.start(parms, retrys)        
-            if not self.ready(time.time()): self.sleep(self.wait(time.time()))
             response = session.get(str(url), **parms)
-            self.record(time.time())
             response.raise_for_status()
-            self.stop(session)
             webpagedata = self.parse(self.datatype, response)
             webpage = self.WebPage(webpagedata, *args, **kwargs)
-            yield from self.execute(webpage, *args, **kwargs)            
+            yield from self.execute(webpage, *args, **kwargs)   
+            self.stop(session)
             print("WebRequest Success: {}".format(self.__class__.__name__))
         except RequestException as error:
             try: self.stop(session)
             except NameError: pass
             print("WebRequest Failure: {}".format(self.__class__.__name__))
             print(str(error))
-            if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
-            else: raise MaxWebRequestAttemptError(attempt)
+            raise MaxWebRequestAttemptError(attempt)
         
     def start(self, parms, retrys=None):
         session = requests.Session() 
