@@ -33,12 +33,12 @@ class WebBrowserPage(ABC):
         self.__driver, self.__timeout, self.__pagecontents = driver, timeout, {}     
     
     def __call__(self, *args, **kwargs): 
-        try: return self.execute(*args, **kwargs)    
+        try: yield from self.execute(*args, **kwargs)    
         except (EmptyWebContentError, EmptyWebActionsError) as error: 
             captcha = self.PageCaptcha(self.driver, self.timeout)
             if not captcha: raise error
             else: captcha.solve(self.driver)
-            return self.execute(*args, **kwargs)
+            yield from self.execute(*args, **kwargs)
     
     def __getitem__(self, key): 
         try: return self.__pagecontents[key]
@@ -80,10 +80,10 @@ class WebHTMLPage(ABC):
         assert isinstance(pageContents, dict)
         setattr(cls, 'PageContents', pageContents)        
 
-    def __repr__(self): return "{}(html={})".format(self.__class__.__name__, self.html)
+    def __repr__(self): return "{}(html={})".format(self.__class__.__name__, repr(self.__html))
     def __str__(self): return self.__class__.__name__   
     def __init__(self, html): self.__html, self.__pagecontents = html, {}     
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)  
+    def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)  
 
     def __getitem__(self, key): 
         try: return self.__pagecontents[key]

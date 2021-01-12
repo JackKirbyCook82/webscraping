@@ -10,7 +10,7 @@ import os.path
 import time
 import random
 import pandas as pd
-from datetime import datetime as Date
+from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
 from abc import ABC, abstractmethod
 
@@ -82,8 +82,11 @@ class URLAPI(object):
 class WebAPI(ABC):
     recordedTag = 'recorded'
     recordedFormat = "%Y/%m/%d"
-    recoredParser = lambda x: Date.fromisoformat(x)
     
+    def recordedDate(self): return Datetime.now()
+    def recordedParser(self, string): return Datetime.strptime(string, self.recordedFormat).date()
+    def recordedString(self, date): return date.strftime(self.recordedFormat)
+
     def __repr__(self): return "{}(repository='{}', wait={})".format(self.__class__.__name__, self.__repository, self.__wait)   
     def __init__(self, repository, urlapi, webreader, *args, wait=5, filetype='csv', compression=None, **kwargs):
         assert os.path.isdir(repository)
@@ -113,7 +116,7 @@ class WebAPI(ABC):
         else: raise TypeError(type(self.__wait))
     
     def __call__(self, *args, **kwargs):
-        for query in self.queue(*args, **kwargs).items():
+        for query in self.queue(*args, **kwargs):
             assert isinstance(query, dict)
             url = self.urlapi(*args, **query, **kwargs) 
             assert isinstance(url, (URL, str))
@@ -125,13 +128,13 @@ class WebAPI(ABC):
         try: 
             downloaded = self.download(url, *args, **kwargs)   
             assert isinstance(downloaded, dict)
-            downloaded[self.recordedTag] = Date.today().isoformat()
             reports = self.recordall(**downloaded) 
             print('Downloading Success: {}\n{}'.format(self.__class__.__name__, str(url)))
             for report in reports: print(str(report))
         except FailureWebDriverError:               
             print('Downloading Failure: {}\n{}'.format(self.__class__.__name__, str(url)))
-            raise FailureWebAPIError(self)   
+            raise FailureWebAPIError(self) 
+        print("\n")
              
     def download(self, url, *args, **kwargs):      
         data = {}
@@ -139,6 +142,7 @@ class WebAPI(ABC):
             assert isinstance(newdata, dict)
             assert all([isinstance(value, pd.DataFrame) for value in newdata.values()])
             for dataset, dataframe in newdata.items():
+                dataframe[self.recordedTag] = self.recordedString(self.recordedDate())
                 try: data[dataset] = pd.concat([data[dataset], dataframe], ignore_index=True)
                 except KeyError: data[dataset] = dataframe
         return data    
@@ -150,8 +154,10 @@ class WebAPI(ABC):
     def record(self, dataset, downloaded):
         try: dataframe = self.load(dataset)
         except FileNotFoundError: pass        
-        oldsize = dataframe.index.size
-        dataframe = pd.concat([dataframe, downloaded], ignore_index=True)
+        try: oldsize = dataframe.index.size
+        except NameError: oldsize = 0
+        try: dataframe = pd.concat([dataframe, downloaded], ignore_index=True)
+        except NameError: dataframe = downloaded
         newsize = dataframe.index.size
         dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column != self.recordedTag], ignore_index=True, keep='last')   
         finalsize = dataframe.index.size

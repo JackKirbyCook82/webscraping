@@ -6,7 +6,6 @@ Created on Mon Dec 30 2019
 
 """
 
-from abc import ABC, abstractmethod
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
@@ -28,10 +27,18 @@ class MaxWebDriverRetryError(WebDriverError): pass
 class FailureWebDriverError(WebDriverError): pass
 
 
-class WebDriver(ABC):
-    def __init_subclass__(cls, *args, webpage, options={}, **kwargs):
+class WebDriver(object):
+    def __init_subclass__(cls, *args, options={}, **kwargs):
         assert isinstance(options, dict)
-        setattr(cls, 'WebPage', webpage)
+        if 'webpage' in kwargs.keys(): 
+            assert 'webpages' not in kwargs.keys()
+            webpages = [kwargs['webpage']]
+        elif 'webpages' in kwargs.keys(): 
+            assert 'webpage' not in kwargs.keys()
+            webpages = kwargs['webpages']
+        else: raise ValueError(kwargs)
+        assert isinstance(webpages, list)
+        setattr(cls, 'WebPages', webpages)
         setattr(cls, 'options', options) 
         
     def __str__(self): return self.__class__.__name__
@@ -57,17 +64,20 @@ class WebDriver(ABC):
             print("WebDriver Running: {}".format(self.__class__.__name__))
             print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
             options, capabilities = self.setup(*args, **kwargs)
-            driver = self.start(options, capabilities)   
-            webpage = self.WebPage(driver, self.timeout)
-            webpage.load(url, *args, **kwargs)
-            yield from self.execute(webpage, *args, **kwargs)
+            driver = self.start(options, capabilities)               
+            loadwebpage = self.WebPages[0](driver, self.timeout)
+            loadwebpage.load(url, *args, **kwargs)
+            yield from loadwebpage(*args, **kwargs)
+            for WebPage in self.WebPages[1:]: 
+                webpage = WebPage(driver, self.timeout) 
+                yield from webpage(*args, **kwargs)             
             self.stop(driver)  
-            print("WebDriver Success: {}".format(self.__class__.__name__), "\n")
+            print("WebDriver Success: {}".format(self.__class__.__name__))
         except (EmptyWebActionsError, EmptyWebDataError, EmptyWebCollectionError, CaptchaError) as error:
             try: self.stop(driver)
             except NameError: pass
             print("WebDriver Failure: {}".format(self.__class__.__name__))
-            print(str(error), '\n')
+            print(str(error))
             if retry < self.__retrys: yield from self.controller(url, *args, retry=retry+1, **kwargs)
             else: raise MaxWebDriverRetryError(retry)  
         
@@ -107,10 +117,7 @@ class WebDriver(ABC):
         except TypeError: headers = self.__headers
         assert isinstance(headers, dict)
         return headers
-       
-    @abstractmethod
-    def execute(self, page, *args, **kwargs): pass
-  
+
     @property
     def loadtime(self): return self.__loadtime
     @property

@@ -175,7 +175,7 @@ class WebDragDrop(WebAction, astype='chain'):
     def chain(self, x): x.drag_and_drop(self[0].element.domelement, self[1].DOMElement)
  
 class WebFill(WebAction, astype='queue'):
-    def queue(self, x): x.append(lambda *args, **kwargs: self[0].fill(self.text.format(**kwargs)))
+    def queue(self, x): x.append(lambda *args, fill, **kwargs: self[0].fill(fill))
  
 class WebSelect(WebAction, astype='queue'):
     def queue(self, x): x.append(lambda *args, select, **kwargs: self[0].sel(select))

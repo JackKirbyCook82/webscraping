@@ -12,7 +12,6 @@ import json
 import zipfile
 import random
 from lxml import html
-from abc import ABC, abstractmethod
 from requests.auth import HTTPBasicAuth
 from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
@@ -105,7 +104,7 @@ class UserAgents(list):
                     yield json.loads(useragent)                      
                 
 
-class WebReader(ABC):   
+class WebReader(object):   
     def __init_subclass__(cls, *args, webpage, datatype, **kwargs): 
         setattr(cls, 'WebPage', webpage)
         setattr(cls, 'datatype', datatype)
@@ -137,7 +136,7 @@ class WebReader(ABC):
             response.raise_for_status()
             webpagedata = self.parse(self.datatype, response)
             webpage = self.WebPage(webpagedata, *args, **kwargs)
-            yield from self.execute(webpage, *args, **kwargs)   
+            yield from webpage(*args, **kwargs)   
             self.stop(session)
             print("WebRequest Success: {}".format(self.__class__.__name__))
         except RequestException as error:
@@ -173,9 +172,6 @@ class WebReader(ABC):
         try: return next(self.headers)
         except TypeError: return self.headers
         except AttributeError: return None    
-
-    @abstractmethod
-    def execute(self, page, *args, **kwargs): pass
 
     @keydispatcher
     def parse(self, datatype, response): raise KeyError(datatype)
