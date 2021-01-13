@@ -87,7 +87,7 @@ class WebAPI(ABC):
     def recordedParser(self, string): return Datetime.strptime(string, self.recordedFormat).date()
     def recordedString(self, date): return date.strftime(self.recordedFormat)
 
-    def __repr__(self): return "{}(repository='{}', wait={})".format(self.__class__.__name__, self.__repository, self.__wait)   
+    def __repr__(self): return "{}(repository='{}', wait={}, filetype='{}', compression='{}')".format(self.__class__.__name__, self.__repository, self.__wait, self.__filetype, self.__compression)   
     def __init__(self, repository, urlapi, webreader, *args, wait=5, filetype='csv', compression=None, **kwargs):
         assert os.path.isdir(repository)
         self.__repository = repository     

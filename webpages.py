@@ -21,11 +21,11 @@ __license__ = ""
 class WebBrowserPage(ABC):    
     def __init_subclass__(cls, *args, pageCaptcha=None, pageNext=None, pageIteration=None, pageContents={}, **kwargs):
         assert isinstance(pageContents, dict)
+        setattr(cls, 'PageContents', pageContents)
         if pageNext is not None: setattr(cls, 'PageNext', pageNext)
         if pageIteration is not None: setattr(cls, 'PageIteration', pageIteration)
         if pageCaptcha is not None: setattr(cls, 'PageCaptcha', pageCaptcha)
-        setattr(cls, 'PageContents', pageContents)
-    
+           
     def __repr__(self): return "{}(driver={}, timeout={})".format(self.__class__.__name__, repr(self.__driver), self.__timeout)     
     def __str__(self): return self.__class__.__name__        
     def __init__(self, driver, timeout):
@@ -35,7 +35,8 @@ class WebBrowserPage(ABC):
     def __call__(self, *args, **kwargs): 
         try: yield from self.execute(*args, **kwargs)    
         except (EmptyWebContentError, EmptyWebActionsError) as error: 
-            captcha = self.PageCaptcha(self.driver, self.timeout)
+            try: captcha = self.PageCaptcha(self.driver, self.timeout)
+            except AttributeError: raise error
             if not captcha: raise error
             else: captcha.solve(self.driver)
             yield from self.execute(*args, **kwargs)
@@ -47,18 +48,13 @@ class WebBrowserPage(ABC):
         return self.__pagecontents[key]
 
     def __iter__(self): 
-        try: pageiteration = self.PageIteration(self.driver, self.timeout)
-        except AttributeError: return iter([])
-        if not bool(pageiteration): 
-            captcha = self.PageCaptcha(self.driver, self.timeout)
-            if not captcha: return iter([])
-            else: captcha.solve(self.driver)
-        else: return iter(pageiteration)
-        return iter(self.PageIteration(self.driver, self.timeout))
-              
+        if not hasattr(self, 'PageIteration'): return iter([])
+        else: return iter(self.PageIteration(self.driver, self.timeout))
+        
     def __next__(self): 
+        if not hasattr(self, 'PageNext'): return False
         try: return self.PageNext(self.driver, self.timeout)()
-        except (AttributeError, EmptyWebContentError, EmptyWebActionsError): return False
+        except (EmptyWebContentError, EmptyWebActionsError): return False
 
     def load(self, url, *args, **kwargs): 
         print("WebBrowserPage Loading: {}\n{}".format(str(self), str(url)))

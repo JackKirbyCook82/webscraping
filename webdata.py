@@ -149,16 +149,16 @@ class WebContent(object):
     
   
 class WebData(WebContent, WebAdapter): 
+    def __iter__(self): 
+        WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
+        return iter([WebItem(self.parent, self.children)])  
+    
     def __init__(self, source, timeout=None):
         parent = self.WebDOM(self.load(source, timeout))
         if bool(parent): children = ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()])
         else: children = ODict([(key, None) for key, WebDOMchild in self.WebDOMChildren.items()])            
         super().__init__(parent, children)  
-      
-    def __iter__(self): 
-        WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
-        return (webitem for webitem in [WebItem(self.parent, self.children)]) 
-    
+          
     def load(self, source, timeout=None):
         print("WebDOM Loading: {}".format(self.__class__.__name__))    
         if self.scrape == 'dynamic':  dom = getelement(source, timeout, self.xpath)     
@@ -168,13 +168,16 @@ class WebData(WebContent, WebAdapter):
         return dom 
 
 
-class WebCollection(list, WebAdapter): 
+class WebCollection(WebAdapter): 
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))    
+    def __iter__(self): 
+        WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
+        return iter([WebItem(parent, children) for parent, children in self.__collection]) 
+    
     def __init__(self, source, timeout=None):
         parents = [self.WebDOM(dom) for dom in self.load(source, timeout)]
         childrens = [ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()]) for parent in parents]
-        WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
-        super().__init__([WebItem(parent, children) for parent, children in zip(parents, childrens)])
+        self.__collection = [(parent, children) for parent, children in zip(parents, childrens)]                           
 
     def load(self, source, timeout=None):
         print("WebDOMs Loading: {}".format(self.__class__.__name__))
