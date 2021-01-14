@@ -65,7 +65,15 @@ class WebBrowserPage(ABC):
     @property
     def driver(self): return self.__driver  
     @property
-    def timeout(self): return self.__timeout      
+    def timeout(self): return self.__timeout 
+    @property    
+    def url(self): return self.driver.current_url
+    @property
+    def html(self): return self.driver.page_source
+    
+    def back(self): self.driver.back
+    def forward(self): self.driver.forward
+    def refresh(self): self.driver.refresh
  
     @abstractmethod
     def execute(self, *args, **kwargs): pass
@@ -76,9 +84,9 @@ class WebHTMLPage(ABC):
         assert isinstance(pageContents, dict)
         setattr(cls, 'PageContents', pageContents)        
 
-    def __repr__(self): return "{}(html={})".format(self.__class__.__name__, repr(self.__html))
+    def __repr__(self): return "{}(url={}, html={})".format(self.__class__.__name__, str(self.__url), repr(self.__html))
     def __str__(self): return self.__class__.__name__   
-    def __init__(self, html): self.__html, self.__pagecontents = html, {}     
+    def __init__(self, url, html): self.__url, self.__html, self.__pagecontents = html, {}     
     def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)  
 
     def __getitem__(self, key): 
@@ -88,7 +96,9 @@ class WebHTMLPage(ABC):
         return self.__pagecontents[key]
 
     @property
-    def html(self): return self.__html    
+    def html(self): return self.__html   
+    @property
+    def url(self): return self.__url
  
     @abstractmethod
     def execute(self, *args, **kwargs): pass

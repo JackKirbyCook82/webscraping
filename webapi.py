@@ -11,11 +11,9 @@ import time
 import random
 import pandas as pd
 from datetime import datetime as Datetime
-from collections import namedtuple as ntuple
 from abc import ABC, abstractmethod
 
 from utilities.dataframes import dataframe_tofile, dataframe_fromfile
-from utilities.strings import uppercase
 
 from webscraping.url import URL, Protocol, Domain, Path, Parms
 from webscraping.webdrivers import FailureWebDriverError
@@ -31,15 +29,6 @@ class WebAPIError(Exception):
     def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
 
 class FailureWebAPIError(WebAPIError): pass
-
-
-class APIReport(ntuple('APIReport', 'dataset file added duplicated')):
-    def __repr__(self): return "{}(dataset='{}', file-'{}', added={}, duplicated={}".format(*self)
-    def __str__(self): return "{}(Added: {}, Duplicated: {})".format(uppercase(self.dataset), self.added, self.duplicated)
-    def __add__(self, other):
-        assert isinstance(other, type(self))
-        assert self.dataset == other.dataset
-        return self.__class__(self.dataset, self.added + other.added, self.duplicated + other.duplicated)
 
 
 def urlsgmt(sgmttype):
@@ -120,7 +109,8 @@ class WebAPI(ABC):
             assert isinstance(query, dict)
             url = self.urlapi(*args, **query, **kwargs) 
             assert isinstance(url, (URL, str))
-            self.execute(url, *args, **kwargs)        
+            self.execute(url, *args, **query, **kwargs)        
+            raise Exception()
             try: self.sleep()
             except AttributeError: pass
         
@@ -128,9 +118,9 @@ class WebAPI(ABC):
         try: 
             downloaded = self.download(url, *args, **kwargs)   
             assert isinstance(downloaded, dict)
-            reports = self.recordall(**downloaded) 
+            success = self.recordall(**downloaded)
+            assert all(success)
             print('Downloading Success: {}\n{}'.format(self.__class__.__name__, str(url)))
-            for report in reports: print(str(report))
         except FailureWebDriverError:               
             print('Downloading Failure: {}\n{}'.format(self.__class__.__name__, str(url)))
             raise FailureWebAPIError(self) 
@@ -154,16 +144,11 @@ class WebAPI(ABC):
     def record(self, dataset, downloaded):
         try: dataframe = self.load(dataset)
         except FileNotFoundError: pass        
-        try: oldsize = dataframe.index.size
-        except NameError: oldsize = 0
         try: dataframe = pd.concat([dataframe, downloaded], ignore_index=True)
         except NameError: dataframe = downloaded
-        newsize = dataframe.index.size
-        dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column != self.recordedTag], ignore_index=True, keep='last')   
-        finalsize = dataframe.index.size
-        added, duplicated = finalsize - oldsize, newsize - finalsize     
+        dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column != self.recordedTag], ignore_index=True, keep='last')     
         self.save(dataset, dataframe)  
-        return APIReport(dataset, self.file(dataset), added, duplicated)
+        return True
         
     def filename(self, dataset): return '.'.join([dataset, self.__compression, self.__filetype]) if self.__compression else '.'.join([dataset, self.__filetype])
     def file(self, dataset): return os.path.join(self.repository, self.filename(dataset))

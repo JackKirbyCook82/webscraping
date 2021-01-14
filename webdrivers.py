@@ -123,11 +123,6 @@ class WebDriver(object):
     @property
     def timeout(self): return self.__timeout    
 
-    def __url(self, driver): return driver.current_url
-    def __html(self, driver): return driver.page_source
-    def __back(self, driver): driver.back
-    def __forward(self, driver): driver.forward
-    def __refresh(self, driver): driver.refresh
 
     
 

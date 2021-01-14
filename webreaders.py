@@ -58,15 +58,18 @@ class Headers(object):
     def __init__(self, useragents, *args, referer='http://www.google.com', **kwargs):
         self.__useragents = useragents
         self.__referer = referer
-
-    def useragent(self): return {'User-Agent':next(self.__useragent)}
+    
+    @property
+    def useragent(self): return {'User-Agent':next(self.__useragents)}
+    @property
     def accepts(self): return {'Accept-Language':self.accept_language, 'Accept-Enconding':self.accept_encoding, 'Accept':self.accept}
+    @property
     def referer(self): return {'Referer':self.__referer}
 
 
 class UserAgents(list):
     def __repr__(self): return "{}(size={})".format(self.__class__.__name__, len(self))
-    def __next__(self): return random.choice(self)
+    def __next__(self): return random.choice(list(self))
     def __init__(self, useragents): 
         assert isinstance(useragents, (list, tuple, set))
         assert len(useragents) > 0
@@ -126,16 +129,15 @@ class WebReader(object):
         try: yield from self.controller(url, *args, **kwargs)
         except MaxWebRequestAttemptError: raise FailureWebRequestError(self)       
     
-    def controller(self, url, *args, attempt=0, **kwargs):
+    def controller(self, url, *args, **kwargs):
         try: 
-            print("WebRequest: {}\n{}".format(self.__class__.__name__, str(url)))            
-            print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))            
+            print("WebRequest: {}\n{}".format(self.__class__.__name__, str(url)))                     
             parms, retrys = self.setup(*args, **kwargs)
             session = self.start(parms, retrys)        
             response = session.get(str(url), **parms)
             response.raise_for_status()
-            webpagedata = self.parse(self.datatype, response)
-            webpage = self.WebPage(webpagedata, *args, **kwargs)
+            data = self.parse(self.datatype, response)
+            webpage = self.WebPage(url, data)
             yield from webpage(*args, **kwargs)   
             self.stop(session)
             print("WebRequest Success: {}".format(self.__class__.__name__))
@@ -144,7 +146,7 @@ class WebReader(object):
             except NameError: pass
             print("WebRequest Failure: {}".format(self.__class__.__name__))
             print(str(error))
-            raise MaxWebRequestAttemptError(attempt)
+            raise error
         
     def start(self, parms, retrys=None):
         session = requests.Session() 
@@ -169,16 +171,18 @@ class WebReader(object):
     def getAuthenticate(self, *args, **kwargs): return self.authenticate() if hasattr(self, 'authenticate') else None
     def getRetrys(self, *args, **kwargs): return self.retrys() if hasattr(self, 'retry') else None
     def getHeaders(self, *args, **kwargs):
-        try: return next(self.headers)
-        except TypeError: return self.headers
-        except AttributeError: return None    
+        if isinstance(self.headers, Headers): return next(self.headers)
+        elif isinstance(self.headers, dict): return self.headers
+        elif isinstance(self.headers, type(None)): return self.headers
+        else: raise TypeError(type(self.headers))
+
 
     @keydispatcher
     def parse(self, datatype, response): raise KeyError(datatype)
     @parse.register('html')
-    def parseHTML(response): return html.fromstring(response.content)
+    def parseHTML(self, response): return html.fromstring(response.content)
     @parse.register('json')
-    def parseJSON(response): return response.json()
+    def parseJSON(self, response): return response.json()
 
 
 

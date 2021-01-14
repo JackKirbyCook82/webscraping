@@ -51,7 +51,7 @@ class WebDOM(ABC):
         return super().__new__(cls)    
         
     def __init__(self, DOM): self.__DOM = DOM
-    def __bool__(self): return self.__DOM is not None
+    def __bool__(self): return self.__DOM is not None    
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))  
     
     @property
@@ -153,7 +153,7 @@ class Input(WebElement):
     def clear(self): self.DOMElement.clear()
     def fill(self, text): 
         self.clear()
-        self.DOMElement.sendKeys(text)       
+        self.DOMElement.send_keys(text)       
 
 
 class Link(WebVariant, parser=lambda x: x):
