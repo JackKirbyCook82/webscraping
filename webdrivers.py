@@ -10,7 +10,7 @@ from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
-from webscraping.webdata import EmptyWebDataError, EmptyWebCollectionError, CaptchaError
+from webscraping.webdata import EmptyWebDataError, CaptchaError
 from webscraping.webactions import EmptyWebActionsError
 
 __version__ = "1.0.0"
@@ -43,13 +43,13 @@ class WebDriver(object):
         
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
-        content = {'loadtime':self.__loadtime, 'timeout':self.__timeout, 'retrys':self.__retrys, **self.options}
+        content = {'loadtime':self.__loadtime, 'timeout':self.__timeout, 'attempts':self.__attempts, **self.options}
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
-    def __init__(self, file, *args, loadtime=50, timeout=10, retrys=5, **kwargs): 
+    def __init__(self, file, *args, loadtime=50, timeout=10, attempts=5, **kwargs): 
         assert timeout is not None and loadtime is not None
-        self.__loadtime, self.__timeout, self.__retrys = loadtime, timeout, retrys
+        self.__loadtime, self.__timeout, self.__attempts = loadtime, timeout, attempts
         self.__headers = kwargs.get('headers', {})
         try: self.__options = self.options
         except AttributeError: self.__options = {}
@@ -59,13 +59,13 @@ class WebDriver(object):
         try: yield from self.controller(url, *args, **kwargs)
         except MaxWebDriverRetryError: raise FailureWebDriverError(self)       
     
-    def controller(self, url, *args, retry=0, **kwargs):
+    def controller(self, url, *args, attempt=0, **kwargs):
         try: 
             print("WebDriver Running: {}".format(self.__class__.__name__))
-            print("Attempt: {}|{}".format(str(retry+1), str(self.__retrys+1)))            
+            print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempt+1)))            
             options, capabilities = self.setup(*args, **kwargs)
             driver = self.start(options, capabilities)               
-            loadwebpage = self.WebPages[0](driver, self.timeout)
+            loadwebpage = self.WebPages[0](driver, self.timeout, *args, **kwargs)
             loadwebpage.load(url, *args, **kwargs)
             yield from loadwebpage(*args, **kwargs)
             for WebPage in self.WebPages[1:]: 
@@ -73,13 +73,13 @@ class WebDriver(object):
                 yield from webpage(*args, **kwargs)             
             self.stop(driver)  
             print("WebDriver Success: {}".format(self.__class__.__name__))
-        except (EmptyWebActionsError, EmptyWebDataError, EmptyWebCollectionError, CaptchaError) as error:
+        except (EmptyWebActionsError, EmptyWebDataError, CaptchaError) as error:
             try: self.stop(driver)
             except NameError: pass
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error))
-            if retry < self.__retrys: yield from self.controller(url, *args, retry=retry+1, **kwargs)
-            else: raise MaxWebDriverRetryError(retry)  
+            if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
+            else: raise MaxWebDriverRetryError(attempt)  
         
     def start(self, options, capabilities): 
         driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 

@@ -17,7 +17,7 @@ from webscraping.webdom import Captcha, Clickable, Input, Selection, Link, Text,
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebCaptcha', 'WebClickables']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebCaptcha', 'WebRefusal', 'WebClickables']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -37,25 +37,24 @@ def getelements(driver, timeout, xpath):
     except (NoSuchElementException, TimeoutException, WebDriverException): domelements = []  
     return domelements
 
-def gettree(html, xpath):
-    domtrees = html.xpath(xpath)
+def gettree(htmltree, xpath):
+    domtrees = htmltree.xpath(xpath)
     if len(domtrees) == 0: return None
     elif len(domtrees) == 1: return domtrees[0]
     else: raise ValueError(len(domtrees))        
 
-def gettrees(html, xpath):
-    domtrees = html.xpath(xpath)
+def gettrees(htmltree, xpath):
+    domtrees = htmltree.xpath(xpath)
     if len(domtrees) == 0: return []
     else: return domtrees[0]
 
 
-class WebContentError(Exception):
+class WebDataError(Exception):
     def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
 
-class EmptyWebContentError(WebContentError): pass
-class EmptyWebDataError(WebContentError): pass
-class EmptyWebCollectionError(WebContentError): pass 
-class CaptchaError(WebContentError): pass  
+class EmptyWebDataError(WebDataError): pass
+class CaptchaError(WebDataError): pass  
+class RefusalError(WebDataError): pass
 
 
 class WebLocator(ntuple('Locator', 'filtration attribute')):
@@ -136,7 +135,7 @@ class WebContent(object):
         
     def __getattr__(self, attr): 
         try: return getattr(self.__parent, attr)    
-        except EmptyWebDOMError: raise EmptyWebContentError(self)    
+        except EmptyWebDOMError: raise EmptyWebDataError(self)    
 
     @property
     def parent(self): return self.__parent
@@ -198,6 +197,13 @@ class WebSelection(WebData, WebDOM=Selection): pass
 class WebLink(WebData, WebDOM=Link): pass
 class WebText(WebData, WebDOM=Text): pass
 class WebTable(WebData, WebDOM=Table): pass
+
+class WebRefusal(WebData, WebDOM=WebText):
+    def __init__(self, driver, timeout):
+        super().__init__(driver, timeout)
+        if bool(self): print("WebRefusal Blocking: {}".format(self.__class__.__name__))
+
+
 class WebCaptcha(WebData, WebDOM=Captcha): 
     def __init__(self, driver, timeout):
         super().__init__(driver, timeout)

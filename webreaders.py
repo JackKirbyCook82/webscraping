@@ -14,11 +14,12 @@ import random
 from lxml import html
 from requests.auth import HTTPBasicAuth
 from requests.adapters import HTTPAdapter
-from requests.exceptions import RequestException
 from requests.packages.urllib3.util.retry import Retry
 from collections import namedtuple as ntuple
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
+
+from webscraping.webdata import EmptyWebDataError, RefusalError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -114,10 +115,12 @@ class WebReader(object):
        
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
-        content = {attr:getattr(self, attr) for attr in ('retrys', 'authenticate', 'headers') if hasattr(self, attr)}
-        return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, repr(value)]) for key, value in content.items()]))    
+        content = {attr:repr(getattr(self, attr)) for attr in ('retrys', 'authenticate', 'headers') if hasattr(self, attr)}
+        content['attempts'] = self.__attempts
+        return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, value]) for key, value in content.items()]))    
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, attempts=5, **kwargs):
+        self.__attempts = attempts
         try: self.retrys = kwargs['retrys']
         except KeyError: pass
         try: self.authenticate = kwargs['authenticate']
@@ -129,24 +132,27 @@ class WebReader(object):
         try: yield from self.controller(url, *args, **kwargs)
         except MaxWebRequestAttemptError: raise FailureWebRequestError(self)       
     
-    def controller(self, url, *args, **kwargs):
+    def controller(self, url, *args, attempt=0, **kwargs):
         try: 
-            print("WebRequest: {}\n{}".format(self.__class__.__name__, str(url)))                     
+            print("WebRequest: {}\n{}".format(self.__class__.__name__, str(url))) 
+            print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempt+1)))                      
             parms, retrys = self.setup(*args, **kwargs)
             session = self.start(parms, retrys)        
             response = session.get(str(url), **parms)
             response.raise_for_status()
             data = self.parse(self.datatype, response)
-            webpage = self.WebPage(url, data)
+            webpage = self.WebPage(url, data, *args, **kwargs)
             yield from webpage(*args, **kwargs)   
             self.stop(session)
             print("WebRequest Success: {}".format(self.__class__.__name__))
-        except RequestException as error:
+        except (EmptyWebDataError, RefusalError) as error:
             try: self.stop(session)
             except NameError: pass
             print("WebRequest Failure: {}".format(self.__class__.__name__))
             print(str(error))
-            raise error
+            if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
+            else: raise MaxWebRequestAttemptError(attempt)  
+            
         
     def start(self, parms, retrys=None):
         session = requests.Session() 
