@@ -20,6 +20,7 @@ from collections import namedtuple as ntuple
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
 from webscraping.webdata import EmptyWebDataError, RefusalError
+from webscraping.webpage import EmptyWebPageError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -138,14 +139,15 @@ class WebReader(object):
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempt+1)))                      
             parms, retrys = self.setup(*args, **kwargs)
             session = self.start(parms, retrys)        
-            response = session.get(str(url), **parms)
-            response.raise_for_status()
-            data = self.parse(self.datatype, response)
-            webpage = self.WebPage(url, data, *args, **kwargs)
-            yield from webpage(*args, **kwargs)   
+#            response = session.get(str(url), **parms)
+#            response.raise_for_status()
+#            data = self.parse(self.datatype, response)
+#            webpage = self.WebPage(data, *args, **kwargs)
+#            webpage.load(*args, **kwargs)
+#            yield from webpage(*args, **kwargs)   
             self.stop(session)
             print("WebRequest Success: {}".format(self.__class__.__name__))
-        except (EmptyWebDataError, RefusalError) as error:
+        except (EmptyWebPageError, EmptyWebDataError, RefusalError) as error:
             try: self.stop(session)
             except NameError: pass
             print("WebRequest Failure: {}".format(self.__class__.__name__))

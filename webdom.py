@@ -13,7 +13,6 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException, TimeoutException
-from lxml.html import tostring
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -59,9 +58,6 @@ class WebDOM(ABC):
 
     @property
     @abstractmethod
-    def html(self): pass    
-    @property
-    @abstractmethod
     def text(self): pass  
     @property
     @abstractmethod
@@ -74,8 +70,6 @@ class WebElement(WebDOM, scrape='dynamic'):
         if not self: raise EmptyWebElementError(str(self)) 
         else: return self.DOM
         
-    @property
-    def html(self): return self.DOMElement.get_attribute('outerHTML')   
     @property
     def text(self): return self.DOMElement.text 
     @property
@@ -96,9 +90,7 @@ class WebTree(WebDOM, scrape='static'):
     def DOMTree(self):
         if not self: raise EmptyWebTreeError(str(self))
         else: return self.DOM
-        
-    @property
-    def html(self): return tostring(self.DOMTree)     
+          
     @property
     def text(self): return str(self.DOMTree.text_content())   
     @property

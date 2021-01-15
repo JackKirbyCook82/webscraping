@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 from webscraping.webdata import EmptyWebDataError, CaptchaError
+from webscraping.webpage import EmptyWebPageError
 from webscraping.webactions import EmptyWebActionsError
 
 __version__ = "1.0.0"
@@ -65,15 +66,15 @@ class WebDriver(object):
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempt+1)))            
             options, capabilities = self.setup(*args, **kwargs)
             driver = self.start(options, capabilities)               
-            loadwebpage = self.WebPages[0](driver, self.timeout, *args, **kwargs)
-            loadwebpage.load(url, *args, **kwargs)
-            yield from loadwebpage(*args, **kwargs)
-            for WebPage in self.WebPages[1:]: 
-                webpage = WebPage(driver, self.timeout) 
-                yield from webpage(*args, **kwargs)             
+#            loadwebpage = self.WebPages[0](driver, *args, timeout=self.timeout, **kwargs)
+#            loadwebpage.load(url, *args, **kwargs)
+#            yield from loadwebpage(*args, **kwargs)
+#            for WebPage in self.WebPages[1:]: 
+#                webpage = WebPage(driver, self.timeout) 
+#                yield from webpage(*args, **kwargs)             
             self.stop(driver)  
             print("WebDriver Success: {}".format(self.__class__.__name__))
-        except (EmptyWebActionsError, EmptyWebDataError, CaptchaError) as error:
+        except (EmptyWebPageError, EmptyWebActionsError, EmptyWebDataError, CaptchaError) as error:
             try: self.stop(driver)
             except NameError: pass
             print("WebDriver Failure: {}".format(self.__class__.__name__))

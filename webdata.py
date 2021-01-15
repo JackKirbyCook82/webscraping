@@ -8,6 +8,7 @@ Created on Mon Dec 30 2019
 
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
+from lxml.html import open_in_browser
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -27,26 +28,25 @@ REGISTRY = {}
 
 def getelement(driver, timeout, xpath):
     assert timeout is not None
-    try: domelement = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
-    except (NoSuchElementException, TimeoutException, WebDriverException): domelement = None        
-    return domelement    
+    try: driver_element = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
+    except (NoSuchElementException, TimeoutException, WebDriverException): driver_element = None        
+    return driver_element    
 
 def getelements(driver, timeout, xpath): 
     assert timeout is not None
-    try: domelements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
-    except (NoSuchElementException, TimeoutException, WebDriverException): domelements = []  
-    return domelements
+    try: driver_elements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
+    except (NoSuchElementException, TimeoutException, WebDriverException): driver_elements = []  
+    return driver_elements
 
 def gettree(htmltree, xpath):
-    domtrees = htmltree.xpath(xpath)
-    if len(domtrees) == 0: return None
-    elif len(domtrees) == 1: return domtrees[0]
-    else: raise ValueError(len(domtrees))        
+    html_subtrees = htmltree.xpath(xpath)
+    if len(html_subtrees) == 0: return None
+    elif len(html_subtrees) == 1: return html_subtrees[0]
+    else: raise ValueError(len(html_subtrees))        
 
 def gettrees(htmltree, xpath):
-    domtrees = htmltree.xpath(xpath)
-    if len(domtrees) == 0: return []
-    else: return domtrees[0]
+    html_subtrees = htmltree.xpath(xpath)
+    return html_subtrees
 
 
 class WebDataError(Exception):
@@ -125,16 +125,16 @@ class WebAdapter(object):
 class WebContent(object):
     def __init__(self, parent, children={}): self.__parent, self.__children = parent, children
     def __call__(self, **kwargs): return {key:self.loc(WebLocator.fromstr(value)) for key, value in kwargs.items()}     
-    def __bool__(self): return bool(self.__parent)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.__parent)))      
+    def __bool__(self): return bool(self.parent)
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.parent)))      
  
     def __getitem__(self, locator): 
-        if isinstance(locator, str): return self.__children[locator]
+        if isinstance(locator, str): return self.children[locator]
         elif isinstance(locator, WebLocator): return self.loc(locator)
         else: raise TypeError(type(locator).__name__)
         
     def __getattr__(self, attr): 
-        try: return getattr(self.__parent, attr)    
+        try: return getattr(self.parent, attr)    
         except EmptyWebDOMError: raise EmptyWebDataError(self)    
 
     @property
@@ -199,21 +199,28 @@ class WebText(WebData, WebDOM=Text): pass
 class WebTable(WebData, WebDOM=Table): pass
 
 class WebRefusal(WebData, WebDOM=WebText):
-    def __init__(self, driver, timeout):
-        super().__init__(driver, timeout)
+    def __init__(self, htmltree, timeout=None):
+        super().__init__(htmltree, timeout=timeout)
         if bool(self): print("WebRefusal Blocking: {}".format(self.__class__.__name__))
+
+    def throw(self): raise RefusalError(self)
+    def log(self, htmltree): open_in_browser(self.htmltree)
 
 
 class WebCaptcha(WebData, WebDOM=Captcha): 
     def __init__(self, driver, timeout):
-        super().__init__(driver, timeout)
+        super().__init__(driver, timeout=timeout)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
-    
+
+    def throw(self): raise CaptchaError(self)    
     def solve(self, driver):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
-        if not self.parent.solve(driver): raise CaptchaError(self)
-        else: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))         
-
+        success = self.parent.solve(driver)
+        if success: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
+        else: print("WebCaptcha Not Cleared: {}".format(self.__class__.__name__))       
+        return success  
+    
+    
 
 
 
