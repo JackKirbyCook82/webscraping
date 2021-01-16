@@ -16,7 +16,7 @@ from selenium.common.exceptions import StaleElementReferenceException, NoSuchEle
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['Captcha', 'Clickable', 'Input', 'Selection', 'Link', 'Text', 'Table']
+__all__ = ['Refusal', 'Captcha', 'Clickable', 'Input', 'Selection', 'Link', 'Text', 'Table']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -102,6 +102,9 @@ class WebVariant(WebDOM, scrape=None):
     def asDynamic(cls): return type(cls.__name__, (WebElement,), dict(cls.__dict__))
     @classmethod
     def asStatic(cls): return type(cls.__name__, (WebTree,), dict(cls.__dict__))       
+
+
+class Refusal(WebTree): pass
 
 
 class Captcha(WebElement, timeout=5*60, frequency=15): 

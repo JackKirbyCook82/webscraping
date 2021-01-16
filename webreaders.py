@@ -11,16 +11,13 @@ import requests
 import json
 import zipfile
 import random
-from lxml import html
 from requests.auth import HTTPBasicAuth
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from collections import namedtuple as ntuple
 
-from utilities.dispatchers import clskey_singledispatcher as keydispatcher
-
 from webscraping.webdata import EmptyWebDataError, RefusalError
-from webscraping.webpage import EmptyWebPageError
+from webscraping.webpages import EmptyWebPageError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -51,12 +48,13 @@ class Retrys(ntuple('Retrys', 'retries backoff httpcodes')):
 
 
 class Headers(object):
-    accept_language = 'en-gb'
-    accept_encoding = 'br, gzip, deflate'
-    accept = 'test/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    accept_language = 'en-US,en;q=0.9'
+    accept_encoding = 'gzip, deflate, br'
+    accept = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9'
+    cachecontrol = 'max-age=0'
 
     def __repr__(self): return "{}(useragents={}, referer='{}')".format(self.__class__.__name__, repr(self.__useragents), self.__referer)
-    def __next__(self): return {**self.useragent, **self.referer, **self.accepts}
+    def __next__(self): return {**self.useragent, **self.referer, **self.accepts, 'cache-control':self.cachecontrol}
     def __init__(self, useragents, *args, referer='http://www.google.com', **kwargs):
         self.__useragents = useragents
         self.__referer = referer
@@ -110,14 +108,13 @@ class UserAgents(list):
                 
 
 class WebReader(object):   
-    def __init_subclass__(cls, *args, webpage, datatype, **kwargs): 
+    def __init_subclass__(cls, *args, webpage, **kwargs): 
         setattr(cls, 'WebPage', webpage)
-        setattr(cls, 'datatype', datatype)
        
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
         content = {attr:repr(getattr(self, attr)) for attr in ('retrys', 'authenticate', 'headers') if hasattr(self, attr)}
-        content['attempts'] = self.__attempts
+        content['attempts'] = str(self.__attempts)
         return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, value]) for key, value in content.items()]))    
     
     def __init__(self, *args, attempts=5, **kwargs):
@@ -136,15 +133,12 @@ class WebReader(object):
     def controller(self, url, *args, attempt=0, **kwargs):
         try: 
             print("WebRequest: {}\n{}".format(self.__class__.__name__, str(url))) 
-            print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempt+1)))                      
+            print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))                      
             parms, retrys = self.setup(*args, **kwargs)
-            session = self.start(parms, retrys)        
-#            response = session.get(str(url), **parms)
-#            response.raise_for_status()
-#            data = self.parse(self.datatype, response)
-#            webpage = self.WebPage(data, *args, **kwargs)
-#            webpage.load(*args, **kwargs)
-#            yield from webpage(*args, **kwargs)   
+            session = self.start(retrys=retrys)        
+            webpage = self.WebPage(session, *args, **kwargs)
+            webpage.load(str(url), *args, parms=parms, **kwargs)            
+            yield from webpage(*args, **kwargs)   
             self.stop(session)
             print("WebRequest Success: {}".format(self.__class__.__name__))
         except (EmptyWebPageError, EmptyWebDataError, RefusalError) as error:
@@ -155,22 +149,19 @@ class WebReader(object):
             if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
             else: raise MaxWebRequestAttemptError(attempt)  
             
-        
-    def start(self, parms, retrys=None):
+    def stop(self, session): session.close()        
+    def start(self, retrys=None):
         session = requests.Session() 
         if retrys is not None: 
             session.mount('http://', retrys())
             session.mount('https://', retrys())
         return session
-            
-    def stop(self, session):
-        pass
-    
+              
     def setup(self, *args, **kwargs):
         auth = self.getAuthenticate(*args, **kwargs)
         retrys = self.getRetrys(*args, **kwargs)
         headers = self.getHeaders(*args, **kwargs)
-        parms = {'headers':headers, 'auth':auth, 'cookies':kwargs.get('cookies', None)}
+        parms = {'headers':headers, 'auth':auth}
         try: parms['Referer'] = kwargs['referer']
         except KeyError: pass
         parms = {key:value for key, value in parms.items() if value is not None}
@@ -185,12 +176,6 @@ class WebReader(object):
         else: raise TypeError(type(self.headers))
 
 
-    @keydispatcher
-    def parse(self, datatype, response): raise KeyError(datatype)
-    @parse.register('html')
-    def parseHTML(self, response): return html.fromstring(response.content)
-    @parse.register('json')
-    def parseJSON(self, response): return response.json()
 
 
 

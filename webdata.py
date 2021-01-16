@@ -14,7 +14,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
-from webscraping.webdom import Captcha, Clickable, Input, Selection, Link, Text, Table, EmptyWebDOMError
+from webscraping.webdom import Captcha, Refusal, Clickable, Input, Selection, Link, Text, Table, EmptyWebDOMError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -50,7 +50,14 @@ def gettrees(htmltree, xpath):
 
 
 class WebDataError(Exception):
-    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args)
+        self.kwargs = kwargs
+    
+    def __str__(self): 
+        argsstr = '\n'.join([str(arg) for arg in self.args])
+        kwargsstr = '\n'.join([': '.join([key, value]) for key, value in self.kwargs.items()])
+        return "{}:\n{}\n{}".format(self.__class__.__name__, argsstr, kwargsstr)
 
 class EmptyWebDataError(WebDataError): pass
 class CaptchaError(WebDataError): pass  
@@ -198,12 +205,12 @@ class WebLink(WebData, WebDOM=Link): pass
 class WebText(WebData, WebDOM=Text): pass
 class WebTable(WebData, WebDOM=Table): pass
 
-class WebRefusal(WebData, WebDOM=WebText):
+class WebRefusal(WebData, WebDOM=Refusal):
     def __init__(self, htmltree, timeout=None):
         super().__init__(htmltree, timeout=timeout)
         if bool(self): print("WebRefusal Blocking: {}".format(self.__class__.__name__))
 
-    def throw(self): raise RefusalError(self)
+    def throw(self, url, headers): raise RefusalError(self, url=url, **headers)
     def log(self, htmltree): open_in_browser(self.htmltree)
 
 
@@ -212,7 +219,7 @@ class WebCaptcha(WebData, WebDOM=Captcha):
         super().__init__(driver, timeout=timeout)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
 
-    def throw(self): raise CaptchaError(self)    
+    def throw(self, url): raise CaptchaError(self, url=url)  
     def solve(self, driver):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
         success = self.parent.solve(driver)
@@ -221,13 +228,3 @@ class WebCaptcha(WebData, WebDOM=Captcha):
         return success  
     
     
-
-
-
-
-
-
-
-
-
-
