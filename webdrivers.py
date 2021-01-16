@@ -48,7 +48,7 @@ class WebDriver(object):
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
-    def __init__(self, file, *args, loadtime=50, timeout=10, attempts=5, **kwargs): 
+    def __init__(self, file, *args, loadtime=50, timeout=10, attempts=3, **kwargs): 
         assert timeout is not None and loadtime is not None
         self.__loadtime, self.__timeout, self.__attempts = loadtime, timeout, attempts
         self.__headers = kwargs.get('headers', {})

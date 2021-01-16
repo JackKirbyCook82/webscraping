@@ -7,14 +7,16 @@ Created on Mon Dec 30 2019
 """
 
 from abc import ABC, abstractmethod
-from lxml import html
+from lxml.html import open_in_browser, fromstring
 
-from webscraping.webdata import EmptyWebDataError
+from utilities.dispatchers import clskey_singledispatcher as keydispatcher
+
+from webscraping.webdata import EmptyWebDataError, CaptchaError, RefusalError
 from webscraping.webactions import EmptyWebActionsError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebBrowserPage', 'WebHTMLPage']
+__all__ = ['WebBrowserPage', 'WebRequestPage']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -40,9 +42,10 @@ class WebPage(ABC):
         setattr(cls, 'PageContents', pageContents)             
     
     def __str__(self): return self.__class__.__name__  
-    def __init__(self, source, *args, timeout=None, **kwargs): 
-        self.__source, self.__timeout = source, timeout 
-        self.__pagecontents = False, {}
+    def __init__(self, feed, *args, timeout=None, **kwargs): 
+        self.setfeed(feed)
+        self.__timeout = timeout
+        self.__pagecontents = {}
     
     def __getitem__(self, key): 
         if not self.loaded: raise UnLoadedWebPageError(self)
@@ -56,55 +59,59 @@ class WebPage(ABC):
         yield from self.execute(*args, **kwargs)
 
     @property
-    def source(self): return self.__source  
+    def feed(self): return self.__feed  
     @property
     def timeout(self): return self.__timeout
     @property
     def empty(self): return all([not bool(value) for value in self.__pagecontents.values()])
-        
-    def retrieve(self, key): self.__pagecontents[key] = self.PageContents[key](self.basis, timeout=self.timeout)
-    def retrieveall(self): self.__pagecontents = {key:value(self.basis, timeout=self.timeout) for key, value in self.PageContents.items()}
+    @property
+    def source(self):
+        try: return self.__source
+        except AttributeError: raise UnLoadedWebPageError(self)
+    
+    def setfeed(self, feed): self.__feed = feed
+    def setsource(self, source): self.__source = source
+       
+    def retrieve(self, key): self.__pagecontents[key] = self.PageContents[key](self.source, timeout=self.timeout)
+    def retrieveall(self): self.__pagecontents = {key:value(self.source, timeout=self.timeout) for key, value in self.PageContents.items()}
     def retrieved(self, key): return key in self.__pagecontents.keys()
     def retrievedall(self): return all([key in self.__pagecontents.keys() for key in self.PageContents.keys()])
 
-    @property
-    @abstractmethod
-    def url(self): pass
-    @property
-    @abstractmethod
-    def basis(self): pass
     @abstractmethod
     def execute(self, *args, **kwargs): pass
 
 
-class WebHTMLPage(WebPage):
-    def __init_subclass__(cls, *args, pageRefusal=None, **kwargs):    
+class WebRequestPage(WebPage):
+    def __init_subclass__(cls, *args, pageRefusal=None, pageType='html', pageReferer=None, **kwargs):    
         if pageRefusal is not None: setattr(cls, 'PageRefusal', pageRefusal)
+        setattr(cls, 'pageReferer', pageReferer)
+        setattr(cls, 'pageType', pageType)
         cls.factory(*args, **kwargs)
-  
+      
     @property
-    def session(self): return self.source
-    @property
-    def htmltree(self): return html.fromstring(self.response.content)         
-    @property
-    def basis(self): return self.htmltree  
-    @property
-    def response(self): 
-        try: return self.__response
-        except AttributeError: raise UnLoadedWebPageError(self)
-            
-    def load(self, url, *args, parms={},  **kwargs): 
-        print("WebHTMLPage Loading: {}\n{}".format(str(self), str(url)))        
-        response = self.session.get(str(url), **parms)
+    def htmltree(self): return self.source
+      
+    def load(self, url, *args, params=None, **kwargs): 
+        print("WebHTMLPage Loading: {}\n{}".format(str(self), str(url)))
+        if self.pageReferer: 
+            self.feed.get(self.pageReferer)
+            self.feed.headers.update({'Referer':self.pageReferer})
+        response = self.feed.get(str(url), params=params)
         response.raise_for_status()
-        self.__response = response        
-        refusal = self.PageRefusal(self.htmltree) if hasattr(self, 'PageRefusal') else False
-        if refusal:  
-            refusal.log()
-            refusal.throw(self.response.url, self.response.headers)        
+        self.setsrouce(self.parser(self.pageType, response))
+        refusal = self.PageRefusal(self.source) if hasattr(self, 'PageRefusal') else False
+        if refusal: raise RefusalError(refusal, url=response.request.url, **response.request.headers)    
         else: self.retrieveall()
-        if self.empty: raise EmptyWebPageError(self, self.response.request.url, **self.response.request.headers)
-        else: pass
+        if not self.empty: return 
+        open_in_browser(self.source)
+        raise EmptyWebPageError(self, url=response.request.url, **response.request.headers)
+        
+        @keydispatcher
+        def parser(self, response): pass
+        @parser.register('html')
+        def parser_html(self, response): return fromstring(self.response.content)
+        @property.register('json')
+        def parser_json(self, response): return response.json()
 
 
 class WebBrowserPage(WebPage):    
@@ -116,8 +123,6 @@ class WebBrowserPage(WebPage):
           
     @property
     def driver(self): return self.source 
-    @property
-    def basis(self): return self.driver
    
     def back(self): self.driver.back
     def forward(self): self.driver.forward
@@ -126,28 +131,27 @@ class WebBrowserPage(WebPage):
     def __iter__(self): 
         if not self.loaded: raise UnLoadedWebPageError(self)
         if not hasattr(self, 'PageIteration'): return iter([])
-        else: return iter(self.PageIteration(self.driver, self.timeout))
+        else: return iter(self.PageIteration(self.source, self.timeout))
         
     def __next__(self): 
         if not self.loaded: raise UnLoadedWebPageError(self)
         if not hasattr(self, 'PageNext'): return False
-        try: return self.PageNext(self.driver, self.timeout)()
+        try: return self.PageNext(self.source, self.timeout)()
         except (EmptyWebDataError, EmptyWebActionsError): return False
 
     def load(self, url, *args, **kwargs): 
         print("WebBrowserPage Loading: {}\n{}".format(str(self), str(url)))
-        self.driver.get(str(url))  
-        captcha = self.PageCaptcha(self.driver, self.timeout) if hasattr(self, 'PageCaptcha') else False
-        success = captcha.solve(self.driver) if captcha else True
-        if not success: captcha.throw(str(url))
+        self.feed.get(str(url))  
+        self.setsource(self.feed)
+        captcha = self.PageCaptcha(self.source, self.timeout) if hasattr(self, 'PageCaptcha') else False
+        success = captcha.solve() if captcha else True
+        if not success: raise CaptchaError(captcha, url=str(url))
+
 
 
              
 
  
-
-    
-
 
 
         

@@ -8,7 +8,6 @@ Created on Mon Dec 30 2019
 
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
-from lxml.html import open_in_browser
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -210,21 +209,24 @@ class WebRefusal(WebData, WebDOM=Refusal):
         super().__init__(htmltree, timeout=timeout)
         if bool(self): print("WebRefusal Blocking: {}".format(self.__class__.__name__))
 
-    def throw(self, url, headers): raise RefusalError(self, url=url, **headers)
-    def log(self, htmltree): open_in_browser(self.htmltree)
-
 
 class WebCaptcha(WebData, WebDOM=Captcha): 
     def __init__(self, driver, timeout):
         super().__init__(driver, timeout=timeout)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
 
-    def throw(self, url): raise CaptchaError(self, url=url)  
-    def solve(self, driver):
+    def solve(self):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
-        success = self.parent.solve(driver)
+        success = self.parent.solve(self.driver)
         if success: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
         else: print("WebCaptcha Not Cleared: {}".format(self.__class__.__name__))       
         return success  
     
+
+
+
+
+
+
+
     

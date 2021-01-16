@@ -47,24 +47,21 @@ class Retrys(ntuple('Retrys', 'retries backoff httpcodes')):
         return adapter     
 
 
-class Headers(object):
+class Headers(object):   
     accept_language = 'en-US,en;q=0.9'
     accept_encoding = 'gzip, deflate, br'
     accept = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9'
     cachecontrol = 'max-age=0'
 
-    def __repr__(self): return "{}(useragents={}, referer='{}')".format(self.__class__.__name__, repr(self.__useragents), self.__referer)
-    def __next__(self): return {**self.useragent, **self.referer, **self.accepts, 'cache-control':self.cachecontrol}
-    def __init__(self, useragents, *args, referer='http://www.google.com', **kwargs):
-        self.__useragents = useragents
-        self.__referer = referer
+    def __repr__(self): return "{}(useragents={})".format(self.__class__.__name__, repr(self.__useragents))
+    def __call__(self): return {**self.useragent, **self.accepts, 'cache-control':self.cachecontrol}
+    def __next__(self): return {**self.useragent, **self.accepts, 'cache-control':self.cachecontrol}
+    def __init__(self, useragents, *args, **kwargs): self.__useragents = useragents
     
     @property
     def useragent(self): return {'User-Agent':next(self.__useragents)}
     @property
     def accepts(self): return {'Accept-Language':self.accept_language, 'Accept-Enconding':self.accept_encoding, 'Accept':self.accept}
-    @property
-    def referer(self): return {'Referer':self.__referer}
 
 
 class UserAgents(list):
@@ -117,7 +114,7 @@ class WebReader(object):
         content['attempts'] = str(self.__attempts)
         return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, value]) for key, value in content.items()]))    
     
-    def __init__(self, *args, attempts=5, **kwargs):
+    def __init__(self, *args, attempts=3, **kwargs):
         self.__attempts = attempts
         try: self.retrys = kwargs['retrys']
         except KeyError: pass
@@ -130,14 +127,14 @@ class WebReader(object):
         try: yield from self.controller(url, *args, **kwargs)
         except MaxWebRequestAttemptError: raise FailureWebRequestError(self)       
     
-    def controller(self, url, *args, attempt=0, **kwargs):
+    def controller(self, url, *args, attempt=0, params={}, **kwargs):
         try: 
             print("WebRequest: {}\n{}".format(self.__class__.__name__, str(url))) 
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))                      
-            parms, retrys = self.setup(*args, **kwargs)
-            session = self.start(retrys=retrys)        
+            headers, retrys, auth = self.setup(*args, **kwargs)
+            session = self.start(headers=headers, retrys=retrys, auth=auth)        
             webpage = self.WebPage(session, *args, **kwargs)
-            webpage.load(str(url), *args, parms=parms, **kwargs)            
+            webpage.load(str(url), *args, params=params, **kwargs)            
             yield from webpage(*args, **kwargs)   
             self.stop(session)
             print("WebRequest Success: {}".format(self.__class__.__name__))
@@ -150,8 +147,10 @@ class WebReader(object):
             else: raise MaxWebRequestAttemptError(attempt)  
             
     def stop(self, session): session.close()        
-    def start(self, retrys=None):
+    def start(self, headers=None, retrys=None, auth=None):
         session = requests.Session() 
+        if headers is not None: session.headers.update(headers)
+        if auth is not None: session.auth = auth
         if retrys is not None: 
             session.mount('http://', retrys())
             session.mount('https://', retrys())
@@ -161,19 +160,11 @@ class WebReader(object):
         auth = self.getAuthenticate(*args, **kwargs)
         retrys = self.getRetrys(*args, **kwargs)
         headers = self.getHeaders(*args, **kwargs)
-        parms = {'headers':headers, 'auth':auth}
-        try: parms['Referer'] = kwargs['referer']
-        except KeyError: pass
-        parms = {key:value for key, value in parms.items() if value is not None}
-        return parms, retrys
+        return headers, retrys, auth
     
     def getAuthenticate(self, *args, **kwargs): return self.authenticate() if hasattr(self, 'authenticate') else None
     def getRetrys(self, *args, **kwargs): return self.retrys() if hasattr(self, 'retry') else None
-    def getHeaders(self, *args, **kwargs):
-        if isinstance(self.headers, Headers): return next(self.headers)
-        elif isinstance(self.headers, dict): return self.headers
-        elif isinstance(self.headers, type(None)): return self.headers
-        else: raise TypeError(type(self.headers))
+    def getHeaders(self, *args, **kwargs): return next(self.headers) if hasattr(self, 'headers') else None
 
 
 
