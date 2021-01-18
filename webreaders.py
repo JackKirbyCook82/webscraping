@@ -134,8 +134,9 @@ class WebReader(object):
             headers, retrys, auth = self.setup(*args, **kwargs)
             session = self.start(headers=headers, retrys=retrys, auth=auth)        
             webpage = self.WebPage(session, *args, **kwargs)
-            webpage.load(str(url), *args, params=params, **kwargs)            
-            yield from webpage(*args, **kwargs)   
+            content = webpage.load(str(url), *args, params=params, **kwargs)            
+            if content: yield from webpage(*args, **kwargs)   
+            else: pass
             self.stop(session)
             print("WebRequest Success: {}".format(self.__class__.__name__))
         except (EmptyWebPageError, EmptyWebDataError, RefusalError) as error:

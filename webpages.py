@@ -7,11 +7,14 @@ Created on Mon Dec 30 2019
 """
 
 from abc import ABC, abstractmethod
-from lxml.html import open_in_browser, fromstring
+from lxml.html import fromstring, open_in_browser
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
-from webscraping.webdata import EmptyWebDataError, CaptchaError, RefusalError
+from webscraping.webdata import EmptyWebDataError
 from webscraping.webactions import EmptyWebActionsError
 
 __version__ = "1.0.0"
@@ -33,6 +36,8 @@ class WebPageError(Exception):
 
 class EmptyWebPageError(WebPageError): pass
 class UnLoadedWebPageError(WebPageError): pass
+class CaptchaError(WebPageError): pass
+class RefusalError(WebPageError): pass
 
 
 class WebPage(ABC):
@@ -47,16 +52,12 @@ class WebPage(ABC):
         self.__timeout = timeout
         self.__pagecontents = {}
     
+    def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)
     def __getitem__(self, key): 
-        if not self.loaded: raise UnLoadedWebPageError(self)
         try: return self.__pagecontents[key]
         except KeyError: pass
         self.retrieve(key)
         return self.__pagecontents[key]
-
-    def __call__(self, *args, **kwargs): 
-        if not self.loaded: raise UnLoadedWebPageError(self)
-        yield from self.execute(*args, **kwargs)
 
     @property
     def feed(self): return self.__feed  
@@ -77,6 +78,8 @@ class WebPage(ABC):
     def retrieved(self, key): return key in self.__pagecontents.keys()
     def retrievedall(self): return all([key in self.__pagecontents.keys() for key in self.PageContents.keys()])
 
+    @abstractmethod
+    def setup(self, *args, **kwargs): pass
     @abstractmethod
     def execute(self, *args, **kwargs): pass
 
@@ -100,12 +103,12 @@ class WebRequestPage(WebPage):
         response.raise_for_status()
         self.setsrouce(self.parser(self.pageType, response))
         refusal = self.PageRefusal(self.source) if hasattr(self, 'PageRefusal') else False
-        if refusal: raise RefusalError(refusal, url=response.request.url, **response.request.headers)    
-        else: self.retrieveall()
-        if not self.empty: return 
-        open_in_browser(self.source)
-        raise EmptyWebPageError(self, url=response.request.url, **response.request.headers)
-        
+        if not refusal: content = self.setup(*args, **kwargs) 
+        else: raise RefusalError(self, url=response.request.url, **response.request.headers)  
+        if self.empty: open_in_browser(response)
+        else: pass
+        return content    
+    
         @keydispatcher
         def parser(self, response): pass
         @parser.register('html')
@@ -129,12 +132,10 @@ class WebBrowserPage(WebPage):
     def refresh(self): self.driver.refresh
 
     def __iter__(self): 
-        if not self.loaded: raise UnLoadedWebPageError(self)
         if not hasattr(self, 'PageIteration'): return iter([])
         else: return iter(self.PageIteration(self.source, self.timeout))
         
     def __next__(self): 
-        if not self.loaded: raise UnLoadedWebPageError(self)
         if not hasattr(self, 'PageNext'): return False
         try: return self.PageNext(self.source, self.timeout)()
         except (EmptyWebDataError, EmptyWebActionsError): return False
@@ -144,18 +145,21 @@ class WebBrowserPage(WebPage):
         self.feed.get(str(url))  
         self.setsource(self.feed)
         captcha = self.PageCaptcha(self.source, self.timeout) if hasattr(self, 'PageCaptcha') else False
-        success = captcha.solve() if captcha else True
-        if not success: raise CaptchaError(captcha, url=str(url))
-
-
-
-             
-
- 
-
-
+        success = self.solve(captcha) if captcha else True
+        if success: content = self.setup(*args, **kwargs) 
+        else: raise CaptchaError(self, str(url))
+        return content
         
-        
+    def solve(self, captcha):
+        print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
+        wait = WebDriverWait(self.driver, self.timeout, poll_frequency=self.frequency)         
+        try: success = wait.until(EC.staleness_of(captcha.DOMElement))
+        except TimeoutException: success = False           
+        if success: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
+        else: print("WebCaptcha Not Cleared: {}".format(self.__class__.__name__))       
+        return success  
+    
+
         
         
         

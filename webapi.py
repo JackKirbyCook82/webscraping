@@ -76,14 +76,13 @@ class WebAPI(ABC):
     def recordedParser(self, string): return Datetime.strptime(string, self.recordedFormat).date()
     def recordedString(self, date): return date.strftime(self.recordedFormat)
 
-    def __repr__(self): return "{}(repository='{}', wait={}, limit={}, filetype='{}', compression='{}')".format(self.__class__.__name__, self.__repository, self.__wait, self.__limit, self.__filetype, self.__compression)   
-    def __init__(self, repository, urlapi, webreader, *args, wait=5, filetype='csv', compression=None, limit=None, **kwargs):
+    def __repr__(self): return "{}(repository='{}', wait={}, filetype='{}', compression='{}')".format(self.__class__.__name__, self.__repository, self.__wait, self.__filetype, self.__compression)   
+    def __init__(self, repository, urlapi, webreader, *args, wait=5, filetype='csv', compression=None, **kwargs):
         assert os.path.isdir(repository)
         self.__repository = repository     
         self.__urlapi = urlapi
         self.__webreader = webreader
         self.__wait = wait
-        self.__limit = limit
         self.__filetype = filetype
         self.__compression = compression
         if isinstance(wait, int): pass
@@ -106,19 +105,13 @@ class WebAPI(ABC):
         else: raise TypeError(type(self.__wait))
     
     def __call__(self, *args, **kwargs):
-        i = 0
         for query in self.queue(*args, **kwargs):
-            try: 
-                if i >= self.__limit: break
-                else: pass
-            except TypeError: pass    
             assert isinstance(query, dict)
             url = self.urlapi(*args, **query, **kwargs) 
             assert isinstance(url, (URL, str))
             self.execute(url, *args, **query, **kwargs)        
             try: self.sleep()
             except AttributeError: pass
-            i = i + 1
         
     def execute(self, url, *args, **kwargs):
         try: 

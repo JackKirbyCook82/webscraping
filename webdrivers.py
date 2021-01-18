@@ -63,13 +63,15 @@ class WebDriver(object):
     def controller(self, url, *args, attempt=0, **kwargs):
         try: 
             print("WebDriver Running: {}".format(self.__class__.__name__))
-            print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempt+1)))            
+            print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))            
             options, capabilities = self.setup(*args, **kwargs)
             driver = self.start(options, capabilities)               
             homewebpage = self.WebPages[0](driver, *args, timeout=self.timeout, **kwargs)
-            homewebpage.load(str(url), *args, **kwargs)
-            yield from homewebpage(*args, **kwargs)
+            content = homewebpage.load(str(url), *args, **kwargs)
+            if content: yield from homewebpage(*args, **kwargs)
+            else: pass
             for WebPage in self.WebPages[1:]: 
+                if not content: break
                 webpage = WebPage(driver, *args, timeout=self.timeout, **kwargs) 
                 yield from webpage(*args, **kwargs)             
             self.stop(driver)  
@@ -86,6 +88,7 @@ class WebDriver(object):
     def start(self, options, capabilities): 
         driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
         driver.set_page_load_timeout(self.loadtime)
+        driver.delete_all_cookies()
         return driver 
            
     def setup(self, *args, **kwargs):   

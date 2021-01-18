@@ -17,7 +17,7 @@ from webscraping.webdom import Captcha, Refusal, Clickable, Input, Selection, Li
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebCaptcha', 'WebRefusal', 'WebClickables']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebClickables']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -59,8 +59,6 @@ class WebDataError(Exception):
         return "{}:\n{}\n{}".format(self.__class__.__name__, argsstr, kwargsstr)
 
 class EmptyWebDataError(WebDataError): pass
-class CaptchaError(WebDataError): pass  
-class RefusalError(WebDataError): pass
 
 
 class WebLocator(ntuple('Locator', 'filtration attribute')):
@@ -209,19 +207,12 @@ class WebRefusal(WebData, WebDOM=Refusal):
         super().__init__(htmltree, timeout=timeout)
         if bool(self): print("WebRefusal Blocking: {}".format(self.__class__.__name__))
 
-
 class WebCaptcha(WebData, WebDOM=Captcha): 
     def __init__(self, driver, timeout):
         super().__init__(driver, timeout=timeout)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
 
-    def solve(self):
-        print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
-        success = self.parent.solve(self.driver)
-        if success: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
-        else: print("WebCaptcha Not Cleared: {}".format(self.__class__.__name__))       
-        return success  
-    
+
 
 
 
