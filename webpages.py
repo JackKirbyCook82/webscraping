@@ -38,6 +38,7 @@ class EmptyWebPageError(WebPageError): pass
 class UnLoadedWebPageError(WebPageError): pass
 class CaptchaError(WebPageError): pass
 class RefusalError(WebPageError): pass
+class BadRequestError(WebPageError): pass
 
 
 class WebPage(ABC):
@@ -85,8 +86,9 @@ class WebPage(ABC):
 
 
 class WebRequestPage(WebPage):
-    def __init_subclass__(cls, *args, pageRefusal=None, pageType='html', pageReferer=None, **kwargs):    
+    def __init_subclass__(cls, *args, pageType='html', pageRefusal=None, pageBadRequest=None, pageReferer=None, **kwargs):    
         if pageRefusal is not None: setattr(cls, 'PageRefusal', pageRefusal)
+        if pageBadRequest is not None: setattr(cls, 'PageBadRequest', pageBadRequest)
         setattr(cls, 'pageReferer', pageReferer)
         setattr(cls, 'pageType', pageType)
         cls.factory(*args, **kwargs)
@@ -103,23 +105,25 @@ class WebRequestPage(WebPage):
         response.raise_for_status()
         self.setsrouce(self.parser(self.pageType, response))
         refusal = self.PageRefusal(self.source) if hasattr(self, 'PageRefusal') else False
-        if not refusal: content = self.setup(*args, **kwargs) 
-        else: raise RefusalError(self, url=response.request.url, **response.request.headers)  
+        if refusal: raise RefusalError(self, url=response.request.url, **response.request.headers)
+        badrequest = self.PageBadRequest(self.source) if hasattr(self, 'PageBadReqeust') else False
+        if badrequest: raise BadRequestError(self, url=response.request.url, **response.request.headers)
+        self.setup(*args, **kwargs) 
         if self.empty: open_in_browser(response)
-        else: pass
-        return content    
-    
+        if self.empty: raise EmptyWebPageError(self, url=response.request.url, **response.request.headers)
+
         @keydispatcher
         def parser(self, response): pass
         @parser.register('html')
-        def parser_html(self, response): return fromstring(self.response.content)
+        def parser_html(self, response): return fromstring(response.content)
         @property.register('json')
         def parser_json(self, response): return response.json()
 
 
 class WebBrowserPage(WebPage):    
-    def __init_subclass__(cls, *args, pageCaptcha=None, pageNext=None, pageIteration=None, **kwargs):
+    def __init_subclass__(cls, *args, pageCaptcha=None, pageBadRequest=None,pageNext=None, pageIteration=None, **kwargs):
         if pageNext is not None: setattr(cls, 'PageNext', pageNext)
+        if pageBadRequest is not None: setattr(cls, 'PageBadRequest', pageBadRequest)
         if pageIteration is not None: setattr(cls, 'PageIteration', pageIteration)
         if pageCaptcha is not None: setattr(cls, 'PageCaptcha', pageCaptcha)
         cls.factory(*args, **kwargs)
@@ -146,9 +150,11 @@ class WebBrowserPage(WebPage):
         self.setsource(self.feed)
         captcha = self.PageCaptcha(self.source, self.timeout) if hasattr(self, 'PageCaptcha') else False
         success = self.solve(captcha) if captcha else True
-        if success: content = self.setup(*args, **kwargs) 
-        else: raise CaptchaError(self, str(url))
-        return content
+        if not success: raise CaptchaError(self, str(url))
+        badrequest = self.PageBadRequest(self.source) if hasattr(self, 'PageBadReqeust') else False
+        if badrequest: raise BadRequestError(self, str(url))
+        self.setup(*args, **kwargs) 
+        if self.empty: raise EmptyWebPageError(self, str(url))
         
     def solve(self, captcha):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))

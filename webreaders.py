@@ -16,8 +16,8 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 from collections import namedtuple as ntuple
 
-from webscraping.webdata import EmptyWebDataError, RefusalError
-from webscraping.webpages import EmptyWebPageError
+from webscraping.webdata import EmptyWebDataError
+from webscraping.webpages import EmptyWebPageError, RefusalError, BadRequestError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -134,18 +134,22 @@ class WebReader(object):
             headers, retrys, auth = self.setup(*args, **kwargs)
             session = self.start(headers=headers, retrys=retrys, auth=auth)        
             webpage = self.WebPage(session, *args, **kwargs)
-            content = webpage.load(str(url), *args, params=params, **kwargs)            
-            if content: yield from webpage(*args, **kwargs)   
-            else: pass
-            self.stop(session)
+            webpage.load(str(url), *args, params=params, **kwargs)            
+            yield from webpage(*args, **kwargs)   
             print("WebRequest Success: {}".format(self.__class__.__name__))
+        except BadRequestError as error:
+            print("WebRequest BadRequest: {}".format(self.__class__.__name__))
+            print(str(error))
         except (EmptyWebPageError, EmptyWebDataError, RefusalError) as error:
-            try: self.stop(session)
-            except NameError: pass
             print("WebRequest Failure: {}".format(self.__class__.__name__))
             print(str(error))
             if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
             else: raise MaxWebRequestAttemptError(attempt)  
+        finally:
+            try: self.stop(session)
+            except NameError: pass      
+            return
+            yield
             
     def stop(self, session): session.close()        
     def start(self, headers=None, retrys=None, auth=None):

@@ -10,8 +10,8 @@ from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
-from webscraping.webdata import EmptyWebDataError, CaptchaError
-from webscraping.webpages import EmptyWebPageError
+from webscraping.webdata import EmptyWebDataError
+from webscraping.webpages import EmptyWebPageError, CaptchaError, BadRequestError
 from webscraping.webactions import EmptyWebActionsError
 
 __version__ = "1.0.0"
@@ -67,22 +67,25 @@ class WebDriver(object):
             options, capabilities = self.setup(*args, **kwargs)
             driver = self.start(options, capabilities)               
             homewebpage = self.WebPages[0](driver, *args, timeout=self.timeout, **kwargs)
-            content = homewebpage.load(str(url), *args, **kwargs)
-            if content: yield from homewebpage(*args, **kwargs)
-            else: pass
+            homewebpage.load(str(url), *args, **kwargs)
+            yield from homewebpage(*args, **kwargs)
             for WebPage in self.WebPages[1:]: 
-                if not content: break
                 webpage = WebPage(driver, *args, timeout=self.timeout, **kwargs) 
                 yield from webpage(*args, **kwargs)             
-            self.stop(driver)  
             print("WebDriver Success: {}".format(self.__class__.__name__))
+        except BadRequestError as error:
+            print("WebRequest BadRequest: {}".format(self.__class__.__name__))
+            print(str(error))
         except (EmptyWebPageError, EmptyWebActionsError, EmptyWebDataError, CaptchaError) as error:
-            try: self.stop(driver)
-            except NameError: pass
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error))
             if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
-            else: raise MaxWebDriverRetryError(attempt)  
+            else: raise MaxWebDriverRetryError(attempt) 
+        finally:
+            try: self.stop(driver)
+            except NameError: pass       
+            return
+            yield
         
     def stop(self, driver): driver.quit()        
     def start(self, options, capabilities): 

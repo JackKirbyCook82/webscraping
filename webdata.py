@@ -13,11 +13,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
-from webscraping.webdom import Captcha, Refusal, Clickable, Input, Selection, Link, Text, Table, EmptyWebDOMError
+from webscraping.webdom import Captcha, Refusal, BadRequest, Clickable, Input, Selection, Link, Text, Table, EmptyWebDOMError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebClickables']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebClickables', 'WebRefusal', 'WebCaptcha', 'WebBadRequest']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -201,6 +201,7 @@ class WebSelection(WebData, WebDOM=Selection): pass
 class WebLink(WebData, WebDOM=Link): pass
 class WebText(WebData, WebDOM=Text): pass
 class WebTable(WebData, WebDOM=Table): pass
+class WebBadRequest(WebData, WebDOM=BadRequest): pass
 
 class WebRefusal(WebData, WebDOM=Refusal):
     def __init__(self, htmltree, timeout=None):

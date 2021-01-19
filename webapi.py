@@ -11,12 +11,13 @@ import time
 import random
 import pandas as pd
 from datetime import datetime as Datetime
-from abc import ABC, abstractmethod
+from datatime import date as Date
 
 from utilities.dataframes import dataframe_tofile, dataframe_fromfile
+from utilities.strings import uppercase
 
 from webscraping.url import URL, Protocol, Domain, Path, Parms
-from webscraping.webdrivers import FailureWebDriverError
+from webscraping.webdrivers import FailureWebDriverError, FailureWebRequestError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -68,26 +69,33 @@ class URLAPI(object):
     def parms(self, *args, **kwargs): return {key.format(**kwargs):value.format(**kwargs) for key, value in self._parms.items()}
 
 
-class WebAPI(ABC):
-    recordedTag = 'recorded'
-    recordedFormat = "%Y/%m/%d"
+class WebAPI(object):
+    queryFileTag = 'queryRecord'
+    queryIDTag = 'queryID'
+    queryDateTag = 'queryDate'
+    queryDateFormat = "%Y/%m/%d"
     
-    def recordedDate(self): return Datetime.now()
-    def recordedParser(self, string): return Datetime.strptime(string, self.recordedFormat).date()
-    def recordedString(self, date): return date.strftime(self.recordedFormat)
+    def dateString(self, string): return Datetime.strptime(string, self.queryDateFormat).date()
+    def dateParser(self, date): return date.strftime(self.queryDateFormat)
 
-    def __repr__(self): return "{}(repository='{}', wait={}, filetype='{}', compression='{}')".format(self.__class__.__name__, self.__repository, self.__wait, self.__filetype, self.__compression)   
-    def __init__(self, repository, urlapi, webreader, *args, wait=5, filetype='csv', compression=None, **kwargs):
+    def __str__(self): return '|'.join([self.__class__.__name__, self.__website, self.__dataset])
+    def __repr__(self): 
+        content = [self.__website, self.__dataset, self.__repository, self.__wait, self.__filetype, self.__compression]
+        return "{}(website={}, dataset={}, repository='{}', wait={}, filetype='{}', compression='{}')".format(self.__class__.__name__, *content)   
+    
+    def __init__(self, website, dataset, repository, urlapi, webreader, *args, wait=5, filetype='csv', compression=None, **kwargs):
         assert os.path.isdir(repository)
-        self.__repository = repository     
-        self.__urlapi = urlapi
-        self.__webreader = webreader
-        self.__wait = wait
-        self.__filetype = filetype
-        self.__compression = compression
         if isinstance(wait, int): pass
         elif isinstance(wait, tuple): assert len(wait) == 2
         else: raise TypeError(type(wait))
+        self.__website = website
+        self.__dataset = dataset      
+        self.__wait = wait
+        self.__filetype = filetype
+        self.__compression = compression       
+        self.__repository = repository     
+        self.__urlapi = urlapi
+        self.__webreader = webreader
 
     @property
     def repository(self): return self.__repository
@@ -95,64 +103,70 @@ class WebAPI(ABC):
     def urlapi(self): return self.__urlapi
     @property
     def webreader(self): return self.__webreader
-    
-    @abstractmethod
-    def queue(self, *args, **kwargs): pass
 
     def sleep(self):
         if isinstance(self.__wait, int): time.sleep(self.__wait)
         elif isinstance(self.__wait, tuple): time.sleep(random.uniform(*self.__wait))
-        else: raise TypeError(type(self.__wait))
+        else: raise TypeError(type(self.__wait))   
     
     def __call__(self, *args, **kwargs):
         for query in self.queue(*args, **kwargs):
             assert isinstance(query, dict)
             url = self.urlapi(*args, **query, **kwargs) 
             assert isinstance(url, (URL, str))
-            self.execute(url, *args, **query, **kwargs)        
+            try: self.execute(url, *args, **kwargs)
+            except (FailureWebDriverError, FailureWebRequestError) as error: raise error
             try: self.sleep()
             except AttributeError: pass
         
     def execute(self, url, *args, **kwargs):
-        try: 
-            downloaded = self.download(url, *args, **kwargs)   
-            assert isinstance(downloaded, dict)
-            success = self.recordall(**downloaded)
-            assert all(success)
-            print('Downloading Success: {}\n{}'.format(self.__class__.__name__, str(url)))
-        except FailureWebDriverError:               
-            print('Downloading Failure: {}\n{}'.format(self.__class__.__name__, str(url)))
-            raise FailureWebAPIError(self) 
-        print("\n")
-             
-    def download(self, url, *args, **kwargs):      
-        data = {}
-        for newdata in self.__webreader(str(url), *args, **kwargs): 
-            assert isinstance(newdata, dict)
-            assert all([isinstance(value, pd.DataFrame) for value in newdata.values()])
-            for dataset, dataframe in newdata.items():
-                dataframe[self.recordedTag] = self.recordedString(self.recordedDate())
-                try: data[dataset] = pd.concat([data[dataset], dataframe], ignore_index=True)
-                except KeyError: data[dataset] = dataframe
-        return data    
+        for queryID, queryData in self.download(url,*args, **kwargs):
+            print('Downloading Success: {}'.format(str(self)))
+            print('Query: {}'.format(queryID))
+            print('Datasets: {}'.format(', '.join(['|'.join([uppercase(dataset), str(len(dataframe.index))]) for dataset, dataframe in queryData.items()])))
+            self.recordall(**queryData)    
+            self.report(queryID)                      
+
+    def download(self, url, *args, **kwargs):
+        queryData = {}
+        for queryID, queryDataset, queryDataFrame, queryComplete in self.downloader(url, *args, **kwargs):
+            try: queryData[queryDataset] = pd.concat([queryData[queryDataset], queryDataFrame], ignore_index=True)
+            except KeyError: queryData[queryDataset] = queryDataFrame
+            if queryComplete: 
+                yield queryID, queryData
+                queryData = {}
+    
+    def downloader(self, url, *args, **kwargs):
+        for queryID, queryDataset, queryDataFrame, queryComplete, queryDate in self.webreader(str(url), *args, **kwargs):
+            assert isinstance(queryDataFrame, pd.DataFrame) and isinstance(queryDate, Date) and isinstance(queryComplete, bool)
+            queryDataFrame[self.queryIDTag] = queryID
+            queryDataFrame[self.queryDateTag] = self.dateString(queryDate)
+            yield queryID, queryDataset, queryDataFrame, queryComplete
      
-    def recordall(self, **data):
-        assert all([isinstance(value, pd.DataFrame) for value in data.values()])
-        return [self.record(dataset, dataframe) for dataset, dataframe in data.items()]
+    def report(self, queryID): 
+        file = os.path.join([self.respository, self.__website, self.__dataset, self.queryFileTag])
+        try: dataframe = dataframe_fromfile(file, index=None, header=0, forceframe=True)  
+        except FileNotFoundError: pass
+        try: dataframe = pd.concat([dataframe, pd.DataFrame({'website':[self.__website], 'dataset':[self.__dataset], 'query':[queryID]})], ignore_index=True)
+        except NameError: dataframe = pd.DataFrame({'website':[self.__website], 'dataset':[self.__dataset], 'query':[queryID]})
+        dataframe_tofile(file, dataframe, index=False, header=True)  
         
-    def record(self, dataset, downloaded):
-        try: dataframe = self.load(dataset)
+    def recordall(self, **queryData):
+        assert all([isinstance(value, pd.DataFrame) for value in queryData.values()])
+        for queryDataset, queryDataFrame in queryData.items(): self.record(queryDataset, queryDataFrame)
+        
+    def record(self, queryDataset, queryDataFrame):
+        try: dataset, dataframe = queryDataset, self.load(queryDataset)
         except FileNotFoundError: pass        
-        try: dataframe = pd.concat([dataframe, downloaded], ignore_index=True)
-        except NameError: dataframe = downloaded
-        dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column != self.recordedTag], ignore_index=True, keep='last')     
+        try: dataset, dataframe = queryDataset, pd.concat([dataframe, queryDataFrame], ignore_index=True)
+        except NameError: pass
+        dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column != self.queryDateTag], ignore_index=True, keep='last')     
         self.save(dataset, dataframe)  
-        return True
         
-    def filename(self, dataset): return '.'.join([dataset, self.__compression, self.__filetype]) if self.__compression else '.'.join([dataset, self.__filetype])
-    def file(self, dataset): return os.path.join(self.repository, self.filename(dataset))
-    def load(self, dataset): return dataframe_fromfile(self.file(dataset), index=None, header=0, forceframe=True)  
-    def save(self, dataset, dataframe): dataframe_tofile(self.file(dataset), dataframe, index=False, header=True)  
+    def filename(self, queryDataset): return '.'.join([queryDataset, self.__compression, self.__filetype]) if self.__compression else '.'.join([queryDataset, self.__filetype])
+    def file(self, queryDataset): return os.path.join(self.repository, self.__website, self.__dataset, self.filename(queryDataset))
+    def load(self, queryDataset): return dataframe_fromfile(self.file(queryDataset), index=None, header=0, forceframe=True)  
+    def save(self, queryDataset, queryDataFrame): dataframe_tofile(self.file(queryDataset), queryDataFrame, index=False, header=True)  
 
 
 
