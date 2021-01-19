@@ -10,6 +10,7 @@ import os.path
 import time
 import random
 import pandas as pd
+from abc import ABC, abstractmethod
 from datetime import datetime as Datetime
 from datatime import date as Date
 
@@ -69,8 +70,8 @@ class URLAPI(object):
     def parms(self, *args, **kwargs): return {key.format(**kwargs):value.format(**kwargs) for key, value in self._parms.items()}
 
 
-class WebAPI(object):
-    queryFileTag = 'queryRecord'
+class WebAPI(ABC):
+    queryFileNameTag = 'queryRecord.txt'
     queryIDTag = 'queryID'
     queryDateTag = 'queryDate'
     queryDateFormat = "%Y/%m/%d"
@@ -103,12 +104,12 @@ class WebAPI(object):
     def urlapi(self): return self.__urlapi
     @property
     def webreader(self): return self.__webreader
-
+    
     def sleep(self):
         if isinstance(self.__wait, int): time.sleep(self.__wait)
         elif isinstance(self.__wait, tuple): time.sleep(random.uniform(*self.__wait))
-        else: raise TypeError(type(self.__wait))   
-    
+        else: raise TypeError(type(self.__wait))     
+  
     def __call__(self, *args, **kwargs):
         for query in self.queue(*args, **kwargs):
             assert isinstance(query, dict)
@@ -145,11 +146,7 @@ class WebAPI(object):
      
     def report(self, queryID): 
         file = os.path.join([self.respository, self.__website, self.__dataset, self.queryFileTag])
-        try: dataframe = dataframe_fromfile(file, index=None, header=0, forceframe=True)  
-        except FileNotFoundError: pass
-        try: dataframe = pd.concat([dataframe, pd.DataFrame({'website':[self.__website], 'dataset':[self.__dataset], 'query':[queryID]})], ignore_index=True)
-        except NameError: dataframe = pd.DataFrame({'website':[self.__website], 'dataset':[self.__dataset], 'query':[queryID]})
-        dataframe_tofile(file, dataframe, index=False, header=True)  
+        with open(file, "a") as txtfile: txtfile.write(queryID + "\n")
         
     def recordall(self, **queryData):
         assert all([isinstance(value, pd.DataFrame) for value in queryData.values()])
@@ -166,10 +163,13 @@ class WebAPI(object):
     def filename(self, queryDataset): return '.'.join([queryDataset, self.__compression, self.__filetype]) if self.__compression else '.'.join([queryDataset, self.__filetype])
     def file(self, queryDataset): return os.path.join(self.repository, self.__website, self.__dataset, self.filename(queryDataset))
     def load(self, queryDataset): return dataframe_fromfile(self.file(queryDataset), index=None, header=0, forceframe=True)  
-    def save(self, queryDataset, queryDataFrame): dataframe_tofile(self.file(queryDataset), queryDataFrame, index=False, header=True)  
+    def save(self, queryDataset, queryDataFrame): dataframe_tofile(self.file(queryDataset), queryDataFrame, index=False, header=True)      
 
-
-
+    @abstractmethod
+    def queue(self, *args, **kwargs): pass
+    def completed(self, *args, **kwargs): 
+        file = os.path.join([self.respository, self.__website, self.__dataset, self.queryFileNameTag])
+        with open(file, "r") as txtfile: return txtfile.readlines()
 
 
 
