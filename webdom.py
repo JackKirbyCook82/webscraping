@@ -102,7 +102,7 @@ class WebVariant(WebDOM, scrape=None):
     def asStatic(cls): return type(cls.__name__, (WebTree,), dict(cls.__dict__))       
 
 
-class BadRequest(WebDOM): pass
+class BadRequest(WebVariant): pass
 class Refusal(WebTree): pass
 class Captcha(WebElement): pass
 
@@ -144,7 +144,7 @@ class Input(WebElement):
         self.DOMElement.send_keys(text)       
 
 
-class Link(WebTree, parser=lambda x: x):
+class Link(WebVariant, parser=lambda x: x):
     @property
     def url(self): return str(self.link) 
     @property

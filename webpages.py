@@ -8,9 +8,6 @@ Created on Mon Dec 30 2019
 
 from abc import ABC, abstractmethod
 from lxml.html import fromstring, open_in_browser
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
@@ -40,9 +37,9 @@ class BadRequestError(WebPageError): pass
 
 class WebPage(ABC):
     @classmethod
-    def factory(cls, *args, pageURL, pageContents={}, **kwargs):
+    def factory(cls, *args, pageURLAPI, pageContents={}, **kwargs):
         assert isinstance(pageContents, dict)
-        setattr(cls, 'PageURL', pageURL)
+        setattr(cls, 'PageURLAPI', pageURLAPI)
         setattr(cls, 'PageContents', pageContents)             
     
     def __str__(self): return self.__class__.__name__  
@@ -51,10 +48,7 @@ class WebPage(ABC):
         self.setURL(*args, **kwargs)
         self.setFeed(feed)       
     
-    def __call__(self, *args, query, queue, **kwargs): 
-        assert isinstance(query, str) and isinstance(queue, dict)
-        yield from self.execute(*args, query=query, queue=queue, **kwargs)    
-
+    def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)    
     def __getitem__(self, key): 
         try: return self.__pagecontents[key]
         except KeyError: pass
@@ -62,23 +56,25 @@ class WebPage(ABC):
         return self.__pagecontents[key]
 
     @property
+    def empty(self): return all([not bool(value) for value in self.__pagecontents.values()])
+    @property
+    def content(self): return self.__pagecontent
+    @property
     def url(self): return self.__url
     @property
     def feed(self): return self.__feed  
-    @property
-    def empty(self): return all([not bool(value) for value in self.__pagecontents.values()])
     @property
     def source(self):
         try: return self.__source
         except AttributeError: raise UnLoadedWebPageError(self)
 
     def setContents(self): self.__pagecontents = {}
-    def setURL(self, *args, **kwargs): self.__url = self.PageURL(*args, **kwargs) if hasattr(self.__PageURL, '__call__') else self.PageURL    
+    def setURL(self, *args, **kwargs): self.__url = self.PageURLAPI(*args, **kwargs) if hasattr(self.__PageURLAPI, '__call__') else self.PageURLAPI    
     def setFeed(self, feed): self.__feed = feed
     def setSource(self, source): self.__source = source
     
     def retrieve(self, key): self.__pagecontents[key] = self.PageContents[key](self.source, timeout=self.timeout)
-    def retrieveall(self): self.__pagecontents = {key:value(self.source, timeout=self.timeout) for key, value in self.PageContents.items()}
+    def retrieveall(self): self.__pagecontents = {key:value(self.source) for key, value in self.PageContents.items()}
     def retrieved(self, key): return key in self.__pagecontents.keys()
     def retrievedall(self): return all([key in self.__pagecontents.keys() for key in self.PageContents.keys()])
 
@@ -117,12 +113,12 @@ class WebRequestPage(WebPage):
         if self.empty: open_in_browser(response)
         if self.empty: raise EmptyWebPageError(self, url=response.request.url, **response.request.headers)
 
-        @keydispatcher
-        def parser(self, response): pass
-        @parser.register('html')
-        def parser_html(self, response): return fromstring(response.content)
-        @property.register('json')
-        def parser_json(self, response): return response.json()
+    @keydispatcher
+    def parser(self, response): pass
+    @parser.register('html')
+    def parser_html(self, response): return fromstring(response.content)
+    @parser.register('json')
+    def parser_json(self, response): return response.json()
 
 
 class WebBrowserPage(WebPage):    
@@ -136,14 +132,16 @@ class WebBrowserPage(WebPage):
           
     @property
     def driver(self): return self.source 
+    @property
+    def currentURL(self): return self.driver.current_url
    
     def back(self): self.driver.back
     def forward(self): self.driver.forward
     def refresh(self): self.driver.refresh
 
-    def pageIteration(self): return self.PageIteration(self.source) if hasattr(self, 'PageIteration') else None    
+    def pageIteration(self): return self.PageIteration(self.source) if hasattr(self, 'PageIteration') else []    
     def pageNext(self): return self.PageNext(self.source) if hasattr(self, 'PageNext') else None
-    def pageCrawl(self): return self.PageCrawl(self.source) if hasattr(self, 'PageCrawl') else None
+    def pageCrawl(self): return self.PageCrawl(self.source) if hasattr(self, 'PageCrawl') else {}
 
     def load(self, *args, **kwargs): 
         try: url = str(self.url(*args, **kwargs))
@@ -152,21 +150,14 @@ class WebBrowserPage(WebPage):
         self.feed.get(str(url))  
         self.setSource(self.feed)
         captcha = self.PageCaptcha(self.source) if hasattr(self, 'PageCaptcha') else False
-        success = self.solve(captcha) if captcha else True
+        success = captcha.solve(self.source) if captcha else True
         if not success: raise CaptchaError(self, str(url))
         badrequest = self.PageBadRequest(self.source) if hasattr(self, 'PageBadReqeust') else False
         if badrequest: raise BadRequestError(self, url)
         self.setup(*args, **kwargs) 
         if self.empty: raise EmptyWebPageError(self, url)
         
-    def solve(self, captcha):
-        print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
-        wait = WebDriverWait(self.driver, 60*10, poll_frequency=15)         
-        try: success = wait.until(EC.staleness_of(captcha.DOMElement))
-        except TimeoutException: success = False           
-        if success: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
-        else: print("WebCaptcha Not Cleared: {}".format(self.__class__.__name__))       
-        return success  
+
     
 
         

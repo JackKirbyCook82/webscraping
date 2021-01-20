@@ -147,8 +147,8 @@ class WebContent(object):
     def children(self): return self.__children      
 
     def execute(self, *args, **kwargs): pass
-    def find(self, value): return self.loc(WebLocator.fromstr(value))
-    def findall(self, **kwargs): return {key:self.loc(WebLocator.fromstr(value)) for key, value in kwargs.items()}     
+    def find(self, pathstring): return self.loc(WebLocator.fromstr(pathstring))
+    def findall(self, **pathstrings): return {key:self.loc(WebLocator.fromstr(pathstring)) for key, pathstring in pathstrings.items()}     
     def loc(self, weblocator):
         if not isinstance(weblocator, WebLocator): raise TypeError(type(weblocator).__name__)
         else: return weblocator(self)       
@@ -216,7 +216,14 @@ class WebCaptcha(WebData, WebDOM=Captcha):
         super().__init__(driver)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
 
-
+    def solve(self, driver):
+        print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
+        wait = WebDriverWait(driver, 60*10, poll_frequency=15)         
+        try: success = wait.until(EC.staleness_of(self.DOMElement))
+        except TimeoutException: success = False           
+        if success: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
+        else: print("WebCaptcha Not Cleared: {}".format(self.__class__.__name__))       
+        return success  
 
 
 
