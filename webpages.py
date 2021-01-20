@@ -40,18 +40,21 @@ class BadRequestError(WebPageError): pass
 
 class WebPage(ABC):
     @classmethod
-    def factory(cls, *args, pageURLAPI, pageContents={}, **kwargs):
+    def factory(cls, *args, pageURL, pageContents={}, **kwargs):
         assert isinstance(pageContents, dict)
-        setattr(cls, 'PageURLAPI', pageURLAPI)
+        setattr(cls, 'PageURL', pageURL)
         setattr(cls, 'PageContents', pageContents)             
     
     def __str__(self): return self.__class__.__name__  
     def __init__(self, feed, *args, **kwargs): 
-        self.setfeed(feed)
-        self.seturlapi(self.PageURLAPI(*args, **kwargs))
-        self.__pagecontents = {}
+        self.setContents()
+        self.setURL(*args, **kwargs)
+        self.setFeed(feed)       
     
-    def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)    
+    def __call__(self, *args, query, queue, **kwargs): 
+        assert isinstance(query, str) and isinstance(queue, dict)
+        yield from self.execute(*args, query=query, queue=queue, **kwargs)    
+
     def __getitem__(self, key): 
         try: return self.__pagecontents[key]
         except KeyError: pass
@@ -59,7 +62,7 @@ class WebPage(ABC):
         return self.__pagecontents[key]
 
     @property
-    def urlapi(self): return self.__urlapi
+    def url(self): return self.__url
     @property
     def feed(self): return self.__feed  
     @property
@@ -68,11 +71,12 @@ class WebPage(ABC):
     def source(self):
         try: return self.__source
         except AttributeError: raise UnLoadedWebPageError(self)
+
+    def setContents(self): self.__pagecontents = {}
+    def setURL(self, *args, **kwargs): self.__url = self.PageURL(*args, **kwargs) if hasattr(self.__PageURL, '__call__') else self.PageURL    
+    def setFeed(self, feed): self.__feed = feed
+    def setSource(self, source): self.__source = source
     
-    def seturlapi(self, urlapi): self.__urlapi = urlapi
-    def setfeed(self, feed): self.__feed = feed
-    def setsource(self, source): self.__source = source
-       
     def retrieve(self, key): self.__pagecontents[key] = self.PageContents[key](self.source, timeout=self.timeout)
     def retrieveall(self): self.__pagecontents = {key:value(self.source, timeout=self.timeout) for key, value in self.PageContents.items()}
     def retrieved(self, key): return key in self.__pagecontents.keys()
@@ -81,7 +85,7 @@ class WebPage(ABC):
     @abstractmethod
     def setup(self, *args, **kwargs): pass
     @abstractmethod
-    def execute(self, *args, **kwargs): pass
+    def execute(self, *args, query, queue, **kwargs): pass
 
 
 class WebRequestPage(WebPage):
@@ -95,15 +99,16 @@ class WebRequestPage(WebPage):
     @property
     def htmltree(self): return self.source
       
-    def load(self, url, *args, params=None, **kwargs): 
-        url = self.urlapi(*args, **kwargs)
-        print("WebHTMLPage Loading: {}\n{}".format(str(self), str(url)))
+    def load(self, *args, params=None, **kwargs): 
+        try: url = str(self.url(*args, **kwargs))
+        except TypeError: url = str(self.url)
+        print("WebHTMLPage Loading: {}\n{}".format(str(self), url))
         if self.pageReferer: 
             self.feed.get(self.pageReferer)
             self.feed.headers.update({'Referer':self.pageReferer})
-        response = self.feed.get(str(url), params=params)
+        response = self.feed.get(url, params=params)
         response.raise_for_status()
-        self.setsrouce(self.parser(self.pageType, response))
+        self.setSource(self.parser(self.pageType, response))
         refusal = self.PageRefusal(self.source) if hasattr(self, 'PageRefusal') else False
         if refusal: raise RefusalError(self, url=response.request.url, **response.request.headers)
         badrequest = self.PageBadRequest(self.source) if hasattr(self, 'PageBadReqeust') else False
@@ -136,22 +141,23 @@ class WebBrowserPage(WebPage):
     def forward(self): self.driver.forward
     def refresh(self): self.driver.refresh
 
-    def pageIteration(self): return self.PageIteration(self.source) if hasattr(self, 'PageIteration') else []       
+    def pageIteration(self): return self.PageIteration(self.source) if hasattr(self, 'PageIteration') else None    
     def pageNext(self): return self.PageNext(self.source) if hasattr(self, 'PageNext') else None
-    def pageCrawl(self): return self.PageCrawl(self.source) if hasattr(self, 'PageCrawl') else {}
+    def pageCrawl(self): return self.PageCrawl(self.source) if hasattr(self, 'PageCrawl') else None
 
     def load(self, *args, **kwargs): 
-        url = self.urlapi(*args, **kwargs)
-        print("WebBrowserPage Loading: {}\n{}".format(str(self), str(url)))
+        try: url = str(self.url(*args, **kwargs))
+        except TypeError: url = str(self.url)
+        print("WebBrowserPage Loading: {}\n{}".format(str(self), url))
         self.feed.get(str(url))  
-        self.setsource(self.feed)
+        self.setSource(self.feed)
         captcha = self.PageCaptcha(self.source) if hasattr(self, 'PageCaptcha') else False
         success = self.solve(captcha) if captcha else True
         if not success: raise CaptchaError(self, str(url))
         badrequest = self.PageBadRequest(self.source) if hasattr(self, 'PageBadReqeust') else False
-        if badrequest: raise BadRequestError(self, str(url))
+        if badrequest: raise BadRequestError(self, url)
         self.setup(*args, **kwargs) 
-        if self.empty: raise EmptyWebPageError(self, str(url))
+        if self.empty: raise EmptyWebPageError(self, url)
         
     def solve(self, captcha):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))

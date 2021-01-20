@@ -144,7 +144,7 @@ class Input(WebElement):
         self.DOMElement.send_keys(text)       
 
 
-class Link(WebVariant, parser=lambda x: x):
+class Link(WebTree, parser=lambda x: x):
     @property
     def url(self): return str(self.link) 
     @property

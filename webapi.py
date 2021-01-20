@@ -82,7 +82,7 @@ class WebAPI(ABC):
         content = [self.__website, self.__dataset, self.__query, self.__repository, self.__wait, self.__filetype, self.__compression]
         return "{}(website='{}', dataset='{}', query='{}', repository='{}', wait={}, filetype='{}', compression='{}')".format(self.__class__.__name__, *content)   
     
-    def __init__(self, website, dataset, query, repository, webreader, *args, wait=5, filetype='csv', compression=None, **kwargs):
+    def __init__(self, website, dataset, query, *args, repository, webreader, wait=5, filetype='csv', compression=None, **kwargs):
         assert os.path.isdir(repository)
         if isinstance(wait, int): pass
         elif isinstance(wait, tuple): assert len(wait) == 2
@@ -116,7 +116,7 @@ class WebAPI(ABC):
          queue = ODict(queue)
          for queryID, query in queue.items():
              if queryID in completed: continue
-             for completedID in self.execute(*args, dataset=self.dataset, **query, **kwargs): completed.add(completedID)
+             for completedID in self.execute(*args, website=self.website, dataset=self.dataset, query=self.query, queue=queue, **kwargs): completed.add(completedID)
              try: self.sleep()
              except AttributeError: pass
 

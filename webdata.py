@@ -127,10 +127,10 @@ class WebAdapter(object):
     
         
 class WebContent(object):
-    def __init__(self, parent, children={}): self.__parent, self.__children = parent, children
-    def __call__(self, **kwargs): return {key:self.loc(WebLocator.fromstr(value)) for key, value in kwargs.items()}     
     def __bool__(self): return bool(self.parent)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.parent)))      
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.parent)))     
+    def __init__(self, parent, children={}): self.__parent, self.__children = parent, children
+    def __call__(self, *args, **kwargs): self.execute(*args, **kwargs)   
  
     def __getitem__(self, locator): 
         if isinstance(locator, str): return self.children[locator]
@@ -146,6 +146,9 @@ class WebContent(object):
     @property
     def children(self): return self.__children      
 
+    def execute(self, *args, **kwargs): pass
+    def find(self, value): return self.loc(WebLocator.fromstr(value))
+    def findall(self, **kwargs): return {key:self.loc(WebLocator.fromstr(value)) for key, value in kwargs.items()}     
     def loc(self, weblocator):
         if not isinstance(weblocator, WebLocator): raise TypeError(type(weblocator).__name__)
         else: return weblocator(self)       
