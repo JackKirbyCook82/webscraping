@@ -44,33 +44,32 @@ class WebDriver(object):
         
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
-        content = {'loadtime':self.__loadtime, 'timeout':self.__timeout, 'attempts':self.__attempts, **self.options}
+        content = {'loadtime':self.__loadtime, 'attempts':self.__attempts, **self.options}
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
-    def __init__(self, file, *args, loadtime=50, timeout=10, attempts=3, **kwargs): 
-        assert timeout is not None and loadtime is not None
-        self.__loadtime, self.__timeout, self.__attempts = loadtime, timeout, attempts
+    def __init__(self, file, *args, loadtime=50, attempts=3, **kwargs): 
+        self.__loadtime, self.__attempts = loadtime, attempts
         self.__headers = kwargs.get('headers', {})
         try: self.__options = self.options
         except AttributeError: self.__options = {}
         self.__file = file
                 
-    def __call__(self, url, *args, **kwargs):
-        try: yield from self.controller(url, *args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        try: yield from self.controller(*args, **kwargs)
         except MaxWebDriverRetryError: raise FailureWebDriverError(self)       
     
-    def controller(self, url, *args, attempt=0, **kwargs):
+    def controller(self, *args, attempt=0, **kwargs):
         try: 
             print("WebDriver Running: {}".format(self.__class__.__name__))
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))            
             options, capabilities = self.setup(*args, **kwargs)
             driver = self.start(options, capabilities)               
-            homewebpage = self.WebPages[0](driver, *args, timeout=self.timeout, **kwargs)
-            homewebpage.load(str(url), *args, **kwargs)
+            homewebpage = self.WebPages[0](driver, *args, **kwargs)
+            homewebpage.load(*args, **kwargs)
             yield from homewebpage(*args, **kwargs)
             for WebPage in self.WebPages[1:]: 
-                webpage = WebPage(driver, *args, timeout=self.timeout, **kwargs) 
+                webpage = WebPage(driver, *args, **kwargs) 
                 yield from webpage(*args, **kwargs)             
             print("WebDriver Success: {}".format(self.__class__.__name__))
         except BadRequestError as error:
@@ -79,7 +78,7 @@ class WebDriver(object):
         except (EmptyWebPageError, EmptyWebActionsError, EmptyWebDataError, CaptchaError) as error:
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error))
-            if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
+            if attempt < self.__attempts: yield from self.controller(*args, attempt=attempt+1, **kwargs)
             else: raise MaxWebDriverRetryError(attempt) 
         finally:
             try: self.stop(driver)
@@ -90,7 +89,7 @@ class WebDriver(object):
     def stop(self, driver): driver.quit()        
     def start(self, options, capabilities): 
         driver = Chrome(executable_path=self.__file, chrome_options=options, desired_capabilities=capabilities) 
-        driver.set_page_load_timeout(self.loadtime)
+        driver.set_page_load_timeout(self.__loadtime)
         driver.delete_all_cookies()
         return driver 
            
@@ -123,10 +122,6 @@ class WebDriver(object):
         assert isinstance(headers, dict)
         return headers
 
-    @property
-    def loadtime(self): return self.__loadtime
-    @property
-    def timeout(self): return self.__timeout    
 
 
     

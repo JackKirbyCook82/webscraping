@@ -123,18 +123,18 @@ class WebReader(object):
         try: self.headers = kwargs['headers']
         except KeyError: pass
        
-    def __call__(self, url, *args, **kwargs):
-        try: yield from self.controller(url, *args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        try: yield from self.controller(*args, **kwargs)
         except MaxWebRequestAttemptError: raise FailureWebRequestError(self)       
     
-    def controller(self, url, *args, attempt=0, params={}, **kwargs):
+    def controller(self, *args, attempt=0, params={}, **kwargs):
         try: 
-            print("WebRequest: {}\n{}".format(self.__class__.__name__, str(url))) 
+            print("WebRequest: {}".format(self.__class__.__name__)) 
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))                      
             headers, retrys, auth = self.setup(*args, **kwargs)
             session = self.start(headers=headers, retrys=retrys, auth=auth)        
             webpage = self.WebPage(session, *args, **kwargs)
-            webpage.load(str(url), *args, params=params, **kwargs)            
+            webpage.load(*args, params=params, **kwargs)            
             yield from webpage(*args, **kwargs)   
             print("WebRequest Success: {}".format(self.__class__.__name__))
         except BadRequestError as error:
@@ -143,7 +143,7 @@ class WebReader(object):
         except (EmptyWebPageError, EmptyWebDataError, RefusalError) as error:
             print("WebRequest Failure: {}".format(self.__class__.__name__))
             print(str(error))
-            if attempt < self.__attempts: yield from self.controller(url, *args, attempt=attempt+1, **kwargs)
+            if attempt < self.__attempts: yield from self.controller(*args, attempt=attempt+1, **kwargs)
             else: raise MaxWebRequestAttemptError(attempt)  
         finally:
             try: self.stop(session)

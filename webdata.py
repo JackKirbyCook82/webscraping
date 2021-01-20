@@ -25,27 +25,24 @@ __license__ = ""
 REGISTRY = {}
 
 
-def getelement(driver, timeout, xpath):
-    assert timeout is not None
-    try: driver_element = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
-    except (NoSuchElementException, TimeoutException, WebDriverException): driver_element = None        
-    return driver_element    
-
 def getelements(driver, timeout, xpath): 
     assert timeout is not None
     try: driver_elements = WebDriverWait(driver, timeout).until(EC.presence_of_all_elements_located((By.XPATH, xpath)))
     except (NoSuchElementException, TimeoutException, WebDriverException): driver_elements = []  
     return driver_elements
 
+def getelement(driver, timeout, xpath):
+    assert timeout is not None
+    try: driver_element = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
+    except (NoSuchElementException, TimeoutException, WebDriverException): driver_element = None        
+    return driver_element    
+
+def gettrees(htmltree, xpath): return htmltree.xpath(xpath)
 def gettree(htmltree, xpath):
     html_subtrees = htmltree.xpath(xpath)
     if len(html_subtrees) == 0: return None
     elif len(html_subtrees) == 1: return html_subtrees[0]
     else: raise ValueError(len(html_subtrees))        
-
-def gettrees(htmltree, xpath):
-    html_subtrees = htmltree.xpath(xpath)
-    return html_subtrees
 
 
 class WebDataError(Exception):
@@ -81,8 +78,10 @@ class WebLocator(ntuple('Locator', 'filtration attribute')):
 class WebAdapter(object):
     def __init_subclass__(cls, **kwargs):
         if not kwargs: pass
-        elif 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
-        elif 'WebDOM' not in kwargs.keys() and 'xpath' in kwargs.keys(): cls.create(kwargs.pop('xpath'), **kwargs)
+        elif 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys() and not 'xpaths' in kwargs.keys(): 
+            cls.factory(kwargs.pop('WebDOM'))
+        elif 'WebDOM' not in kwargs.keys() and ('xpath' in kwargs.keys() or 'xpaths' in kwargs.keys()): 
+            cls.create(xpath=kwargs.pop('xpath', None), xpaths=kwargs.pop('xpaths', []), **kwargs)
         else: raise ValueError(kwargs)
        
     @classmethod
@@ -102,9 +101,10 @@ class WebAdapter(object):
         return type(cls.__name__, (cls,), {}, **{'WebDOM':newWebDOM})          
        
     @classmethod
-    def create(cls, xpath, parent=None, key=None, **kwargs):
-        assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath')
-        setattr(cls, 'xpath', xpath)
+    def create(cls, xpath=None, xpaths=[], timeout=10, parent=None, key=None, **kwargs):
+        assert hasattr(cls, 'WebDOM') and not hasattr(cls, 'xpath') and not hasattr(cls, 'timeout')
+        setattr(cls, 'xpath', '|'.join([item for item in (xpath, *xpaths) if item]))
+        setattr(cls, 'timeout', timeout)
         setattr(cls, 'WebDOMChildren', {})
         if parent is not None: REGISTRY[hash(str(parent))].addchild(key, cls)
         assert not hash(str(cls)) in REGISTRY.keys()
@@ -156,15 +156,15 @@ class WebData(WebContent, WebAdapter):
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
         return iter([WebItem(self.parent, self.children)])  
     
-    def __init__(self, source, timeout=None):
-        parent = self.WebDOM(self.load(source, timeout))
-        if bool(parent): children = ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()])
+    def __init__(self, source):
+        parent = self.WebDOM(self.load(source))
+        if bool(parent): children = ODict([(key, WebDOMChild(parent.DOM)) for key, WebDOMChild in self.WebDOMChildren.items()])
         else: children = ODict([(key, None) for key, WebDOMchild in self.WebDOMChildren.items()])            
         super().__init__(parent, children)  
           
-    def load(self, source, timeout=None):
+    def load(self, source):
         print("WebDOM Loading: {}".format(self.__class__.__name__))    
-        if self.scrape == 'dynamic':  dom = getelement(source, timeout, self.xpath)     
+        if self.scrape == 'dynamic':  dom = getelement(source, self.timeout, self.xpath)     
         elif self.scrape == 'static': dom = gettree(source, self.xpath)
         else: raise ValueError(self.scrape) 
         if dom is None: print("WebDOM Missing: {}".format(self.__class__.__name__))         
@@ -177,14 +177,14 @@ class WebCollection(WebAdapter):
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
         return iter([WebItem(parent, children) for parent, children in self.__collection]) 
     
-    def __init__(self, source, timeout=None):
-        parents = [self.WebDOM(dom) for dom in self.load(source, timeout)]
-        childrens = [ODict([(key, WebDOMChild(parent.DOM, timeout)) for key, WebDOMChild in self.WebDOMChildren.items()]) for parent in parents]
+    def __init__(self, source):
+        parents = [self.WebDOM(dom) for dom in self.load(source)]
+        childrens = [ODict([(key, WebDOMChild(parent.DOM)) for key, WebDOMChild in self.WebDOMChildren.items()]) for parent in parents]
         self.__collection = [(parent, children) for parent, children in zip(parents, childrens)]                           
 
-    def load(self, source, timeout=None):
+    def load(self, source):
         print("WebDOMs Loading: {}".format(self.__class__.__name__))
-        if self.scrape == 'dynamic':  doms = getelements(source, timeout, self.xpath)     
+        if self.scrape == 'dynamic':  doms = getelements(source, self.timeout, self.xpath)     
         elif self.scrape == 'static': doms = gettrees(source, self.xpath)
         else: raise ValueError(self.scrape)         
         if not doms: print("WebDOMs Missing: {}".format(self.__class__.__name__))  
@@ -204,13 +204,13 @@ class WebTable(WebData, WebDOM=Table): pass
 class WebBadRequest(WebData, WebDOM=BadRequest): pass
 
 class WebRefusal(WebData, WebDOM=Refusal):
-    def __init__(self, htmltree, timeout=None):
-        super().__init__(htmltree, timeout=timeout)
+    def __init__(self, htmltree):
+        super().__init__(htmltree)
         if bool(self): print("WebRefusal Blocking: {}".format(self.__class__.__name__))
 
 class WebCaptcha(WebData, WebDOM=Captcha): 
-    def __init__(self, driver, timeout):
-        super().__init__(driver, timeout=timeout)
+    def __init__(self, driver):
+        super().__init__(driver)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
 
 

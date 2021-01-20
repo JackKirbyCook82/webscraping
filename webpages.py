@@ -14,9 +14,6 @@ from selenium.common.exceptions import TimeoutException
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
-from webscraping.webdata import EmptyWebDataError
-from webscraping.webactions import EmptyWebActionsError
-
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ['WebBrowserPage', 'WebRequestPage']
@@ -43,17 +40,18 @@ class BadRequestError(WebPageError): pass
 
 class WebPage(ABC):
     @classmethod
-    def factory(cls, *args, pageContents={}, **kwargs):
+    def factory(cls, *args, pageURLAPI, pageContents={}, **kwargs):
         assert isinstance(pageContents, dict)
+        setattr(cls, 'PageURLAPI', pageURLAPI)
         setattr(cls, 'PageContents', pageContents)             
     
     def __str__(self): return self.__class__.__name__  
-    def __init__(self, feed, *args, timeout=None, **kwargs): 
+    def __init__(self, feed, *args, **kwargs): 
         self.setfeed(feed)
-        self.__timeout = timeout
+        self.seturlapi(self.PageURLAPI(*args, **kwargs))
         self.__pagecontents = {}
     
-    def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)
+    def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)    
     def __getitem__(self, key): 
         try: return self.__pagecontents[key]
         except KeyError: pass
@@ -61,9 +59,9 @@ class WebPage(ABC):
         return self.__pagecontents[key]
 
     @property
-    def feed(self): return self.__feed  
+    def urlapi(self): return self.__urlapi
     @property
-    def timeout(self): return self.__timeout
+    def feed(self): return self.__feed  
     @property
     def empty(self): return all([not bool(value) for value in self.__pagecontents.values()])
     @property
@@ -71,6 +69,7 @@ class WebPage(ABC):
         try: return self.__source
         except AttributeError: raise UnLoadedWebPageError(self)
     
+    def seturlapi(self, urlapi): self.__urlapi = urlapi
     def setfeed(self, feed): self.__feed = feed
     def setsource(self, source): self.__source = source
        
@@ -97,6 +96,7 @@ class WebRequestPage(WebPage):
     def htmltree(self): return self.source
       
     def load(self, url, *args, params=None, **kwargs): 
+        url = self.urlapi(*args, **kwargs)
         print("WebHTMLPage Loading: {}\n{}".format(str(self), str(url)))
         if self.pageReferer: 
             self.feed.get(self.pageReferer)
@@ -121,10 +121,11 @@ class WebRequestPage(WebPage):
 
 
 class WebBrowserPage(WebPage):    
-    def __init_subclass__(cls, *args, pageCaptcha=None, pageBadRequest=None,pageNext=None, pageIteration=None, **kwargs):
+    def __init_subclass__(cls, *args, pageCaptcha=None, pageBadRequest=None, pageNext=None, pageIteration=None, pageCrawl=None, **kwargs):
         if pageNext is not None: setattr(cls, 'PageNext', pageNext)
+        if pageIteration is not None: setattr(cls, 'PageIteration', pageIteration)  
+        if pageCrawl is not None: setattr(cls, 'PageCrawl', pageCrawl)        
         if pageBadRequest is not None: setattr(cls, 'PageBadRequest', pageBadRequest)
-        if pageIteration is not None: setattr(cls, 'PageIteration', pageIteration)
         if pageCaptcha is not None: setattr(cls, 'PageCaptcha', pageCaptcha)
         cls.factory(*args, **kwargs)
           
@@ -135,20 +136,16 @@ class WebBrowserPage(WebPage):
     def forward(self): self.driver.forward
     def refresh(self): self.driver.refresh
 
-    def __iter__(self): 
-        if not hasattr(self, 'PageIteration'): return iter([])
-        else: return iter(self.PageIteration(self.source, self.timeout))
-        
-    def __next__(self): 
-        if not hasattr(self, 'PageNext'): return False
-        try: return self.PageNext(self.source, self.timeout)()
-        except (EmptyWebDataError, EmptyWebActionsError): return False
+    def pageIteration(self): return self.PageIteration(self.source) if hasattr(self, 'PageIteration') else []       
+    def pageNext(self): return self.PageNext(self.source) if hasattr(self, 'PageNext') else None
+    def pageCrawl(self): return self.PageCrawl(self.source) if hasattr(self, 'PageCrawl') else {}
 
-    def load(self, url, *args, **kwargs): 
+    def load(self, *args, **kwargs): 
+        url = self.urlapi(*args, **kwargs)
         print("WebBrowserPage Loading: {}\n{}".format(str(self), str(url)))
         self.feed.get(str(url))  
         self.setsource(self.feed)
-        captcha = self.PageCaptcha(self.source, self.timeout) if hasattr(self, 'PageCaptcha') else False
+        captcha = self.PageCaptcha(self.source) if hasattr(self, 'PageCaptcha') else False
         success = self.solve(captcha) if captcha else True
         if not success: raise CaptchaError(self, str(url))
         badrequest = self.PageBadRequest(self.source) if hasattr(self, 'PageBadReqeust') else False
@@ -158,7 +155,7 @@ class WebBrowserPage(WebPage):
         
     def solve(self, captcha):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
-        wait = WebDriverWait(self.driver, self.timeout, poll_frequency=self.frequency)         
+        wait = WebDriverWait(self.driver, 60*10, poll_frequency=15)         
         try: success = wait.until(EC.staleness_of(captcha.DOMElement))
         except TimeoutException: success = False           
         if success: print("WebCaptcha Cleared: {}".format(self.__class__.__name__))
