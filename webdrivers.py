@@ -48,12 +48,13 @@ class WebDriver(object):
         string = ', '.join(['='.join([key, str(value)]) for key, value in content.items()])
         return "{}(file='{}', {})".format(self.__class__.__name__, self.__file, string)    
     
-    def __init__(self, file, *args, loadtime=50, attempts=3, **kwargs): 
+    def __init__(self, file, *args, loadtime=50, attempts=3, wait=5, **kwargs): 
         self.__loadtime, self.__attempts = loadtime, attempts
         self.__headers = kwargs.get('headers', {})
         try: self.__options = self.options
         except AttributeError: self.__options = {}
         self.__file = file
+        self.__wait = wait
                 
     def __call__(self, *args, **kwargs):
         try: yield from self.controller(*args, **kwargs)
@@ -65,26 +66,25 @@ class WebDriver(object):
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))            
             options, capabilities = self.setup(*args, **kwargs)
             driver = self.start(options, capabilities)               
-            homewebpage = self.WebPages[0](driver, *args, **kwargs)
+            homewebpage = self.WebPages[0](driver, *args, wait=self.__wait, **kwargs)
             homewebpage.load(*args, **kwargs)
             yield from homewebpage(*args, **kwargs)
             for WebPage in self.WebPages[1:]: 
-                webpage = WebPage(driver, *args, **kwargs) 
+                webpage = WebPage(driver, *args, wait=self.__wait, **kwargs) 
                 yield from webpage(*args, **kwargs)             
             print("WebDriver Success: {}".format(self.__class__.__name__))
         except BadRequestError as error:
             print("WebRequest BadRequest: {}".format(self.__class__.__name__))
             print(str(error))
+            return
+            yield
         except (EmptyWebPageError, EmptyWebActionsError, EmptyWebDataError, CaptchaError) as error:
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error))
-            if attempt < self.__attempts: yield from self.controller(*args, attempt=attempt+1, **kwargs)
-            else: raise MaxWebDriverRetryError(attempt) 
-        finally:
             try: self.stop(driver)
             except NameError: pass       
-            return
-            yield
+            if attempt < self.__attempts: yield from self.controller(*args, attempt=attempt+1, **kwargs)
+            else: raise MaxWebDriverRetryError(attempt) 
         
     def stop(self, driver): driver.quit()        
     def start(self, options, capabilities): 

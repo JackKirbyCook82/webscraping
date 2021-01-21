@@ -114,7 +114,7 @@ class WebReader(object):
         content['attempts'] = str(self.__attempts)
         return "{}({})".format(self.__class__.__name__, ', '.join(['='.join([key, value]) for key, value in content.items()]))    
     
-    def __init__(self, *args, attempts=3, **kwargs):
+    def __init__(self, *args, attempts=3, wait=5, **kwargs):
         self.__attempts = attempts
         try: self.retrys = kwargs['retrys']
         except KeyError: pass
@@ -122,6 +122,7 @@ class WebReader(object):
         except KeyError: pass
         try: self.headers = kwargs['headers']
         except KeyError: pass
+        self.__wait = wait
        
     def __call__(self, *args, **kwargs):
         try: yield from self.controller(*args, **kwargs)
@@ -133,23 +134,22 @@ class WebReader(object):
             print("Attempt: {}|{}".format(str(attempt+1), str(self.__attempts+1)))                      
             headers, retrys, auth = self.setup(*args, **kwargs)
             session = self.start(headers=headers, retrys=retrys, auth=auth)        
-            webpage = self.WebPage(session, *args, **kwargs)
+            webpage = self.WebPage(session, *args, wait=self.__wait, **kwargs)
             webpage.load(*args, params=params, **kwargs)            
             yield from webpage(*args, **kwargs)   
             print("WebRequest Success: {}".format(self.__class__.__name__))
         except BadRequestError as error:
             print("WebRequest BadRequest: {}".format(self.__class__.__name__))
             print(str(error))
+            return
+            yield
         except (EmptyWebPageError, EmptyWebDataError, RefusalError) as error:
             print("WebRequest Failure: {}".format(self.__class__.__name__))
             print(str(error))
+            try: self.stop(session)
+            except NameError: pass              
             if attempt < self.__attempts: yield from self.controller(*args, attempt=attempt+1, **kwargs)
             else: raise MaxWebRequestAttemptError(attempt)  
-        finally:
-            try: self.stop(session)
-            except NameError: pass      
-            return
-            yield
             
     def stop(self, session): session.close()        
     def start(self, headers=None, retrys=None, auth=None):

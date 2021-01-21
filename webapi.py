@@ -19,7 +19,7 @@ from datetime import date as Date
 from utilities.dataframes import dataframe_tofile, dataframe_fromfile
 from utilities.strings import uppercase
 
-from webscraping.url import URL, Protocol, Domain, Path, Parms
+from webscraping.url import URL
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -35,10 +35,6 @@ class URLAPI(object):
         setattr(cls, '_path', path)
         setattr(cls, '_parms', parms)
         for name, attr in attrs.items(): setattr(cls, name, attr)
-        cls.protocol = lambda *args, **kwargs: Protocol(cls.protocol(*args, **kwargs))
-        cls.domain = lambda *args, **kwargs: Domain(cls.domain(*args, **kwargs))        
-        cls.path = lambda *args, **kwargs: Path(cls.path(*args, **kwargs))
-        cls.parms = lambda *args, **kwargs: Parms(cls.parms(*args, **kwargs))
  
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, '_protocol') and hasattr(cls, '_domain') and hasattr(cls, '_path') and hasattr(cls, '_parms')
@@ -77,7 +73,7 @@ class WebAPI(ABC):
         content = [repr(self.name), self.__repository, self.__wait, self.__filetype, self.__compression]
         return "{}({}, repository='{}', wait={}, filetype='{}', compression='{}')".format(self.__class__.__name__, *content)   
     
-    def __init__(self, name, *args, repository, webreader, wait=5, filetype='csv', compression=None, **kwargs):
+    def __init__(self, name, *args, repository, webreader, wait=10, filetype='csv', compression=None, **kwargs):
         assert os.path.isdir(repository)
         assert isinstance(name, tuple)
         assert len(name) == 3
@@ -96,8 +92,6 @@ class WebAPI(ABC):
     @property
     def repository(self): return self.__repository
     @property
-    def urlapi(self): return self.__urlapi
-    @property
     def webreader(self): return self.__webreader
     
     def sleep(self):
@@ -106,16 +100,14 @@ class WebAPI(ABC):
         else: raise TypeError(type(self.__wait))     
   
     def __call__(self, *args, **kwargs):
-          queue, completed = self.queue(*args, **kwargs), self.completed(*args, **kwargs)
-          assert isinstance(queue, dict) and isinstance(completed, list)
+          queue, completed = self.queue(*args, **kwargs), set(self.completed(*args, **kwargs))
           queue = [(key, query) for key, query in queue.items()]
           random.shuffle(queue)
           queue = ODict(queue)
           for queryID, query in queue.items():
               if queryID in completed: continue
-              for completedID in self.execute(*args, queue=queue, **kwargs): completed.add(completedID)
-              try: self.sleep()
-              except AttributeError: pass
+              for completedID in self.execute(*args, dataset=self.name.dataset, **query, queue=queue, **kwargs): completed.add(completedID)
+              self.sleep()
 
     def execute(self, *args, **kwargs):
         for queryID, queryData in self.download(*args, **kwargs):
@@ -123,7 +115,7 @@ class WebAPI(ABC):
             print('Query: {}'.format(queryID))
             print('Datasets: {}'.format(', '.join(['|'.join([uppercase(dataset), str(len(dataframe.index))]) for dataset, dataframe in queryData.items()])))
             self.recordall(**queryData)    
-            self.report(queryID)                      
+            self.addreport(queryID)                      
             yield queryID
         
     def download(self, *args, **kwargs):
@@ -144,8 +136,12 @@ class WebAPI(ABC):
             except TypeError: pass
             yield queryID, queryDataset, queryDataFrame, queryComplete        
         
-    def report(self, queryID): 
+    def setreport(self):
+        with open(self.name.file(self.repository), "w") as _: pass
+    def addreport(self, queryID): 
         with open(self.name.file(self.repository), "a") as txtfile: txtfile.write(queryID + "\n")
+    def getreport(self):
+        with open(self.name.file(self.repository), "r") as txtfile: return txtfile.readlines()
         
     def recordall(self, **queryData):
         assert all([isinstance(value, pd.DataFrame) for value in queryData.values()])
@@ -155,7 +151,7 @@ class WebAPI(ABC):
         try: dataset, dataframe = queryDataset, self.load(queryDataset)
         except FileNotFoundError: pass        
         try: dataset, dataframe = queryDataset, pd.concat([dataframe, queryDataFrame], ignore_index=True)
-        except NameError: pass
+        except NameError: dataset, dataframe = queryDataset, queryDataFrame
         dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column != self.dateTag], ignore_index=True, keep='last')     
         self.save(dataset, dataframe)  
         
@@ -167,8 +163,10 @@ class WebAPI(ABC):
     @abstractmethod
     def queue(self, *args, **kwargs): pass
     def completed(self, *args, **kwargs): 
-        with open(self.name.file(self.repository), "r") as txtfile: return set(txtfile.readlines())
-
+        try: return self.getreport() 
+        except FileNotFoundError: 
+            self.setreport()
+            return self.getreport()
 
 
 

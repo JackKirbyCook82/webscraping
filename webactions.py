@@ -43,15 +43,13 @@ class WebActionProcess(object):
     
     @property
     def driver(self): return self.__driver  
-    @property
-    def timeout(self): return self.__timeout  
                
-    def __init__(self, driver, timeout): self.__driver, self.__timeout = driver, timeout
+    def __init__(self, driver): self.__driver = driver
     def __call__(self, *args, **kwargs): return all([self.execute(webactionID, webactions, *args, **kwargs) for webactionID, webactions in self.WebActions.items()])
     
     def execute(self, webactionID, webactions, *args, **kwargs):
         webactions = webactions[kwargs[webactionID]] if isinstance(webactions, dict) else webactions
-        webcollection = WebCollection.create(self.driver, self.timeout, *webactions)  
+        webcollection = WebCollection.create(self.driver, *webactions)  
         return webcollection(*args, **kwargs)
 
 
@@ -63,21 +61,21 @@ class WebCollection(ABC):
     def register(cls, key, value): cls.__registry[key] = value
  
     @classmethod
-    def create(cls, driver, timeout, *webactions): 
+    def create(cls, driver, *webactions): 
         astype = set([webaction.type for webaction in webactions])
         assert len(astype) == 1
         astype = list(astype)[0]
-        return cls.registry()[astype](driver, timeout, *webactions)           
+        return cls.registry()[astype](driver, *webactions)           
  
     def __init_subclass__(cls, astype): cls.register(astype, cls)   
-    def __new__(cls, driver, timeout, *webactions):
+    def __new__(cls, driver, *webactions):
         assert cls in WebCollection.registry().values()
         return super().__new__(cls)
     
     def __bool__(self): return all([bool(webaction) for webaction in self.__webactions])
     def __str__(self): return "{}\n{}".format(self.__class__.__name__, '\n'.join([str(webaction) for webaction in self.__webactions]))
-    def __init__(self, driver, timeout, *webactions): 
-        self.__webactions = [webaction(driver, timeout) for webaction in webactions]
+    def __init__(self, driver, *webactions): 
+        self.__webactions = [webaction(driver) for webaction in webactions]
         self.setup(driver)
             
     def __call__(self, *args, **kwargs): 
@@ -141,7 +139,7 @@ class WebAction(ABC):
         assert cls in REGISTRY and hasattr(cls, 'WebElements')
         return super().__new__(cls)
 
-    def __init__(self, driver, timeout): self.__webelements = [webelement(driver, timeout) for webelement in self.WebElements]    
+    def __init__(self, driver): self.__webelements = [webelement(driver) for webelement in self.WebElements]    
     def __bool__(self): return all([bool(webelement) for webelement in self.__webelements])
     def __str__(self): return "{}|({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.__webelements]))
     def __getitem__(self, index): return self.__webelements[index]    
