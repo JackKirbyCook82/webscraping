@@ -105,8 +105,8 @@ class UserAgents(list):
                 
 
 class WebReader(object):   
-    def __init_subclass__(cls, *args, webpage, **kwargs): 
-        setattr(cls, 'WebPage', webpage)
+    def __init_subclass__(cls, *args, page, **kwargs): 
+        setattr(cls, 'WebPage', page)
        
     def __str__(self): return self.__class__.__name__
     def __repr__(self): 
@@ -138,9 +138,13 @@ class WebReader(object):
             webpage.load(*args, params=params, **kwargs)            
             yield from webpage(*args, **kwargs)   
             print("WebRequest Success: {}".format(self.__class__.__name__))
+            try: self.stop(session)
+            except NameError: pass   
         except BadRequestError as error:
             print("WebRequest BadRequest: {}".format(self.__class__.__name__))
             print(str(error))
+            try: self.stop(session)
+            except NameError: pass   
             return
             yield
         except (EmptyWebPageError, EmptyWebDataError, RefusalError) as error:

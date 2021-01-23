@@ -17,7 +17,7 @@ from webscraping.webdom import Captcha, Refusal, BadRequest, Clickable, Input, S
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebClickables', 'WebRefusal', 'WebCaptcha', 'WebBadRequest']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebClickList', 'WebClickDict', 'WebRefusal', 'WebCaptcha', 'WebBadRequest']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -117,7 +117,9 @@ class WebAdapter(object):
         
     @property
     def scrape(self): return self.WebDOM.scrape   
+    def execute(self, *args, **kwargs): pass
      
+    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)   
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'WebDOM') and hasattr(cls, 'xpath')
         assert hasattr(cls.WebDOM, 'scrape')
@@ -130,7 +132,6 @@ class WebContent(object):
     def __bool__(self): return bool(self.parent)
     def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.parent)))     
     def __init__(self, parent, children={}): self.__parent, self.__children = parent, children
-    def __call__(self, *args, **kwargs): self.execute(*args, **kwargs)   
  
     def __getitem__(self, locator): 
         if isinstance(locator, str): return self.children[locator]
@@ -145,8 +146,7 @@ class WebContent(object):
     def parent(self): return self.__parent
     @property
     def children(self): return self.__children      
-
-    def execute(self, *args, **kwargs): pass
+   
     def find(self, pathstring): return self.loc(WebLocator.fromstr(pathstring))
     def findall(self, **pathstrings): return {key:self.loc(WebLocator.fromstr(pathstring)) for key, pathstring in pathstrings.items()}     
     def loc(self, weblocator):
@@ -194,7 +194,6 @@ class WebCollection(WebAdapter):
         return doms
 
 
-class WebClickables(WebCollection, WebDOM=Clickable): pass
 class WebClickable(WebData, WebDOM=Clickable): pass
 class WebButton(WebData, WebDOM=Clickable): pass
 class WebRadioButton(WebData, WebDOM=Clickable): pass
@@ -204,8 +203,18 @@ class WebSelection(WebData, WebDOM=Selection): pass
 class WebLink(WebData, WebDOM=Link): pass
 class WebText(WebData, WebDOM=Text): pass
 class WebTable(WebData, WebDOM=Table): pass
-class WebBadRequest(WebData, WebDOM=BadRequest): pass
 
+
+class WebClickList(WebCollection, WebDOM=Clickable): 
+    def values(self): return [webitem for webitem in iter(self)]
+
+class WebClickDict(WebCollection, WebDOM=Clickable):
+    def keys(self): return [webitem.data for webitem in iter(self)]    
+    def values(self): return [webitem for webitem in iter(self)]
+    def items(self): return (self.keys(), self.values())
+
+
+class WebBadRequest(WebData, WebDOM=BadRequest): pass
 class WebRefusal(WebData, WebDOM=Refusal):
     def __init__(self, htmltree):
         super().__init__(htmltree)
@@ -216,6 +225,7 @@ class WebCaptcha(WebData, WebDOM=Captcha):
         super().__init__(driver)
         if bool(self): print("WebCaptcha Blocking: {}".format(self.__class__.__name__))
 
+    def execute(self, driver, *args, **kwargs): return self.solve(driver)
     def solve(self, driver):
         print("WebCaptcha Clearing: {}".format(self.__class__.__name__))
         wait = WebDriverWait(driver, 60*10, poll_frequency=15)         
@@ -229,6 +239,18 @@ class WebCaptcha(WebData, WebDOM=Captcha):
 
 
 
-
-
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+

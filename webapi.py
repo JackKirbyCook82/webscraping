@@ -11,7 +11,6 @@ import time
 import random
 import pandas as pd
 from abc import ABC, abstractmethod
-from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 from datetime import datetime as Datetime
 from datetime import date as Date
@@ -54,43 +53,34 @@ class URLAPI(object):
     def parms(self, *args, **kwargs): return {key.format(**kwargs):value.format(**kwargs) for key, value in self._parms.items()}
 
 
-class WebAPIName(ntuple('WebAPITuple', 'website dataset query')): 
-    def __str__(self): return '|'.join(list(self))
-    
-    def todict(self): return self._asdict()
-    def file(self, repository): return os.path.join(repository, self.website, self.dataset, '.'.join([self.query, 'txt']))
-    
-
 class WebAPI(ABC):
+    reportTag = "report"
+    queryTag = "query"
     dateTag = "recorded"
     dateFormat = "%Y/%m/%d"
     
     def dateString(self, string): return Datetime.strptime(string, self.dateFormat).date()
     def dateParser(self, date): return date.strftime(self.dateFormat)
 
-    def __str__(self): return ':'.join([self.__class__.__name__, str(self.name)])
+    def __str__(self): return '{}|{}'.format(self.__class__.__name__, uppercase(self.__dataset))
     def __repr__(self): 
-        content = [repr(self.name), self.__repository, self.__wait, self.__filetype, self.__compression]
-        return "{}({}, repository='{}', wait={}, filetype='{}', compression='{}')".format(self.__class__.__name__, *content)   
+        content = [self.__dataset, self.__repository, self.__wait, self.__filetype, self.__compression]
+        return "{}(dataset={}, repository='{}', wait={}, filetype='{}', compression='{}')".format(self.__class__.__name__, *content)   
     
-    def __init__(self, name, *args, repository, webreader, wait=10, filetype='csv', compression=None, **kwargs):
+    def __init__(self, *args, dataset, repository, webreader, wait=10, filetype='csv', compression=None, **kwargs):
         assert os.path.isdir(repository)
-        assert isinstance(name, tuple)
-        assert len(name) == 3
         if isinstance(wait, int): pass
         elif isinstance(wait, tuple): assert len(wait) == 2
         else: raise TypeError(type(wait))
-        self.__name = WebAPIName(*name)
         self.__wait = wait
+        self.__dataset = dataset
         self.__filetype = filetype
         self.__compression = compression       
         self.__repository = repository     
         self.__webreader = webreader
 
     @property
-    def name(self): return self.__name
-    @property
-    def repository(self): return self.__repository
+    def repository(self): return os.path.join(self.__repository, self.__dataset)
     @property
     def webreader(self): return self.__webreader
     
@@ -103,17 +93,17 @@ class WebAPI(ABC):
           queue, completed = self.queue(*args, **kwargs), set(self.completed(*args, **kwargs))
           queue = [(key, query) for key, query in queue.items()]
           random.shuffle(queue)
-          queue = ODict(queue)
+          queue, crawling = ODict(queue), list(queue.keys())
           for queryID, query in queue.items():
               if queryID in completed: continue
-              for completedID in self.execute(*args, dataset=self.name.dataset, **query, queue=queue, **kwargs): completed.add(completedID)
+              for completedID in self.execute(*args, **query, crawling=crawling, **kwargs): completed.add(completedID)
               self.sleep()
 
     def execute(self, *args, **kwargs):
         for queryID, queryData in self.download(*args, **kwargs):
             print('Downloading Success: {}'.format(str(self)))
             print('Query: {}'.format(queryID))
-            print('Datasets: {}'.format(', '.join(['|'.join([uppercase(dataset), str(len(dataframe.index))]) for dataset, dataframe in queryData.items()])))
+            print('Datasets: {}'.format(', '.join(['|'.join([dataset, str(len(dataframe.index))]) for dataset, dataframe in queryData.items()])))
             self.recordall(**queryData)    
             self.addreport(queryID)                      
             yield queryID
@@ -128,20 +118,20 @@ class WebAPI(ABC):
                 queryData = {}          
         
     def downloader(self, *args, **kwargs):
-        for queryID, queryDataset, queryDataFrame, queryComplete, queryDate in self.webreader(*args, **kwargs):
+        for queryID, queryDataset, queryDataFrame, queryComplete, queryDate in self.webreader(*args, dataset=self.__dataset, **kwargs):
             assert isinstance(queryDataFrame, (pd.DataFrame, type(None))) and isinstance(queryDate, Date) and isinstance(queryComplete, bool)
             try: 
-                queryDataFrame[self.name.query] = queryID
+                queryDataFrame[self.queryTag] = queryID
                 queryDataFrame[self.dateTag] = self.dateString(queryDate)
             except TypeError: pass
             yield queryID, queryDataset, queryDataFrame, queryComplete        
         
     def setreport(self):
-        with open(self.name.file(self.repository), "w") as _: pass
+        with open(os.path.join(self.repository, '.'.join([self.reportTag, 'txt'])), "w") as _: pass
     def addreport(self, queryID): 
-        with open(self.name.file(self.repository), "a") as txtfile: txtfile.write(queryID + "\n")
+        with open(os.path.join(self.repository, '.'.join([self.reportTag, 'txt'])), "a") as txtfile: txtfile.write(queryID + "\n")
     def getreport(self):
-        with open(self.name.file(self.repository), "r") as txtfile: return txtfile.readlines()
+        with open(os.path.join(self.repository, '.'.join([self.reportTag, 'txt'])), "r") as txtfile: return txtfile.readlines()
         
     def recordall(self, **queryData):
         assert all([isinstance(value, pd.DataFrame) for value in queryData.values()])
@@ -156,7 +146,7 @@ class WebAPI(ABC):
         self.save(dataset, dataframe)  
         
     def filename(self, queryDataset): return '.'.join([queryDataset, self.__compression, self.__filetype]) if self.__compression else '.'.join([queryDataset, self.__filetype])
-    def file(self, queryDataset): return os.path.join(self.repository, self.name.website, self.name.dataset, self.filename(queryDataset))
+    def file(self, queryDataset): return os.path.join(self.repository, self.filename(queryDataset))
     def load(self, queryDataset): return dataframe_fromfile(self.file(queryDataset), index=None, header=0, forceframe=True)  
     def save(self, queryDataset, queryDataFrame): dataframe_tofile(self.file(queryDataset), queryDataFrame, index=False, header=True)      
 

@@ -29,17 +29,10 @@ class FailureWebDriverError(WebDriverError): pass
 
 
 class WebDriver(object):
-    def __init_subclass__(cls, *args, options={}, **kwargs):
+    def __init_subclass__(cls, *args, page=None, pages=[], options={}, **kwargs):
         assert isinstance(options, dict)
-        if 'webpage' in kwargs.keys(): 
-            assert 'webpages' not in kwargs.keys()
-            webpages = [kwargs['webpage']]
-        elif 'webpages' in kwargs.keys(): 
-            assert 'webpage' not in kwargs.keys()
-            webpages = kwargs['webpages']
-        else: raise ValueError(kwargs)
-        assert isinstance(webpages, list)
-        setattr(cls, 'WebPages', webpages)
+        assert isinstance(pages, list)
+        setattr(cls, 'WebPages', [item for item in [page, *pages] if item is not None])
         setattr(cls, 'options', options) 
         
     def __str__(self): return self.__class__.__name__
@@ -73,9 +66,13 @@ class WebDriver(object):
                 webpage = WebPage(driver, *args, wait=self.__wait, **kwargs) 
                 yield from webpage(*args, **kwargs)             
             print("WebDriver Success: {}".format(self.__class__.__name__))
+            try: self.stop(driver)
+            except NameError: pass   
         except BadRequestError as error:
             print("WebRequest BadRequest: {}".format(self.__class__.__name__))
             print(str(error))
+            try: self.stop(driver)
+            except NameError: pass   
             return
             yield
         except (EmptyWebPageError, EmptyWebActionsError, EmptyWebDataError, CaptchaError) as error:

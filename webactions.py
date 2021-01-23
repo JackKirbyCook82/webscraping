@@ -45,8 +45,9 @@ class WebActionProcess(object):
     def driver(self): return self.__driver  
                
     def __init__(self, driver): self.__driver = driver
-    def __call__(self, *args, **kwargs): return all([self.execute(webactionID, webactions, *args, **kwargs) for webactionID, webactions in self.WebActions.items()])
+    def __call__(self, *args, **kwargs): return self.perform(*args, **kwargs)
     
+    def perform(self, *args, **kwargs): return all([self.execute(webactionID, webactions, *args, **kwargs) for webactionID, webactions in self.WebActions.items()])
     def execute(self, webactionID, webactions, *args, **kwargs):
         webactions = webactions[kwargs[webactionID]] if isinstance(webactions, dict) else webactions
         webcollection = WebCollection.create(self.driver, *webactions)  
