@@ -27,7 +27,7 @@ __license__ = ""
    
 
 class WebRequestError(Exception):
-    def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
 
 class MaxWebRequestAttemptError(WebRequestError): pass
 class FailureWebRequestError(WebRequestError): pass

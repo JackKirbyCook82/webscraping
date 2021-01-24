@@ -31,7 +31,8 @@ class WebPageError(Exception):
         return "{}:\n{}\n{}".format(self.__class__.__name__, argsstr, kwargsstr)
 
 class EmptyWebPageError(WebPageError): pass
-class UnLoadedWebPageError(WebPageError): pass
+class NotLoadedError(WebPageError): pass
+class NotExistError(WebPageError): pass
 class CaptchaError(WebPageError): pass
 class RefusalError(WebPageError): pass
 class BadRequestError(WebPageError): pass
@@ -39,28 +40,32 @@ class BadRequestError(WebPageError): pass
 
 class WebPage(ABC):
     @classmethod
-    def factory(cls, url, *args, conditions={}, content={}, **kwargs):
+    def factory(cls, url, *args, conditions={}, contents={}, operations={}, **kwargs):
         setattr(cls, 'URL', url)
+        setattr(cls, 'Contents', contents)        
         setattr(cls, 'Conditions', conditions)
-        setattr(cls, 'Contents', content)
+        setattr(cls, 'Operations', operations)
     
     def __str__(self): return self.__class__.__name__  
     def __init__(self, feed, *args, wait=5, **kwargs): 
-        self.__url = str(self.URL(*args, **kwargs)) if isinstance(self.URL, type) else lambda *args, **kwargs: str(self.URL)  
-        self.__contents = {}
-        self.__operations = {}
-        self.__wait = int(wait)
+        self.__url = self.URL(*args, **kwargs) if isinstance(self.URL, type) else lambda *args, **kwargs: str(self.URL)  
+        try: self.__wait = int(wait)
+        except TypeError: self.__wait = tuple([int(item) for item in wait])
+        self.refresh()
         self.setFeed(feed)
 
     def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)    
     def __getitem__(self, key): 
-        if key in self.__contents.keys(): return self.__contents[key]
-        if key in self.__operations.keys(): return self.__operations[key]
-        if key in self.Contents.keys(): self.__contents[key] = self.Contents[key](self.source)
-        elif key in self.Operations.keys(): self.__operations[key] = self.Operations[key](self.source)
-        else: raise KeyError(key)
-        return self.__getitem__(key)
-
+        if self.isContent(key): 
+            if not self.isLoadedContent(key): self.loadContent(key)
+            return self.getContent(key)
+        elif self.isCondition(key): 
+            if not self.isLoadedCondition(key): self.loadCondition(key)
+            return self.getCondition(key)
+        else: raise NotExistError('{}[{}]'.format(str(self), key))
+            
+    @property
+    def empty(self): return all([not bool(value) for value in self.__contents.values()])    
     @property
     def url(self): return self.__url
     @property
@@ -68,16 +73,49 @@ class WebPage(ABC):
     @property
     def source(self):
         try: return self.__source
-        except AttributeError: raise UnLoadedWebPageError(self)
+        except AttributeError: raise NotLoadedError(str(self))
+  
+    @classmethod
+    def isContent(cls, key): return key in cls.Contents.keys()
+    @classmethod
+    def isCondition(cls, key): return key in cls.Conditions.keys()
+    @classmethod
+    def isOperation(cls, key): return key in cls.Operations.keys()
+  
+    def isLoadedContent(self, key): return key in self.__contents.keys()
+    def isLoadedCondition(self, key): return key in self.__conditions.keys()
+    def isLoadedOperation(self, key): return key in self.__operations.keys()
+  
+    def loadContent(self, key): self.__contents[key] = self.Contents[key](self.source)
+    def loadCondition(self, key): self.__conditions[key] = self.Conditions[key](self.source)
+    def loadOperation(self, key): self.__operations[key] = self.Operations[key](self.source)
+ 
+    def loadAllContents(self): self.__contents = {key:value(self.source) for key, value in self.Contents.items()}
+    def loadAllCondtions(self): self.__conditions = {key:value(self.source) for key, value in self.Conditions.items()}
+    def loadAllOperations(self): self.__operations = {key:value(self.source) for key, value in self.Operations.items()}
+ 
+    def getContent(self, key): 
+        try: return self.__contents[key]  
+        except KeyError: 
+            try: raise NotLoadedError('.'.join([str(self), self.Contents[key].__name__]))
+            except KeyError: raise NotExistError('{}[{}]'.format(str(self), key))
+
+    def getCondition(self, key): 
+        try: return self.__conditions[key]  
+        except KeyError: 
+            try: raise NotLoadedError('.'.join([str(self), self.Conditions[key].__name__]))
+            except KeyError: raise NotExistError('{}[{}]'.format(str(self), key))
     
-    @property
-    def empty(self): return all([not bool(value) for value in self.__contents.values()])    
-    def fill(self, key): self.__content[key] = self.Content[key](self.source)
-    def fillall(self): self.__content = {key:value(self.source) for key, value in self.Content.items()}
+    def getOperation(self, key): 
+        try: return self.__operations[key]  
+        except KeyError: 
+            try: raise NotLoadedError('.'.join([str(self), self.Operations[key].__name__]))
+            except KeyError: raise NotExistError('{}[{}]'.format(str(self), key))
 
     def setFeed(self, feed): self.__feed = feed
     def setSource(self, source): self.__source = source
 
+    def refresh(self): self.__contents = self.__conditions = self.__operations = {}
     def sleep(self):
         if isinstance(self.__wait, int): time.sleep(self.__wait)
         elif isinstance(self.__wait, tuple): time.sleep(random.uniform(*self.__wait))
@@ -99,7 +137,7 @@ class WebRequestPage(WebPage):
      
     def __init__(self, *args, **kwargs):
         if self.Referer is None: self.__referer = None
-        else: self.__referer = str(self.Referer(*args, **kwargs)) if isinstance(self.Referer, type) else lambda *args, **kwargs: str(self.Referer)  
+        else: self.__referer = self.Referer(*args, **kwargs) if isinstance(self.Referer, type) else lambda *args, **kwargs: str(self.Referer)  
         super().__init__(*args, **kwargs)
         
     @property
@@ -108,18 +146,18 @@ class WebRequestPage(WebPage):
     def referer(self): return self.__referer    
       
     def load(self, *args, params=None, **kwargs): 
-        referer = self.referer(*args, **kwargs) if self.referer is not None else None
+        referer = self.referer(*args, **kwargs)
         url = self.url(*args, **kwargs)
         print("WebRequestPage Loading: {}\n{}".format(str(self), str(url)))
-        if referer: self.feed.headers.update({'Referer':referer})
-        response = self.feed.get(url, params=params)
+        if self.referer: self.feed.headers.update({'Referer':str(referer)})
+        response = self.feed.get(str(url), params=params)
         response.raise_for_status()
         self.setSource(self.parser(self.pageType, response))
         try: refusal = self['refusal']
-        except KeyError: refusal = False
+        except NotExistError: refusal = False
         if refusal: raise RefusalError(self, response.request.url, **response.request.headers)
         try: badrequest = self['badrequest']
-        except KeyError: badrequest = False
+        except NotExistError: badrequest = False
         if badrequest: raise BadRequestError(self, response.request.url)
         self.setup(*args, **kwargs) 
         if self.empty: open_in_browser(response)
@@ -148,40 +186,45 @@ class WebBrowserPage(WebPage):
    
     def back(self): self.driver.back
     def forward(self): self.driver.forward
-    def refresh(self): self.driver.refresh
 
     def load(self, *args, **kwargs): 
         url = self.url(*args, **kwargs)
         print("WebRequestPage Loading: {}\n{}".format(str(self), str(url)))
-        self.feed.get(url)  
+        self.feed.get(str(url))  
         self.setSource(self.feed)
         try: captcha = self['captcha']
-        except KeyError: captcha = False
+        except NotExistError: captcha = False
         success = captcha.solve(self.source) if captcha else True
-        if not success: raise CaptchaError(self, url) 
+        if not success: raise CaptchaError(self, str(url)) 
         try: refusal = self['refusal']
-        except KeyError: refusal = False
-        if refusal: raise RefusalError(self, url)
+        except NotExistError: refusal = False
+        if refusal: raise RefusalError(self, str(url))
         try: badrequest = self['badrequest']
-        except KeyError: badrequest = False
-        if badrequest: raise BadRequestError(self, url)        
+        except NotExistError: badrequest = False
+        if badrequest: raise BadRequestError(self, str(url))        
         self.setup(*args, **kwargs) 
-        if self.empty: raise EmptyWebPageError(self, url)
+        if self.empty: raise EmptyWebPageError(self, str(url))
 
-    def __iter__(self): return self.generator
+    def __iter__(self): return self.generator()
     def __next__(self): return self.crawler()
 
     def generator(self):
         active = True
         while active:
-            for value in self['iterator'].values(): yield value
-            active = self['next'].perform() if self['next'] else False
-            if active: self.sleep()
-            else: pass
-        
+            self.loadOperation('iterator')
+            for value in self.getOperation('iterator').values(): yield value
+            self.loadOperation('next')
+            active = self.getOperation('next').perform() if self.getOperation('next') else False
+            if not active: return
+            self.sleep()
+            self.refresh()
+            
     def crawl(self):
-        try: [value for key, value in self['crawler'].items() if key in self.__crawling][0].click()
+        self.loadOperation('crawler')
+        try: [value for key, value in self.getOperation('crawler').items() if key in self.__crawling][0].click()
         except IndexError: return False
+        self.sleep()
+        self.refresh()
         return True
 
 

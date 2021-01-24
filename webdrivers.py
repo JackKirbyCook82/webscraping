@@ -22,7 +22,7 @@ __license__ = ""
 
 
 class WebDriverError(Exception):
-    def __str__(self): return "{}: {}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0].__class__.__name__)   
 
 class MaxWebDriverRetryError(WebDriverError): pass
 class FailureWebDriverError(WebDriverError): pass

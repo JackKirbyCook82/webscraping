@@ -26,7 +26,7 @@ REGISTRY = []
 
 
 class EmptyWebActionsError(Exception): 
-    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0])
 
 
 class WebActionProcess(object): 
@@ -74,7 +74,7 @@ class WebCollection(ABC):
         return super().__new__(cls)
     
     def __bool__(self): return all([bool(webaction) for webaction in self.__webactions])
-    def __str__(self): return "{}\n{}".format(self.__class__.__name__, '\n'.join([str(webaction) for webaction in self.__webactions]))
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(all([bool(webaction) for webaction in self.__webactions])))
     def __init__(self, driver, *webactions): 
         self.__webactions = [webaction(driver) for webaction in webactions]
         self.setup(driver)
@@ -142,7 +142,7 @@ class WebAction(ABC):
 
     def __init__(self, driver): self.__webelements = [webelement(driver) for webelement in self.WebElements]    
     def __bool__(self): return all([bool(webelement) for webelement in self.__webelements])
-    def __str__(self): return "{}|({})".format(self.__class__.__name__, ', '.join([str(webelement) for webelement in self.__webelements]))
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(all([bool(webelement) for webelement in self.__webelements])))
     def __getitem__(self, index): return self.__webelements[index]    
 
     def chain(self, webactions): raise NotImplementedError('{}.{}()'.format(self.__class__.__name__, 'chain'))

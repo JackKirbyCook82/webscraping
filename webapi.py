@@ -93,10 +93,11 @@ class WebAPI(ABC):
           queue, completed = self.queue(*args, **kwargs), set(self.completed(*args, **kwargs))
           queue = [(key, query) for key, query in queue.items()]
           random.shuffle(queue)
-          queue, crawling = ODict(queue), list(queue.keys())
+          queue = ODict(queue)
+          crawling = list(queue.keys())
           for queryID, query in queue.items():
               if queryID in completed: continue
-              for completedID in self.execute(*args, **query, crawling=crawling, **kwargs): completed.add(completedID)
+              for completedID in self.execute(*args, dataset=self.__dataset, **query, crawling=crawling, **kwargs): completed.add(completedID)
               self.sleep()
 
     def execute(self, *args, **kwargs):
@@ -118,7 +119,7 @@ class WebAPI(ABC):
                 queryData = {}          
         
     def downloader(self, *args, **kwargs):
-        for queryID, queryDataset, queryDataFrame, queryComplete, queryDate in self.webreader(*args, dataset=self.__dataset, **kwargs):
+        for queryID, queryDataset, queryDataFrame, queryComplete, queryDate in self.webreader(*args, **kwargs):
             assert isinstance(queryDataFrame, (pd.DataFrame, type(None))) and isinstance(queryDate, Date) and isinstance(queryComplete, bool)
             try: 
                 queryDataFrame[self.queryTag] = queryID

@@ -46,15 +46,8 @@ def gettree(htmltree, xpath):
 
 
 class WebDataError(Exception):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args)
-        self.kwargs = kwargs
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0])
     
-    def __str__(self): 
-        argsstr = '\n'.join([str(arg) for arg in self.args])
-        kwargsstr = '\n'.join([': '.join([key, value]) for key, value in self.kwargs.items()])
-        return "{}:\n{}\n{}".format(self.__class__.__name__, argsstr, kwargsstr)
-
 class EmptyWebDataError(WebDataError): pass
 
 
@@ -129,10 +122,8 @@ class WebAdapter(object):
     
         
 class WebContent(object):
-    def __bool__(self): return bool(self.parent)
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.parent)))     
-    def __init__(self, parent, children={}): self.__parent, self.__children = parent, children
- 
+    def __bool__(self): return bool(self.parent)     
+    def __init__(self, parent, children={}): self.__parent, self.__children = parent, children 
     def __getitem__(self, locator): 
         if isinstance(locator, str): return self.children[locator]
         elif isinstance(locator, WebLocator): return self.loc(locator)
@@ -155,6 +146,7 @@ class WebContent(object):
     
   
 class WebData(WebContent, WebAdapter): 
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self.parent)))    
     def __iter__(self): 
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
         return iter([WebItem(self.parent, self.children)])  
@@ -175,7 +167,7 @@ class WebData(WebContent, WebAdapter):
 
 
 class WebCollection(WebAdapter): 
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str([str(webitem) for webitem in self.__webitems]))    
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(all([bool(parent) for parent, children in self.__collection])))    
     def __iter__(self): 
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
         return iter([WebItem(parent, children) for parent, children in self.__collection]) 

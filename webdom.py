@@ -27,7 +27,7 @@ def asFunction(mainfunc):
 
 
 class EmptyWebDOMError(Exception): 
-    def __str__(self): return "{}:\n{}".format(self.__class__.__name__, self.args[0])
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0])
   
 class EmptyWebElementError(EmptyWebDOMError): pass
 class EmptyWebTreeError(EmptyWebDOMError): pass
