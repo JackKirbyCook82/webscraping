@@ -45,11 +45,9 @@ def gettree(htmltree, xpath):
     else: raise ValueError(len(html_subtrees))        
 
 
-class WebDataError(Exception):
+class EmptyWebDataError(Exception):
     def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0])
     
-class EmptyWebDataError(WebDataError): pass
-
 
 class WebLocator(ntuple('Locator', 'filtration attribute')):
     attrchar, filterchar = ".", "/"  
@@ -71,10 +69,8 @@ class WebLocator(ntuple('Locator', 'filtration attribute')):
 class WebAdapter(object):
     def __init_subclass__(cls, **kwargs):
         if not kwargs: pass
-        elif 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys() and not 'xpaths' in kwargs.keys(): 
-            cls.factory(kwargs.pop('WebDOM'))
-        elif 'WebDOM' not in kwargs.keys() and ('xpath' in kwargs.keys() or 'xpaths' in kwargs.keys()): 
-            cls.create(xpath=kwargs.pop('xpath', None), xpaths=kwargs.pop('xpaths', []), **kwargs)
+        elif 'WebDOM' in kwargs.keys() and 'xpath' not in kwargs.keys() and not 'xpaths' in kwargs.keys(): cls.factory(kwargs.pop('WebDOM'))
+        elif 'WebDOM' not in kwargs.keys() and ('xpath' in kwargs.keys() or 'xpaths' in kwargs.keys()): cls.create(xpath=kwargs.pop('xpath', None), xpaths=kwargs.pop('xpaths', []), **kwargs)
         else: raise ValueError(kwargs)
        
     @classmethod
@@ -161,11 +157,11 @@ class WebData(WebContent, WebAdapter):
         super().__init__(parent, children)  
           
     def load(self, source):
-        print("WebDOM Loading: {}".format(self.__class__.__name__))    
+        print("WebData Loading: {}".format(self.__class__.__name__))    
         if self.scrape == 'dynamic':  dom = getelement(source, self.timeout, self.xpath)     
         elif self.scrape == 'static': dom = gettree(source, self.xpath)
         else: raise ValueError(self.scrape) 
-        if dom is None: print("WebDOM Missing: {}".format(self.__class__.__name__))         
+        if dom is None: print("WebData Missing: {}".format(self.__class__.__name__))         
         return dom 
 
 
@@ -181,11 +177,11 @@ class WebCollection(WebAdapter):
         self.__collection = [(parent, children) for parent, children in zip(parents, childrens)]                           
 
     def load(self, source):
-        print("WebDOMs Loading: {}".format(self.__class__.__name__))
+        print("WebCollection Loading: {}".format(self.__class__.__name__))
         if self.scrape == 'dynamic':  doms = getelements(source, self.timeout, self.xpath)     
         elif self.scrape == 'static': doms = gettrees(source, self.xpath)
         else: raise ValueError(self.scrape)         
-        if not doms: print("WebDOMs Missing: {}".format(self.__class__.__name__))  
+        if not doms: print("WebCollection Missing: {}".format(self.__class__.__name__))  
         return doms
 
 

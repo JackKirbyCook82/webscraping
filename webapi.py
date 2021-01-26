@@ -101,31 +101,33 @@ class WebAPI(ABC):
               self.sleep()
 
     def execute(self, *args, **kwargs):
-        for queryID, queryData in self.download(*args, **kwargs):
+        for (queryID, queryData) in self.download(*args, **kwargs):
             print('Downloading Success: {}'.format(str(self)))
             print('Query: {}'.format(queryID))
-            print('Datasets: {}'.format(', '.join(['|'.join([dataset, str(len(dataframe.index))]) for dataset, dataframe in queryData.items()])))
+            print('Datasets: {}'.format(', '.join(['|'.join([dataset, str(len(dataframe.index)) if dataframe is not None else str(0)]) for dataset, dataframe in queryData.items()])))
             self.recordall(**queryData)    
             self.addreport(queryID)                      
             yield queryID
         
     def download(self, *args, **kwargs):
         queryData = {}
-        for queryID, queryDataset, queryDataFrame, queryComplete in self.downloader(*args, **kwargs):
+        for (queryID, queryDataset, queryDataFrame, queryComplete) in self.downloader(*args, **kwargs):
             try: queryData[queryDataset] = pd.concat([queryData[queryDataset], queryDataFrame], ignore_index=True)
             except KeyError: queryData[queryDataset] = queryDataFrame
             if queryComplete: 
-                yield queryID, queryData
+                yield (queryID, queryData)
                 queryData = {}          
         
     def downloader(self, *args, **kwargs):
-        for queryID, queryDataset, queryDataFrame, queryComplete, queryDate in self.webreader(*args, **kwargs):
-            assert isinstance(queryDataFrame, (pd.DataFrame, type(None))) and isinstance(queryDate, Date) and isinstance(queryComplete, bool)
+        for (queryID, queryDataset, queryDataFrame, queryComplete, queryDate) in self.webreader(*args, **kwargs):
+            assert isinstance(queryID, str) and isinstance(queryDataset, str)
+            assert isinstance(queryDataFrame, (pd.DataFrame, type(None))) 
+            assert isinstance(queryDate, Date) and isinstance(queryComplete, bool)
             try: 
                 queryDataFrame[self.queryTag] = queryID
                 queryDataFrame[self.dateTag] = self.dateString(queryDate)
             except TypeError: pass
-            yield queryID, queryDataset, queryDataFrame, queryComplete        
+            yield (queryID, queryDataset, queryDataFrame, queryComplete)        
         
     def setreport(self):
         with open(os.path.join(self.repository, '.'.join([self.reportTag, 'txt'])), "w") as _: pass
