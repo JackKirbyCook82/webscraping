@@ -9,9 +9,11 @@ Created on Tues Sept 1 2020
 import time
 from abc import ABC, abstractmethod
 from functools import update_wrapper
-from collections import OrderedDict as ODict
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys 
+
+from utilities.strings import uppercase
+from utilities.dictionarys import SliceOrderedDict as SODict
 
 from webscraping.webdata import WebData
 
@@ -28,83 +30,127 @@ REGISTRY = []
 class EmptyWebActionsError(Exception): 
     def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0])
 
+class FailureWebActionsError(Exception):
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0])
+
 
 class WebActionProcess(object): 
     def __init_subclass__(cls, *args, steps, **kwargs):
-        for ID, contents in steps:
-            if isinstance(contents, tuple): assert all([issubclass(webaction, WebAction) for webaction in contents])
-            elif isinstance(contents, dict): assert all([issubclass(webaction, WebAction) for values in contents.values() for webaction in values])
-            else: raise TypeError(type(contents).__name__)
-        for ID, contents in steps:
-            if isinstance(contents, tuple): assert len(set([webaction.type for webaction in contents])) == 1
-            elif isinstance(contents, dict): assert all([len(set([webaction.type for webaction in values])) == 1 for values in contents.values()])
-            else: raise TypeError(type(contents).__name__)
-        setattr(cls, 'WebActions', ODict([(ID, contents) for ID, contents in steps]))
-    
-    @property
-    def driver(self): return self.__driver  
-               
-    def __init__(self, driver): self.__driver = driver
+        assert len(steps) > 0
+        for webactionsID, webactions in steps:
+            if isinstance(webactions, tuple): assert all([issubclass(webaction, WebAction) for webaction in webactions])
+            elif isinstance(webactions, dict): assert all([issubclass(webaction, WebAction) for values in webactions.values() for webaction in values])
+            else: raise TypeError(type(webactions).__name__)
+        for webactionsID, webactions in steps:
+            if isinstance(webactions, tuple): assert len(set([webaction.type for webaction in webactions])) == 1
+            elif isinstance(webactions, dict): assert all([len(set([webaction.type for webaction in values])) == 1 for values in webactions.values()])
+            else: raise TypeError(type(webactions).__name__)
+        create = lambda webactionsID, webactions: type('_'.join([cls.__name__, 'Step', uppercase(webactionsID)]), (WebActionStep,), {}, webactions=webactions)
+        WebActionSteps = SODict([{key:create('_'.join(ID, uppercase(key)), values) for key, values in contents.items()} if isinstance(contents, dict) else create(ID, contents) for ID, contents in steps]) 
+        setattr(cls, 'WebActionSteps', WebActionSteps)       
+
+    def __len__(self): return len(self.WebActionSteps)
+    def __bool__(self): return bool(self.value)
+    def __str__(self): return "{}[{}|{}] = {}".format(self.__class__.__name__, str(self.key), str(self.index), str(bool(self.value)))    
+    def __next__(self):
+        try: (self.__index, self.__key, self.__value) = self.load(self.__driver, self.index+1, *self.WebActionSteps.items()[self.index+1])
+        except IndexError: raise StopIteration()
+        return True
+        
+    def __init__(self, driver): self.__driver, (self.__index, self.__key, self.__value) = driver, self.load(driver, 0, *self.WebActionSteps.items()[0])
     def __call__(self, *args, **kwargs): return self.perform(*args, **kwargs)
-    
-    def perform(self, *args, **kwargs): return all([self.execute(webactionID, webactions, *args, **kwargs) for webactionID, webactions in self.WebActions.items()])
-    def execute(self, webactionID, webactions, *args, **kwargs):
-        webactions = webactions[kwargs[webactionID]] if isinstance(webactions, dict) else webactions
-        webcollection = WebCollection.create(self.driver, *webactions)  
-        return webcollection(*args, **kwargs)
 
+    @property
+    def index(self): return self.__index
+    @property
+    def key(self): return self.__key
+    @property
+    def value(self): return self.__value
 
-class WebCollection(ABC):
+    def load(self, driver, index, key, value):
+        if isinstance(value, dict): return (index, key, {ID:WAS(driver) for ID, WAS in value.items()})
+        elif isinstance(value, tuple): return (index, key, value(driver))
+        else: raise TypeError(type(self.WebActionSteps[index]).__name__)
+
+    def run(self, *args, **kwargs): 
+        if isinstance(self.value, dict): return self.value[kwargs[self.key]](*args, **kwargs)
+        elif isinstance(self.value, tuple): return self.value(*args, **kwargs)  
+        else: raise TypeError(type(self.value).__name__)
+      
+    def perform(self, *args, **kwargs):
+        if not bool(self): raise EmptyWebActionsError(str(self))
+        else: return self.execute(*args, **kwargs)        
+        
+    def execute(self, *args, **kwargs):
+        success = self.run(*args, **kwargs)
+        more = next(self)
+        while success and more: 
+            success = self.run(*args, **kwargs)
+            more = next(self)
+        if not success: raise FailureWebActionsError(str(self))
+        else: return success
+        
+        
+class WebActionStep(ABC):
     __registry = {}
     @classmethod
     def registry(cls): return cls.__registry
     @classmethod
     def register(cls, key, value): cls.__registry[key] = value
- 
-    @classmethod
-    def create(cls, driver, *webactions): 
-        astype = set([webaction.type for webaction in webactions])
-        assert len(astype) == 1
-        astype = list(astype)[0]
-        return cls.registry()[astype](driver, *webactions)           
- 
-    def __init_subclass__(cls, astype): cls.register(astype, cls)   
-    def __new__(cls, driver, *webactions):
-        assert cls in WebCollection.registry().values()
-        return super().__new__(cls)
-    
-    def __bool__(self): return all([bool(webaction) for webaction in self.__webactions])
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(all([bool(webaction) for webaction in self.__webactions])))
-    def __init__(self, driver, *webactions): 
-        self.__webactions = [webaction(driver) for webaction in webactions]
-        self.setup(driver)
-            
-    def __call__(self, *args, **kwargs): 
-        if not self: raise EmptyWebActionsError(self)   
-        for webaction in self.__webactions: self.append(webaction)   
-        return self.execute(*args, **kwargs)
 
+    def __init_subclass__(cls, **kwargs):
+        if 'webactiontype' in kwargs.keys() and 'webactions' not in kwargs.keys(): cls.register(kwargs['webactiontype'], cls) 
+        elif 'webactiontype' not in kwargs.keys() and 'webactions' in kwargs.keys(): 
+            assert isinstance(kwargs['webactions'], list)
+            webactiontypes = set([webaction.type for webaction in kwargs['webactions']])
+            assert len(webactiontypes) == 1
+            webactiontype = list(webactiontypes)[0]
+            cls = cls.registry()[webactiontype]
+            setattr(cls, 'WebActions', kwargs['webactions']) 
+        else: raise ValueError(kwargs)
+ 
+    def __new__(cls, *args, **kwargs):
+        assert hasattr(cls, 'WebActions')
+        return super().__new__(cls)      
+ 
+    def __bool__(self): return all([bool(webaction) for webaction in self.__webactions])
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, str(bool(self)))    
+    def __init__(self, driver): 
+        self.__webchain = self.setup(driver)
+        self.__webactions = self.load(driver)
+        for webaction in self.__webactions: self.append(self.__webchain, webaction)
+
+    def __call__(self, *args, **kwargs): 
+        if not bool(self): raise EmptyWebActionsError(str(self))
+        return self.execute(self.__webchain, *args, **kwargs)
+
+    def load(self, driver):
+        print("WebActionStep Loading: {}".format(self.__class__.__name__))
+        webactions = [webaction(driver) for webaction in self.WebActions]
+        if not all([bool(webaction) for webaction in webactions]): print("WebActionStep Missing: {}".format(self.__class__.__name__))              
+        return webactions
+            
     @abstractmethod
     def setup(self, driver): pass
     @abstractmethod
-    def append(self, webaction, *args): pass
+    def append(self, webchain, webaction, *args): pass
     @abstractmethod
-    def execute(self, *args, **kwargs): pass
+    def execute(self, webchain, *args, **kwargs): pass
 
 
-class WebChain(WebCollection, astype='chain'): 
-    def setup(self, driver): self.__actionchains = ActionChains(driver)    
-    def append(self, webaction): webaction.chain(self.__actionchains)
-    def execute(self, *args, **kwargs): 
-        self.__actionchains.perform()
+class WebChain(WebActionStep, webactiontype='chain'): 
+    def setup(self, driver): return ActionChains(driver)    
+    def append(self, webchain, webaction): webaction.chain(webchain)
+    def execute(self, webchain, *args, **kwargs): 
+        webchain.perform()
         return True
     
     
-class WebQueue(WebCollection, astype='queue'): 
-    def setup(self, driver): self.__actionqueue = list()
-    def append(self, webaction): webaction.queue(self.__actionqueue)
-    def execute(self, *args, **kwargs): 
-        for function in self.__actionqueue: function(*args, **kwargs)
+class WebQueue(WebActionStep, webactiontype='queue'): 
+    def setup(self, driver): return list()
+    def append(self, webchain, webaction): webaction.queue(webchain)
+    def execute(self, webchain, *args, **kwargs): 
+        for function in webchain: function(*args, **kwargs)
         return True
 
 

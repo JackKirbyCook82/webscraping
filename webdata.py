@@ -110,9 +110,7 @@ class WebAdapter(object):
         
     @property
     def scrape(self): return self.WebDOM.scrape   
-    def execute(self, *args, **kwargs): pass
-     
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)   
+
     def __new__(cls, *args, **kwargs):
         assert hasattr(cls, 'WebDOM') and hasattr(cls, 'xpath')
         assert hasattr(cls.WebDOM, 'scrape')
@@ -133,11 +131,16 @@ class WebContent(object):
         try: return getattr(self.parent, attr)    
         except EmptyWebDOMError: raise EmptyWebDataError(self)    
 
+    def __call__(self, *args, **kwargs):
+        if not bool(self): raise EmptyWebDataError(str(self))
+        else: return self.execute(*args, **kwargs)
+
     @property
     def parent(self): return self.__parent
     @property
     def children(self): return self.__children      
    
+    def execute(self, *args, **kwargs): pass
     def find(self, pathstring): return self.loc(WebLocator.fromstr(pathstring))
     def findall(self, **pathstrings): return {key:self.loc(WebLocator.fromstr(pathstring)) for key, pathstring in pathstrings.items()}     
     def loc(self, weblocator):
