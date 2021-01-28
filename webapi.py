@@ -94,10 +94,10 @@ class WebAPI(ABC):
           queue = [(key, query) for key, query in queue.items()]
           random.shuffle(queue)
           queue = ODict(queue)
-          crawling = list(queue.keys())
           for queryID, query in queue.items():
               if queryID in completed: continue
-              for completedID in self.execute(*args, dataset=self.__dataset, **query, crawling=crawling, **kwargs): completed.add(completedID)
+              resid = [key for key in queue.keys() if key != queryID and key not in completed]
+              for completedID in self.execute(*args, dataset=self.__dataset, **query, queue=resid, **kwargs): completed.add(completedID)
               self.sleep()
 
     def execute(self, *args, **kwargs):
@@ -109,32 +109,27 @@ class WebAPI(ABC):
             self.addreport(queryID)                      
             yield queryID
         
-    def download(self, *args, **kwargs):
-        queryData = {}
-        for (queryID, queryDataset, queryDataFrame, queryComplete) in self.downloader(*args, **kwargs):
-            try: queryData[queryDataset] = pd.concat([queryData[queryDataset], queryDataFrame], ignore_index=True)
-            except KeyError: queryData[queryDataset] = queryDataFrame
-            if queryComplete: 
-                yield (queryID, queryData)
-                queryData = {}          
-        
-    def downloader(self, *args, **kwargs):
-        for (queryID, queryDataset, queryDataFrame, queryComplete, queryDate) in self.webreader(*args, **kwargs):
-            assert isinstance(queryID, str) and isinstance(queryDataset, str)
-            assert isinstance(queryDataFrame, (pd.DataFrame, type(None))) 
-            assert isinstance(queryDate, Date) and isinstance(queryComplete, bool)
-            try: 
-                queryDataFrame[self.queryTag] = queryID
-                queryDataFrame[self.dateTag] = self.dateString(queryDate)
-            except TypeError: pass
-            yield (queryID, queryDataset, queryDataFrame, queryComplete)        
+#    def download(self, *args, **kwargs):
+#        queryData = {}
+#        for webquery in self.webreader(*args, **kwargs):
+#            try: queryData[webquery.ID] = queryData[webquery.ID] + webquery
+#            except KeyError: queryData[webquery.ID] = webquery
+            
+#     def download(self, *args, **kwargs):         
+#        queryData = {}
+#        for webquery in self.webreader(*args, **kwargs):    
+#            try: queryData[queryDataset] = pd.concat([queryData[queryDataset], queryDataFrame], ignore_index=True)
+#            except KeyError: queryData[queryDataset] = queryDataFrame
+#            if queryComplete: 
+#                yield (queryID, queryData)
+#               queryData = {}          
         
     def setreport(self):
         with open(os.path.join(self.repository, '.'.join([self.reportTag, 'txt'])), "w") as _: pass
     def addreport(self, queryID): 
         with open(os.path.join(self.repository, '.'.join([self.reportTag, 'txt'])), "a") as txtfile: txtfile.write(queryID + "\n")
     def getreport(self):
-        with open(os.path.join(self.repository, '.'.join([self.reportTag, 'txt'])), "r") as txtfile: return txtfile.readlines()
+        with open(os.path.join(self.repository, '.'.join([self.reportTag, 'txt'])), "r") as txtfile: return [line.strip() for line in txtfile.readlines()]
         
     def recordall(self, **queryData):
         assert all([isinstance(value, pd.DataFrame) for value in queryData.values()])

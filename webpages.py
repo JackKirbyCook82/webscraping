@@ -8,27 +8,31 @@ Created on Mon Dec 30 2019
 
 import time
 import random
+import pandas as pd
 from abc import ABC, abstractmethod
-from lxml.html import fromstring, open_in_browser
+from lxml.html import fromstring
+from datetime import date as Date
+from datetime import datetime as Datetime
+from collections import namedtuple as ntuple
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebBrowserPage', 'WebRequestPage']
+__all__ = ['WebQuery', 'WebBrowserPage', 'WebRequestPage']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
 
+# class WebQueryError(Exception):
+#     def __str__(self): pass
+
+# class WebQueryIDError(WebQueryError): pass
+# class WebQueryDatasetError(WebQueryError): pass
+
+
 class WebPageError(Exception):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args)
-        self.kwargs = kwargs
-    
-    def __str__(self): 
-        argsstr = '\n'.join([str(arg) for arg in self.args])
-        kwargsstr = '\n'.join([': '.join([key, value]) for key, value in self.kwargs.items()])
-        return "{}:\n{}\n{}".format(self.__class__.__name__, argsstr, kwargsstr)
+    def __str__(self): return "{}|{}".format(self.__class__.__name__, self.args[0])    
 
 class EmptyWebPageError(WebPageError): pass
 class NotLoadedError(WebPageError): pass
@@ -36,6 +40,23 @@ class NotExistError(WebPageError): pass
 class CaptchaError(WebPageError): pass
 class RefusalError(WebPageError): pass
 class BadRequestError(WebPageError): pass
+
+
+# class WebQuery(ntuple('WebPageQuery', 'ID, dataset, dataframe, complete')):
+#     def __new__(cls, ID, dataset, dataframe, complete, date):
+#         assert isinstance(ID, str) and isinstance(dataset, str)
+#         assert isinstance(dataframe, pd.DataFrame) 
+#         assert isinstance(date, Date) and isinstance(complete, bool)
+#         dataframe['queryID'] = ID
+#         dataframe['queryDate'] = Datetime.strptime(date, "%Y/%m/%d").date()   
+#         return super().__new__(cls, ID, dataset, dataframe, complete, date)
+    
+#     def __add__(self, other):
+#         if not isinstance(other, type(self)): raise TypeError(type(other).__name__)
+#         if self.ID != other.ID: raise WebQueryIDError(self)
+#         if self.dataset != other.dataset: raise WebQueryDatasetError(self)
+#         dataframe = pd.concat([self.dataframe, other.dataframe], ignore_index=True)       
+#         return self.__class__(self.ID, self.dataset, dataframe, any([self.complete, other.complete]))
 
 
 class WebPage(ABC):
@@ -54,7 +75,12 @@ class WebPage(ABC):
         self.refresh()
         self.setFeed(feed)
 
-    def __call__(self, *args, **kwargs): yield from self.execute(*args, **kwargs)    
+    def __call__(self, *args, **kwargs): 
+        if self.badrequest(): raise BadRequestError(self)        
+        self.setup(*args, **kwargs)
+        if self.empty: raise EmptyWebPageError(self)
+        else: yield from self.execute(*args, **kwargs)    
+    
     def __getitem__(self, key): 
         if self.isContent(key): 
             if not self.isLoadedContent(key): self.loadContent(key)
@@ -121,6 +147,16 @@ class WebPage(ABC):
         elif isinstance(self.__wait, tuple): time.sleep(random.uniform(*self.__wait))
         else: raise TypeError(type(self.__wait))   
 
+    def refusal(self):
+        try: refusal = self['refusal']
+        except NotExistError: refusal = False
+        return bool(refusal)
+    
+    def badrequest(self):
+        try: badrequest = self['badrequest']
+        except NotExistError: badrequest = False
+        return bool(badrequest)
+
     @abstractmethod
     def load(self, *args, **kwargs): pass
     @abstractmethod
@@ -153,15 +189,7 @@ class WebRequestPage(WebPage):
         response = self.feed.get(str(url), params=params)
         response.raise_for_status()
         self.setSource(self.parser(self.pageType, response))
-        try: refusal = self['refusal']
-        except NotExistError: refusal = False
-        if refusal: raise RefusalError(self, response.request.url, **response.request.headers)
-        try: badrequest = self['badrequest']
-        except NotExistError: badrequest = False
-        if badrequest: raise BadRequestError(self, response.request.url)
-        self.setup(*args, **kwargs) 
-        if self.empty: open_in_browser(response)
-        if self.empty: raise EmptyWebPageError(self, response.request.url, **response.request.headers)
+        if self.refusal(): raise RefusalError(self)
 
     @keydispatcher
     def parser(self, response): pass
@@ -175,8 +203,9 @@ class WebBrowserPage(WebPage):
     def __init_subclass__(cls, *args, url, **kwargs):
         cls.factory(url, *args, **kwargs)
          
-    def __init__(self, *args, crawling=[], **kwargs):
-        self.__crawling = crawling
+    def __init__(self, *args, queue=[], **kwargs):
+        assert isinstance(queue, list)
+        self.__queue = queue
         super().__init__(*args, **kwargs)
         
     @property
@@ -192,18 +221,14 @@ class WebBrowserPage(WebPage):
         print("WebRequestPage Loading: {}\n{}".format(str(self), str(url)))
         self.feed.get(str(url))  
         self.setSource(self.feed)
+        if self.captcha(): raise CaptchaError(self)    
+        if self.refusal(): raise RefusalError(self)
+
+    def captcha(self):
         try: captcha = self['captcha']
         except NotExistError: captcha = False
         success = captcha.solve(self.source) if captcha else True
-        if not success: raise CaptchaError(self, str(url)) 
-        try: refusal = self['refusal']
-        except NotExistError: refusal = False
-        if refusal: raise RefusalError(self, str(url))
-        try: badrequest = self['badrequest']
-        except NotExistError: badrequest = False
-        if badrequest: raise BadRequestError(self, str(url))        
-        self.setup(*args, **kwargs) 
-        if self.empty: raise EmptyWebPageError(self, str(url))
+        return not success   
 
     def __iter__(self): return self.generator()
     def __next__(self): return self.crawler()
@@ -219,12 +244,17 @@ class WebBrowserPage(WebPage):
             self.sleep()
             self.refresh()
             
-    def crawl(self):
+    def crawler(self):
         self.loadOperation('crawler')
-        try: [value for key, value in self.getOperation('crawler').items() if key in self.__crawling][0].click()
+        queue = {key:value for (key, value) in self.getOperation('crawler').items() if key in self.__queue}
+        try: queryID = list(queue.keys())[0]
         except IndexError: return False
+        self.__queue.remove(queryID)
+        queue[queryID].click()
         self.sleep()
         self.refresh()
+        self.checkCaptcha()
+        self.checkRefusal()
         return True
 
 

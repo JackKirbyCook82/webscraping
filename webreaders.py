@@ -17,7 +17,7 @@ from requests.packages.urllib3.util.retry import Retry
 from collections import namedtuple as ntuple
 
 from webscraping.webdata import EmptyWebDataError
-from webscraping.webpages import EmptyWebPageError, RefusalError, BadRequestError
+from webscraping.webpages import EmptyWebPageError, RefusalError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -140,13 +140,6 @@ class WebReader(object):
             print("WebRequest Success: {}".format(self.__class__.__name__))
             try: self.stop(session)
             except NameError: pass   
-        except BadRequestError as error:
-            print("WebRequest BadRequest: {}".format(self.__class__.__name__))
-            print(str(error))
-            try: self.stop(session)
-            except NameError: pass   
-            return
-            yield
         except (EmptyWebPageError, EmptyWebDataError, RefusalError) as error:
             print("WebRequest Failure: {}".format(self.__class__.__name__))
             print(str(error))

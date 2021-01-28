@@ -107,7 +107,9 @@ class Refusal(WebTree): pass
 class Captcha(WebElement): pass
 
     
-class Clickable(WebElement): 
+class Clickable(WebElement, parser=lambda x: x): 
+    @property
+    def data(self): return self.parser(self.link)
     def click(self): self.DOMElement.click()
 
 

@@ -17,7 +17,7 @@ from webscraping.webdom import Captcha, Refusal, BadRequest, Clickable, Input, S
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebClickList', 'WebClickDict', 'WebRefusal', 'WebCaptcha', 'WebBadRequest']
+__all__ = ['WebClickable', 'WebButton', 'WebRadioButton', 'WebCheckBox', 'WebInput', 'WebSelection', 'WebLink', 'WebText', 'WebTable', 'WebClickableList', 'WebClickableDict', 'WebRefusal', 'WebCaptcha', 'WebBadRequest']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
 
@@ -150,19 +150,18 @@ class WebData(WebContent, WebAdapter):
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
         return iter([WebItem(self.parent, self.children)])  
     
-    def __init__(self, source):
+    def __init__(self, source, root=True):
+        if root: print("WebData Loading: {}".format(self.__class__.__name__))  
         parent = self.WebDOM(self.load(source))
-        if bool(parent): children = ODict([(key, WebDOMChild(parent.DOM)) for key, WebDOMChild in self.WebDOMChildren.items()])
+        if not bool(parent) and root: print("WebData Missing: {}".format(self.__class__.__name__))  
+        if bool(parent): children = ODict([(key, WebDOMChild(parent.DOM, root=False)) for key, WebDOMChild in self.WebDOMChildren.items()])
         else: children = ODict([(key, None) for key, WebDOMchild in self.WebDOMChildren.items()])            
         super().__init__(parent, children)  
           
-    def load(self, source):
-        print("WebData Loading: {}".format(self.__class__.__name__))    
-        if self.scrape == 'dynamic':  dom = getelement(source, self.timeout, self.xpath)     
-        elif self.scrape == 'static': dom = gettree(source, self.xpath)
+    def load(self, source):          
+        if self.scrape == 'dynamic':  return getelement(source, self.timeout, self.xpath)     
+        elif self.scrape == 'static': return gettree(source, self.xpath)
         else: raise ValueError(self.scrape) 
-        if dom is None: print("WebData Missing: {}".format(self.__class__.__name__))         
-        return dom 
 
 
 class WebCollection(WebAdapter): 
@@ -171,18 +170,17 @@ class WebCollection(WebAdapter):
         WebItem = type('_'.join([self.__class__.__name__, 'Item']), (WebContent,), {})
         return iter([WebItem(parent, children) for parent, children in self.__collection]) 
     
-    def __init__(self, source):
+    def __init__(self, source, root=True):
+        if root: print("WebCollection Loading: {}".format(self.__class__.__name__))
         parents = [self.WebDOM(dom) for dom in self.load(source)]
-        childrens = [ODict([(key, WebDOMChild(parent.DOM)) for key, WebDOMChild in self.WebDOMChildren.items()]) for parent in parents]
+        if not bool(parents) and root: print("WebCollection Missing: {}".format(self.__class__.__name__))  
+        childrens = [ODict([(key, WebDOMChild(parent.DOM, root=False)) for key, WebDOMChild in self.WebDOMChildren.items()]) for parent in parents]
         self.__collection = [(parent, children) for parent, children in zip(parents, childrens)]                           
 
-    def load(self, source):
-        print("WebCollection Loading: {}".format(self.__class__.__name__))
-        if self.scrape == 'dynamic':  doms = getelements(source, self.timeout, self.xpath)     
-        elif self.scrape == 'static': doms = gettrees(source, self.xpath)
+    def load(self, source):        
+        if self.scrape == 'dynamic': return getelements(source, self.timeout, self.xpath)     
+        elif self.scrape == 'static': return gettrees(source, self.xpath)
         else: raise ValueError(self.scrape)         
-        if not doms: print("WebCollection Missing: {}".format(self.__class__.__name__))  
-        return doms
 
 
 class WebClickable(WebData, WebDOM=Clickable): pass
@@ -196,13 +194,14 @@ class WebText(WebData, WebDOM=Text): pass
 class WebTable(WebData, WebDOM=Table): pass
 
 
-class WebClickList(WebCollection, WebDOM=Clickable): 
+class WebClickableList(WebCollection, WebDOM=Clickable): 
     def values(self): return [webitem for webitem in iter(self)]
 
-class WebClickDict(WebCollection, WebDOM=Clickable):
+class WebClickableDict(WebCollection, WebDOM=Clickable):
     def keys(self): return [webitem.data for webitem in iter(self)]    
     def values(self): return [webitem for webitem in iter(self)]
-    def items(self): return (self.keys(), self.values())
+    def items(self): return [(webitem.data, webitem) for webitem in iter(self)]
+    def asdict(self): return {webitem.data:webitem for webitem in iter(self)}
 
 
 class WebBadRequest(WebData, WebDOM=BadRequest): pass
