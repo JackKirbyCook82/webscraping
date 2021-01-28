@@ -8,27 +8,16 @@ Created on Mon Dec 30 2019
 
 import time
 import random
-import pandas as pd
 from abc import ABC, abstractmethod
 from lxml.html import fromstring
-from datetime import date as Date
-from datetime import datetime as Datetime
-from collections import namedtuple as ntuple
 
 from utilities.dispatchers import clskey_singledispatcher as keydispatcher
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ['WebQuery', 'WebBrowserPage', 'WebRequestPage']
+__all__ = ['WebBrowserPage', 'WebRequestPage']
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = ""
-
-
-# class WebQueryError(Exception):
-#     def __str__(self): pass
-
-# class WebQueryIDError(WebQueryError): pass
-# class WebQueryDatasetError(WebQueryError): pass
 
 
 class WebPageError(Exception):
@@ -40,23 +29,6 @@ class NotExistError(WebPageError): pass
 class CaptchaError(WebPageError): pass
 class RefusalError(WebPageError): pass
 class BadRequestError(WebPageError): pass
-
-
-# class WebQuery(ntuple('WebPageQuery', 'ID, dataset, dataframe, complete')):
-#     def __new__(cls, ID, dataset, dataframe, complete, date):
-#         assert isinstance(ID, str) and isinstance(dataset, str)
-#         assert isinstance(dataframe, pd.DataFrame) 
-#         assert isinstance(date, Date) and isinstance(complete, bool)
-#         dataframe['queryID'] = ID
-#         dataframe['queryDate'] = Datetime.strptime(date, "%Y/%m/%d").date()   
-#         return super().__new__(cls, ID, dataset, dataframe, complete, date)
-    
-#     def __add__(self, other):
-#         if not isinstance(other, type(self)): raise TypeError(type(other).__name__)
-#         if self.ID != other.ID: raise WebQueryIDError(self)
-#         if self.dataset != other.dataset: raise WebQueryDatasetError(self)
-#         dataframe = pd.concat([self.dataframe, other.dataframe], ignore_index=True)       
-#         return self.__class__(self.ID, self.dataset, dataframe, any([self.complete, other.complete]))
 
 
 class WebPage(ABC):
@@ -76,7 +48,7 @@ class WebPage(ABC):
         self.setFeed(feed)
 
     def __call__(self, *args, **kwargs): 
-        if self.badrequest(): raise BadRequestError(self)        
+        if self.badrequest(): yield None    
         self.setup(*args, **kwargs)
         if self.empty: raise EmptyWebPageError(self)
         else: yield from self.execute(*args, **kwargs)    
@@ -203,9 +175,9 @@ class WebBrowserPage(WebPage):
     def __init_subclass__(cls, *args, url, **kwargs):
         cls.factory(url, *args, **kwargs)
          
-    def __init__(self, *args, queue=[], **kwargs):
-        assert isinstance(queue, list)
-        self.__queue = queue
+    def __init__(self, *args, crawling=[], **kwargs):
+        assert isinstance(crawling, list)
+        self.__crawling = crawling
         super().__init__(*args, **kwargs)
         
     @property
@@ -246,11 +218,11 @@ class WebBrowserPage(WebPage):
             
     def crawler(self):
         self.loadOperation('crawler')
-        queue = {key:value for (key, value) in self.getOperation('crawler').items() if key in self.__queue}
-        try: queryID = list(queue.keys())[0]
+        crawling = {key:value for (key, value) in self.getOperation('crawler').items() if key in self.__crawling}
+        try: key = list(crawling.keys())[0]
         except IndexError: return False
-        self.__queue.remove(queryID)
-        queue[queryID].click()
+        self.__crawling.remove(key)
+        crawling[key].click()
         self.sleep()
         self.refresh()
         self.checkCaptcha()
