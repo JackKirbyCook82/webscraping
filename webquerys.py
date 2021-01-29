@@ -11,7 +11,6 @@ from datetime import datetime as Datetime
 
 from utilities.strings import uppercase
 
-
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ['WebQuery']
@@ -89,3 +88,21 @@ class WebQuery(object):
 
     def get(self, dataset, default): return self.__data.get(dataset, None)
     def pop(self, dataset, default): return self.__data.pop(dataset, None)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

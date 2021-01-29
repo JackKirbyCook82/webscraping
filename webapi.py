@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Weds Jul 29 2020
-@name:   Webscraping WebAPI Objects
+@name:   WebAPI Objects
 @author: Jack Kirby cook
 
 """
@@ -76,28 +76,29 @@ class WebAPI(ABC):
         elif isinstance(self.__wait, tuple): time.sleep(random.uniform(*self.__wait))
         else: raise TypeError(type(self.__wait))     
   
-    def __call__(self, *args, **kwargs):
-        queue, query = self.queue(*args, **kwargs)
+    def __call__(self, *args, dataset, **kwargs):
+        queue, query = self.queue(*args, **kwargs), self.query(*args, **kwargs)
         assert isinstance(queue, dict) and isinstance(query, dict)
         assert all([isinstance(values, list) for key, values in queue.items()])
         assert all([isinstance(values, dict) for key, values in query.items()])
+        assert all([set(queue[key]) == set(query[key].keys()) for key in queue.keys()])
         for queueKey in queue.keys(): random.shuffle(queue[queueKey])
         for queueKey, queueValues in queue.items():
-            completed = set(self.completed(queueKey))
+            completed = set(self.completed(dataset, queueKey))
             for queueValue in queueValues:
                 if queueValue in completed: continue
                 crawling = [value for value in queue[queueKey] if value != queueValue and value not in completed] 
-                for completedKey, completedValue in self.execute(*args, **query[queueKey][queueValue], crawling=crawling, **kwargs): 
+                for completedKey, completedValue in self.execute(*args, dataset=dataset, **query[queueKey][queueValue], crawling=crawling, **kwargs): 
                     assert queueKey == completedKey
                     completed.add(completedValue)
-                self.sleep()
+                    self.sleep()
       
-    def execute(self, *args, **kwargs):
-        for webquery in self.download(*args, **kwargs):
+    def execute(self, *args, dataset, **kwargs):
+        for webquery in self.download(*args, dataset=dataset, **kwargs):
             print('Downloading Success: {}'.format(str(self)))
             print(str(webquery))
-            for dataset, dataframe in webquery.items(): self.addrecord(dataset, dataframe, ignore=webquery.datetag)
-            self.addreport(*webquery.query)
+            for queryDataset, queryDataframe in webquery.items(): self.addrecord(dataset, queryDataset, queryDataframe, ignore=webquery.datetag)
+            self.addreport(dataset, *webquery.query)
             yield webquery.query
     
     def download(self, *args, **kwargs):
@@ -112,37 +113,37 @@ class WebAPI(ABC):
                 downloaded = webquery
 
     def filename(self, queryDataset): return '.'.join([queryDataset, self.__compression, self.__filetype]) if self.__compression else '.'.join([queryDataset, self.__filetype])
-    def file(self, queryDataset): return os.path.join(self.repository, self.filename(queryDataset))
-    def load(self, queryDataset): return dataframe_fromfile(self.file(queryDataset), index=None, header=0, forceframe=True)  
-    def save(self, queryDataset, queryDataFrame): dataframe_tofile(self.file(queryDataset), queryDataFrame, index=False, header=True)  
+    def file(self, websiteDataset, queryDataset): return os.path.join(self.repository, self.websiteDataset, self.filename(queryDataset))
+    def load(self, websiteDataset, queryDataset): return dataframe_fromfile(self.file(websiteDataset, queryDataset), index=None, header=0, forceframe=True)  
+    def save(self, websiteDataset, queryDataset, queryDataFrame): dataframe_tofile(self.file(websiteDataset, queryDataset), queryDataFrame, index=False, header=True)  
 
-    def setreport(self, queryKey):
-        with open(os.path.join(self.repository, '.'.join([queryKey, 'txt'])), "w") as _: pass
-    def getreport(self, queryKey):
-        with open(os.path.join(self.repository, '.'.join([queryKey, 'txt'])), "r") as txtfile: return [line.strip() for line in txtfile.readlines()]
-    def addreport(self, queryKey, queryValue): 
-        with open(os.path.join(self.repository, '.'.join([queryKey, 'txt'])), "a") as txtfile: txtfile.write(queryValue + "\n")        
+    def setreport(self, websiteKey, queryKey):
+        with open(os.path.join(self.repository, websiteKey, '.'.join([queryKey, 'txt'])), "w") as _: pass
+    def getreport(self, websiteKey, queryKey):
+        with open(os.path.join(self.repository, websiteKey, '.'.join([queryKey, 'txt'])), "r") as txtfile: return [line.strip() for line in txtfile.readlines()]
+    def addreport(self, websiteKey, queryKey, queryValue): 
+        with open(os.path.join(self.repository, websiteKey, '.'.join([queryKey, 'txt'])), "a") as txtfile: txtfile.write(queryValue + "\n")        
 
-    def addrecord(self, queryDataset, queryDataFrame, ignore): 
+    def addrecord(self, websiteDataset, queryDataset, queryDataFrame, ignore): 
         ignore = [ignore] if not isinstance(ignore, (tuple, list)) else ignore
         assert isinstance(queryDataFrame, pd.DataFrame)        
-        try: dataset, dataframe = queryDataset, self.load(queryDataset)
+        try: dataset, dataframe = queryDataset, self.load(websiteDataset, queryDataset)
         except FileNotFoundError: pass        
         try: dataset, dataframe = queryDataset, pd.concat([dataframe, queryDataFrame], ignore_index=True)
         except NameError: dataset, dataframe = queryDataset, queryDataFrame
         dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column in ignore], ignore_index=True, keep='last')     
-        self.save(dataset, dataframe)  
+        self.save(websiteDataset, dataset, dataframe)  
         
     @abstractmethod
     def queue(self): pass
     @abstractmethod
     def query(self): pass
 
-    def completed(self, queryKey): 
-        try: return self.getreport(queryKey) 
+    def completed(self, websiteKey, queryKey): 
+        try: return self.getreport(websiteKey, queryKey) 
         except FileNotFoundError: 
-            self.setreport(queryKey)
-            return self.getreport(queryKey)
+            self.setreport(websiteKey, queryKey)
+            return self.getreport(websiteKey, queryKey)
 
 
 
