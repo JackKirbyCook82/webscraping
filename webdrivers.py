@@ -11,7 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 from webscraping.webdata import EmptyWebDataError
-from webscraping.webpages import EmptyWebPageError, CaptchaError, RefusalError
+from webscraping.webpages import EmptyWebPageError, CaptchaError, RefusalError, BadRequestError
 from webscraping.webactions import EmptyWebActionsError
 
 __version__ = "1.0.0"
@@ -68,6 +68,11 @@ class WebDriver(object):
             print("WebDriver Success: {}".format(self.__class__.__name__))
             try: self.stop(driver)
             except NameError: pass   
+        except BadRequestError as error:
+            print("WebDriver BadRequest: {}".format(self.__class__.__name__))
+            try: self.stop(driver)
+            except NameError: pass
+            raise error
         except (EmptyWebPageError, EmptyWebActionsError, EmptyWebDataError, CaptchaError, RefusalError) as error:
             print("WebDriver Failure: {}".format(self.__class__.__name__))
             print(str(error))

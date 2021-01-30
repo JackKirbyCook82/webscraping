@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from utilities.dataframes import dataframe_tofile, dataframe_fromfile
 
 from webscraping.url import URL
+from webscraping.webpages import BadRequestError
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -88,32 +89,40 @@ class WebAPI(ABC):
             for queueValue in queueValues:
                 if queueValue in completed: continue
                 crawling = [value for value in queue[queueKey] if value != queueValue and value not in completed] 
-                for completedKey, completedValue in self.execute(*args, dataset=dataset, **query[queueKey][queueValue], crawling=crawling, **kwargs): 
+                for completedKey, completedValue in self.execute(dataset, queueKey, queueValue, *args, **query[queueKey][queueValue], crawling=crawling, **kwargs):
                     assert queueKey == completedKey
                     completed.add(completedValue)
                     self.sleep()
-      
-    def execute(self, *args, dataset, **kwargs):
+
+    def execute(self, dataset, queueKey, queueValue, *args, **kwargs):         
+        try: 
+            for completedKey, completedValue in self.generator(dataset, *args, **kwargs):
+                self.addreport(dataset, completedKey, completedValue)
+                yield (completedKey, completedValue)
+        except BadRequestError: 
+            self.addreport(dataset, queueKey, queueValue)
+            yield (queueKey, queueValue)
+
+    def generator(self, dataset, *args, **kwargs):
         for webquery in self.download(*args, dataset=dataset, **kwargs):
             print('Downloading Success: {}'.format(str(self)))
             print(str(webquery))
-            for queryDataset, queryDataframe in webquery.items(): self.addrecord(dataset, queryDataset, queryDataframe, ignore=webquery.datetag)
-            self.addreport(dataset, *webquery.query)
+            for queryDataset, queryDataframe in webquery.asdict().items(): self.addrecord(dataset, queryDataset, queryDataframe, ignore=webquery.dateTag)            
             yield webquery.query
     
     def download(self, *args, **kwargs):
         downloaded = None
         for webquery in self.webreader(*args, **kwargs):
-            if downloaded is None: 
-                downloaded = webquery
-                continue
-            try: downloaded += webquery
-            except ValueError: 
-                yield downloaded
-                downloaded = webquery
+            if webquery is None and downloaded is None: pass
+            elif webquery is not None and downloaded is None: downloaded = webquery        
+            elif webquery is not None and downloaded is not None: downloaded += webquery
+            elif webquery is None and downloaded is not None: 
+                yield downloaded                
+                downloaded = None
+            else: raise ValueError()
 
     def filename(self, queryDataset): return '.'.join([queryDataset, self.__compression, self.__filetype]) if self.__compression else '.'.join([queryDataset, self.__filetype])
-    def file(self, websiteDataset, queryDataset): return os.path.join(self.repository, self.websiteDataset, self.filename(queryDataset))
+    def file(self, websiteDataset, queryDataset): return os.path.join(self.repository, websiteDataset, self.filename(queryDataset))
     def load(self, websiteDataset, queryDataset): return dataframe_fromfile(self.file(websiteDataset, queryDataset), index=None, header=0, forceframe=True)  
     def save(self, websiteDataset, queryDataset, queryDataFrame): dataframe_tofile(self.file(websiteDataset, queryDataset), queryDataFrame, index=False, header=True)  
 
@@ -125,13 +134,13 @@ class WebAPI(ABC):
         with open(os.path.join(self.repository, websiteKey, '.'.join([queryKey, 'txt'])), "a") as txtfile: txtfile.write(queryValue + "\n")        
 
     def addrecord(self, websiteDataset, queryDataset, queryDataFrame, ignore): 
-        ignore = [ignore] if not isinstance(ignore, (tuple, list)) else ignore
+        ignore = [ignore] if not isinstance(ignore, (tuple, list)) else list(ignore)
         assert isinstance(queryDataFrame, pd.DataFrame)        
         try: dataset, dataframe = queryDataset, self.load(websiteDataset, queryDataset)
         except FileNotFoundError: pass        
         try: dataset, dataframe = queryDataset, pd.concat([dataframe, queryDataFrame], ignore_index=True)
         except NameError: dataset, dataframe = queryDataset, queryDataFrame
-        dataframe = dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column in ignore], ignore_index=True, keep='last')     
+        dataframe.drop_duplicates(subset=[column for column in dataframe.columns if column not in ignore], inplace=True, ignore_index=True, keep='last')   
         self.save(websiteDataset, dataset, dataframe)  
         
     @abstractmethod
@@ -144,7 +153,6 @@ class WebAPI(ABC):
         except FileNotFoundError: 
             self.setreport(websiteKey, queryKey)
             return self.getreport(websiteKey, queryKey)
-
 
 
 

@@ -48,7 +48,7 @@ class WebPage(ABC):
         self.setFeed(feed)
 
     def __call__(self, *args, **kwargs): 
-        if self.badrequest(): yield None    
+        if self.badrequest(): raise BadRequestError(self)    
         self.setup(*args, **kwargs)
         if self.empty: raise EmptyWebPageError(self)
         else: yield from self.execute(*args, **kwargs)    
@@ -64,8 +64,6 @@ class WebPage(ABC):
             
     @property
     def empty(self): return all([not bool(value) for value in self.__contents.values()])    
-    @property
-    def url(self): return self.__url
     @property
     def feed(self): return self.__feed  
     @property
@@ -110,6 +108,7 @@ class WebPage(ABC):
             try: raise NotLoadedError('.'.join([str(self), self.Operations[key].__name__]))
             except KeyError: raise NotExistError('{}[{}]'.format(str(self), key))
 
+    def getURL(self, *args, **kwargs): return self.__url
     def setFeed(self, feed): self.__feed = feed
     def setSource(self, source): self.__source = source
 
@@ -129,6 +128,9 @@ class WebPage(ABC):
         except NotExistError: badrequest = False
         return bool(badrequest)
 
+    @property
+    @abstractmethod
+    def url(self): pass
     @abstractmethod
     def load(self, *args, **kwargs): pass
     @abstractmethod
@@ -144,7 +146,7 @@ class WebRequestPage(WebPage):
         cls.factory(url, *args, **kwargs)
      
     def __init__(self, *args, **kwargs):
-        if self.Referer is None: self.__referer = None
+        if self.Referer is None: self.__referer = lambda *args, **kwargs: None
         else: self.__referer = self.Referer(*args, **kwargs) if isinstance(self.Referer, type) else lambda *args, **kwargs: str(self.Referer)  
         super().__init__(*args, **kwargs)
         
@@ -152,15 +154,27 @@ class WebRequestPage(WebPage):
     def htmltree(self): return self.source
     @property
     def referer(self): return self.__referer    
-      
+    @property
+    def url(self): return str(self.response.url)
+    @property
+    def headers(self): return self.response.headers
+    @property
+    def response(self):
+        try: return self.__response
+        except AttributeError: raise NotLoadedError(str(self))
+
+    def getReferer(self, *args, **kwargs): return self.__referer  
+    def setResponse(self, response): self.__response = response
+    
     def load(self, *args, params=None, **kwargs): 
-        referer = self.referer(*args, **kwargs)
-        url = self.url(*args, **kwargs)
+        referer = self.getReferer(*args, **kwargs)
+        url = self.getURL(*args, **kwargs)
         print("WebRequestPage Loading: {}\n{}".format(str(self), str(url)))
         if self.referer: self.feed.headers.update({'Referer':str(referer)})
         response = self.feed.get(str(url), params=params)
         response.raise_for_status()
         self.setSource(self.parser(self.pageType, response))
+        self.setResponse(response)
         if self.refusal(): raise RefusalError(self)
 
     @keydispatcher
@@ -183,13 +197,13 @@ class WebBrowserPage(WebPage):
     @property
     def driver(self): return self.source 
     @property
-    def current(self): return self.driver.current_url
+    def url(self): return str(self.driver.current_url)
    
     def back(self): self.driver.back
     def forward(self): self.driver.forward
 
     def load(self, *args, **kwargs): 
-        url = self.url(*args, **kwargs)
+        url = self.getURL(*args, **kwargs)
         print("WebRequestPage Loading: {}\n{}".format(str(self), str(url)))
         self.feed.get(str(url))  
         self.setSource(self.feed)
@@ -219,14 +233,14 @@ class WebBrowserPage(WebPage):
     def crawler(self):
         self.loadOperation('crawler')
         crawling = {key:value for (key, value) in self.getOperation('crawler').items() if key in self.__crawling}
-        try: key = list(crawling.keys())[0]
+        try: key = random.choice(list(crawling.keys()))
         except IndexError: return False
         self.__crawling.remove(key)
         crawling[key].click()
         self.sleep()
         self.refresh()
-        self.checkCaptcha()
-        self.checkRefusal()
+        if self.captcha(): raise CaptchaError(self)    
+        if self.refusal(): raise RefusalError(self)
         return True
 
 

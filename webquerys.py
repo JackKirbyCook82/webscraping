@@ -46,11 +46,11 @@ class WebQuery(object):
     
     def __str__(self): 
         websiteStr = '{}|{}'.format(self.__class__.__name__, uppercase(self.website))
-        queryStr = 'Query: {}={}'.format(*[uppercase(item) for item in self.query])
+        queryStr = 'Query: {}|{}'.format(*[uppercase(item) for item in self.query])
         data = {dataset:self.get(dataset, None) for dataset in self.datasets}
         content = {dataset:len(dataframe.index) if isinstance(dataframe, pd.DataFrame) else 0 for dataset, dataframe in data.items()}
         datasetStr = 'Datasets: {}'.format(', '.join(['|'.join([uppercase(dataset), str(size)]) for dataset, size in content.items()]))
-        return '/n'.join([websiteStr, queryStr, datasetStr])
+        return '\n'.join([websiteStr, queryStr, datasetStr])
 
     def __getitem__(self, dataset): return self.__data[dataset]
     def __setitem__(self, dataset, dataframe):
@@ -59,8 +59,8 @@ class WebQuery(object):
         assert self.query[0] in dataframe.columns
         dataframe[self.query[0]] = self.query[1]
         dataframe[self.dateTag] = self.dateString(self.date())
-        try: self[dataset] = pd.concat([self[dataset], dataframe], ignore_index=True)
-        except KeyError: self[dataset] = dataframe
+        try: self.__data[dataset] = pd.concat([self[dataset], dataframe], ignore_index=True)
+        except KeyError: self.__data[dataset] = dataframe
 
     def __bool__(self): return bool(self.__data)
     def __ne__(self, other): return not self.__eq__(other)
@@ -69,9 +69,11 @@ class WebQuery(object):
         return all([self.website == other.website, self.query == other.query, self.datasets == other.datasets]) 
                                 
     def __iadd__(self, other):
-        if self != other: raise ValueError('{}|{}|{}={}'.format(self.__class__.__name__, self.website, *self.query))
-        combine = lambda dataframes: pd.concat([dataframe for dataframe in dataframes if isinstance(dataframe, pd.DataFrame)], ignore_index=True)
-        for dataset in self._dataset: self[dataset] = combine(self.get(dataset, None), other.get(dataset, None))
+        if self != other: raise ValueError()
+        for dataset in self.datasets:
+            self.__data[dataset] = pd.concat([self.get(dataset, None), other.get(dataset, None)], ignore_index=True)
+            self.__data[dataset].sort_values(self.dateTag, inplace=True)
+            self.__data[dataset].drop_duplicates(subset=[column for column in self.__data[dataset].columns if column != self.dateTag], ignore_index=True, keep='last', inplace=True)
         return self        
 
     @property
@@ -81,27 +83,13 @@ class WebQuery(object):
     @property
     def datasets(self): return self._datasets
 
-    def keys(self): return tuple(self.__data.keys())
-    def values(self): return tuple(self.__data.values())
-    def items(self): return (self.keys(), self.values())
     def asdict(self): return self.__data
+    def get(self, dataset, default): return self.__data.get(dataset, default)
+    def pop(self, dataset, default): return self.__data.pop(dataset, default)
+    
 
-    def get(self, dataset, default): return self.__data.get(dataset, None)
-    def pop(self, dataset, default): return self.__data.pop(dataset, None)
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+
     
     
     
