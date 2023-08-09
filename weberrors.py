@@ -8,7 +8,7 @@ Created on Mon Dec 30 2019
 
 import logging
 
-from utilities.meta import RegistryMeta
+from support.meta import RegistryMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"

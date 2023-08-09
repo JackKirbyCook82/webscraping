@@ -15,7 +15,7 @@ import PySimpleGUI as gui
 from rauth import OAuth1Service
 from collections import OrderedDict as ODict
 
-from utilities.meta import DelayerMeta
+from support.meta import DelayerMeta
 
 from webscraping.weberrors import WebStatusError
 

@@ -11,11 +11,10 @@ import os.path
 import lxml.html
 import multiprocessing
 import selenium.webdriver
-import seleniumwire.webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
-from utilities.meta import DelayerMeta
+from support.meta import DelayerMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -25,7 +24,7 @@ __license__ = ""
 
 
 LOGGER = logging.getLogger(__name__)
-DRIVERS = {"chrome": selenium.webdriver.Chrome, "firefox": selenium.webdriver.Firefox, "chrome-wire": seleniumwire.webdriver.Chrome, "firefox-wire": seleniumwire.webdriver.Firefox}
+DRIVERS = {"chrome": selenium.webdriver.Chrome, "firefox": selenium.webdriver.Firefox}
 CAPABILITIES = {"chrome": DesiredCapabilities.CHROME, "firefox": DesiredCapabilities.FIREFOX}
 OPTIONS = {"chrome": selenium.webdriver.ChromeOptions, "firefox": selenium.webdriver.FirefoxOptions}
 
