@@ -44,6 +44,8 @@ class WebNodeMeta(ABCMeta):
             return cls
         assert type(bases[0]) is WebNodeMeta
         assert all([type(base) is not WebNodeMeta for base in bases])
+        if ABC in bases:
+            return cls
         children = {key: value for key, value in getattr(cls, "__children__", {}).items()}
         update = {key: value for key, value in attrs.items() if type(value) is WebNodeMeta}
         children.update(update)
@@ -67,10 +69,21 @@ class WebNodeMeta(ABCMeta):
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
     def locate(cls, source):
-        pass
+        locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
+        contents = [content for content in cls.locator(source, locator=locator)] if bool(locator) else [source]
+        if not bool(contents) and not optional:
+            raise WebNodeEmptyError()
+        if len(contents) > 1 and not collection:
+            raise WebNodeMultipleError()
+        instances = [super(WebNodeMeta, cls).__call__(content) for content in contents]
+        for instance in instances:
+            for key, subcls in cls.__children__.items():
+                subinstances = subcls(instance.content)
+                instance[key] = subinstances
+        return (instances[0] if bool(instances) else None) if collection else instances
 
     def create(cls, contents):
-        pass
+        key, optional, collection = cls.__key__, cls.__optional__, cls.__collection__
 
     def renderer(cls, layers=[], style=single):
         aslist = lambda x: [x] if not isinstance(x, list) else x
@@ -88,6 +101,10 @@ class WebNodeMeta(ABCMeta):
 
 
 class WebNode(ABC, metaclass=WebNodeMeta):
+    def __init__(self, content, *args, **kwargs):
+        self.__content = content
+        super().__init__()
+
     def __setitem__(self, key, value): self.set(key, value)
     def __getitem__(self, key): return self.get(key)
     def __reversed__(self): return reversed(self.items())
@@ -96,6 +113,8 @@ class WebNode(ABC, metaclass=WebNodeMeta):
     @staticmethod
     @abstractmethod
     def locator(source, *args, locator, **kwargs): pass
+    @property
+    def content(self): return self.__content
 
 
 class WebELMT(WebNode, ABC, key="Element"):
