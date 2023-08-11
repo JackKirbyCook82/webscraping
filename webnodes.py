@@ -6,8 +6,13 @@ Created on Sat Aug 5 2023
 
 """
 
-from abc import ABC, ABCMeta
+from copy import copy
+from abc import ABC, ABCMeta, abstractmethod
 from collections import namedtuple as ntuple
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.webdriver.support import expected_conditions as EC
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -61,6 +66,12 @@ class WebNodeMeta(ABCMeta):
         cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
+    def locate(cls, source):
+        pass
+
+    def create(cls, contents):
+        pass
+
     def renderer(cls, layers=[], style=single):
         aslist = lambda x: [x] if not isinstance(x, list) else x
         last = lambda i, x: i == x
@@ -82,8 +93,21 @@ class WebNode(ABC, metaclass=WebNodeMeta):
     def __reversed__(self): return reversed(self.items())
     def __iter__(self): return iter(self.items())
 
+    @staticmethod
+    @abstractmethod
+    def locator(source, *args, locator, **kwargs): pass
 
-class WebELMT(WebNode, ABC, key="Element"): pass
+
+class WebELMT(WebNode, ABC, key="Element"):
+    @staticmethod
+    def locator(source, *args, locator, timeout=5, **kwargs):
+        try:
+            elements = WebDriverWait(source, timeout).until(EC.presence_of_all_elements_located((By.XPATH, locator)))
+        except (NoSuchElementException, TimeoutException, WebDriverException):
+            elements = []
+        yield from iter(elements)
+
+
 class WebELMTInput(WebELMT, ABC, key="Input"): pass
 class WebELMTSelect(WebELMT, ABC, key="Select"): pass
 class WebELMTCaptcha(WebELMT, ABC, key="Captcha"): pass
@@ -91,13 +115,35 @@ class WebELMTCheckBox(WebELMT, ABC, key="CheckBox"): pass
 class WebELMTClickable(WebELMT, ABC, key="Clickable"): pass
 
 
-class WebHTML(WebNode, ABC, key="Html"): pass
+class WebHTML(WebNode, ABC, key="Html"):
+    @staticmethod
+    def locator(source, *args, locator, removal=None, **kwargs):
+        elements = [element.remove(removal) if bool(removal) else element for element in source.xpath(locator)]
+        yield from iter(elements)
+
+
 class WebHTMLText(WebHTML, ABC, key="Text"): pass
 class WebHTMLLink(WebHTML, ABC, key="Link"): pass
 class WebHTMLTable(WebHTML, ABC, key="Table"): pass
 
 
-class WebJSON(WebNode, ABC, key="Json"): pass
+class WebJSON(WebNode, ABC, key="Json"):
+    @staticmethod
+    def locator(source, locator):
+        aslist = lambda x: [x] if not isinstance(x, list) else x
+        elements = copy(source)
+        for key in str(locator).strip("/").split("/"):
+            if isinstance(elements, list):
+                elements = [element[key] for element in elements if (key in element.keys() if isinstance(element, dict) else False)]
+                if not elements:
+                    return
+            elif isinstance(elements, dict):
+                elements = elements[key] if key in elements else None
+                if elements is None:
+                    return
+        yield from iter(aslist(elements))
+
+
 class WebJSONText(WebJSON, ABC, key="Text"): pass
 class WebJSONDict(WebJSON, ABC, key="Dict"): pass
 

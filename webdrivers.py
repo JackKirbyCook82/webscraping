@@ -69,23 +69,23 @@ class WebDriver(object, metaclass=DelayerMeta):
             self.driver.get(url)
 
     @DelayerMeta.delayer
-    def forward(self): self.source.foward()
+    def forward(self): self.driver.foward()
     @DelayerMeta.delayer
-    def back(self): self.source.back()
+    def back(self): self.driver.back()
     @DelayerMeta.delayer
-    def refresh(self): self.source.refresh()
+    def refresh(self): self.driver.refresh()
     @DelayerMeta.delayer
-    def maximize(self): self.source.maximize_window()
+    def maximize(self): self.driver.maximize_window()
     @DelayerMeta.delayer
-    def minimize(self): self.source.minimize_window()
+    def minimize(self): self.driver.minimize_window()
     @DelayerMeta.delayer
-    def pageUp(self): self.source.find_element_by_tag_name("html").send_keys(Keys.PAGE_UP)
+    def pageUp(self): self.driver.find_element_by_tag_name("html").send_keys(Keys.PAGE_UP)
     @DelayerMeta.delayer
-    def pageDown(self): self.source.find_element_by_tag_name("html").send_keys(Keys.PAGE_DOWN)
+    def pageDown(self): self.driver.find_element_by_tag_name("html").send_keys(Keys.PAGE_DOWN)
     @DelayerMeta.delayer
-    def pageHome(self): self.source.find_element_by_tag_name("html").send_keys(Keys.HOME)
+    def pageHome(self): self.driver.find_element_by_tag_name("html").send_keys(Keys.HOME)
     @DelayerMeta.delayer
-    def pageEnd(self): self.source.find_element_by_tag_name("html").send_keys(Keys.END)
+    def pageEnd(self): self.driver.find_element_by_tag_name("html").send_keys(Keys.END)
 
     @staticmethod
     def urlparse(url, params={}):
@@ -116,15 +116,13 @@ class WebDriver(object, metaclass=DelayerMeta):
     def name(self): return self.__name
 
     @property
-    def source(self): return self.driver
-    @property
-    def url(self): return self.source.current_url
+    def url(self): return self.driver.current_url
     @property
     def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")
     @property
-    def html(self): return lxml.html.fromstring(self.source.page_source)
+    def html(self): return lxml.html.fromstring(self.driver.page_source)
     @property
-    def text(self): return self.source.page_source
+    def text(self): return self.driver.page_source
 
     @property
     def response(self): return [request.response for request in self.driver.requests]
