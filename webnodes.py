@@ -32,6 +32,21 @@ class WebNodeEmptyError(WebNodeError): pass
 class WebNodeMultipleError(WebNodeError): pass
 
 
+# def renderer(node, layers=[], style=single):
+#     aslist = lambda x: [x] if not isinstance(x, list) else x
+#     last = lambda i, x: i == x
+#     pre = lambda i, x: style.terminate if last(i, x) else style.blank
+#     pads = lambda: ''.join([style.blank if layer else style.run for layer in layers])
+#     func = lambda i, x: "".join([pads(), pre(index, count)])
+#     if not layers:
+#         yield "", None, str(cls.__name__)
+#     count = len(cls.__children__) - 1
+#     for index, (key, values) in enumerate(cls.__children__.items()):
+#         for value in aslist(values):
+#             yield func(index, count), str(key), str(value.__name__)
+#             yield from value.renderer(layers=[*layers, last(index, count)], style=style)
+
+
 class WebNodeMeta(ABCMeta):
     def __repr__(cls):
         renderer = cls.renderer(style=cls.__style__)
@@ -67,37 +82,6 @@ class WebNodeMeta(ABCMeta):
         cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", None))
         cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
-
-    def locate(cls, source):
-        locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
-        contents = [content for content in cls.locator(source, locator=locator)] if bool(locator) else [source]
-        if not bool(contents) and not optional:
-            raise WebNodeEmptyError()
-        if len(contents) > 1 and not collection:
-            raise WebNodeMultipleError()
-        instances = [super(WebNodeMeta, cls).__call__(content) for content in contents]
-        for instance in instances:
-            for key, subcls in cls.__children__.items():
-                subinstances = subcls(instance.content)
-                instance[key] = subinstances
-        return (instances[0] if bool(instances) else None) if collection else instances
-
-    def create(cls, contents):
-        key, optional, collection = cls.__key__, cls.__optional__, cls.__collection__
-
-    def renderer(cls, layers=[], style=single):
-        aslist = lambda x: [x] if not isinstance(x, list) else x
-        last = lambda i, x: i == x
-        pre = lambda i, x: style.terminate if last(i, x) else style.blank
-        pads = lambda: ''.join([style.blank if layer else style.run for layer in layers])
-        func = lambda i, x: "".join([pads(), pre(index, count)])
-        if not layers:
-            yield "", None, str(cls.__name__)
-        count = len(cls.__children__) - 1
-        for index, (key, values) in enumerate(cls.__children__.items()):
-            for value in aslist(values):
-                yield func(index, count), str(key), str(value.__name__)
-                yield from value.renderer(layers=[*layers, last(index, count)], style=style)
 
 
 class WebNode(ABC, metaclass=WebNodeMeta):
@@ -147,20 +131,18 @@ class WebHTMLTable(WebHTML, ABC, key="Table"): pass
 
 
 class WebJSON(WebNode, ABC, key="Json"):
-    @staticmethod
-    def locator(source, locator):
-        aslist = lambda x: [x] if not isinstance(x, list) else x
-        elements = copy(source)
-        for key in str(locator).strip("/").split("/"):
-            if isinstance(elements, list):
-                elements = [element[key] for element in elements if (key in element.keys() if isinstance(element, dict) else False)]
-                if not elements:
-                    return
-            elif isinstance(elements, dict):
-                elements = elements[key] if key in elements else None
-                if elements is None:
-                    return
-        yield from iter(aslist(elements))
+    @classmethod
+    def locator(cls, source, *args, locator, **kwargs):
+        assert isinstance(source, (list, dict)) and isinstance(locator, (list, str))
+        locator = str(locator).strip("/").split("/") if isinstance(locator, str) else locator
+        source = [source] if isinstance(source, dict) else source
+        generator = lambda key: (content[key] for content in source if key in source.key())
+        elements = generator(locator.pop(0))
+        for element in iter(elements):
+            if bool(locator):
+                yield from cls.locator(element, *args, locator=locator, **kwargs)
+            else:
+                yield element
 
 
 class WebJSONText(WebJSON, ABC, key="Text"): pass
