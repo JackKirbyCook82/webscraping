@@ -48,7 +48,7 @@ class WebNodeMeta(ABCMeta):
         if not any([type(base) is WebNodeMeta for base in bases]):
             return cls
         assert type(bases[0]) is WebNodeMeta
-        assert all([type(base) is not WebNodeMeta for base in bases])
+        assert all([type(base) is not WebNodeMeta for base in bases[1:]])
         if ABC in bases:
             setattr(bases[0], kwargs["register"], cls)
             return cls
@@ -62,7 +62,7 @@ class WebNodeMeta(ABCMeta):
         if not any([type(base) is WebNodeMeta for base in bases]):
             return
         assert type(bases[0]) is WebNodeMeta
-        assert all([type(base) is not WebNodeMeta for base in bases])
+        assert all([type(base) is not WebNodeMeta for base in bases[1:]])
         if ABC in bases:
             return
         cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
@@ -119,6 +119,7 @@ class WebNode(ABC, metaclass=WebNodeMeta):
         parameters = {key: value for key, value in self.parameters.items()}
         parameters.update(kwargs)
         data = self.data(*args, **parameters)
+        data = self.value(data)
         data = self.parser(data, *args, **parameters)
         return data
 
@@ -141,7 +142,9 @@ class WebNode(ABC, metaclass=WebNodeMeta):
     @property
     def locator(self): return self.__class__.__locator__
     @property
-    def parser(self): return self.__class__.__parser__
+    def key(self): return self.__class__.__key__
+    @property
+    def value(self): return self.__class__.__value__
     @property
     def contents(self): return self.__contents
 
