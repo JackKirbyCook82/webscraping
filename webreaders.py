@@ -13,6 +13,7 @@ import webbrowser
 import multiprocessing
 import PySimpleGUI as gui
 from rauth import OAuth1Service
+from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 
 from support.meta import DelayerMeta
@@ -29,6 +30,7 @@ __license__ = ""
 LOGGER = logging.getLogger(__name__)
 
 
+class WebAuthenticator(ntuple("Authenticator", "username password")): pass
 class WebAuthorizer(object):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         cls.__urls__ = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
@@ -96,13 +98,14 @@ class WebReader(object, metaclass=DelayerMeta):
         self.session.close()
 
     @DelayerMeta.delayer
-    def load(self, url, *args, params={}, payload=None, headers={}, **kwargs):
+    def load(self, url, *args, params={}, payload=None, headers={}, auth=None, **kwargs):
+        assert isinstance(auth, (WebAuthenticator, type(None)))
         url, params = self.urlparse(url, params)
         with self.mutex:
             if payload is None:
-                response = self.get(url, params=params, headers=headers)
+                response = self.get(url, params=params, headers=headers, auth=auth)
             else:
-                response = self.post(url, payload, params=params, headers=headers)
+                response = self.post(url, payload, params=params, headers=headers, auth=auth)
             self.request = response.request
             self.response = response
             try:
@@ -110,16 +113,22 @@ class WebReader(object, metaclass=DelayerMeta):
             except KeyError:
                 pass
 
-    def get(self, url, params={}, headers={}):
+    def get(self, url, params={}, headers={}, auth=None):
         assert "?" not in str(url) if bool(params) else True
         authorized = self.authorizer is not None
-        response = self.session.get(url, params=params, headers=headers, header_auth=authorized)
+        parameters = dict(params=params, headers=headers, header_auth=authorized)
+        if auth is not None:
+            parameters.update({"auth": tuple(auth)})
+        response = self.session.get(url, **parameters)
         return response
 
-    def post(self, url, payload, params={}, headers={}):
+    def post(self, url, payload, params={}, headers={}, auth=None):
         assert "?" not in str(url) if bool(params) else True
         authorized = self.authorizer is not None
-        response = self.session.post(url, data=payload, params=params, headers=headers, header_auth=authorized)
+        parameters = dict(data=payload, params=params, headers=headers, header_auth=authorized)
+        if auth is not None:
+            parameters.update({"auth": tuple(auth)})
+        response = self.session.post(url, **parameters)
         return response
 
     @staticmethod

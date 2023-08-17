@@ -73,7 +73,10 @@ class WebNodeMeta(ABCMeta):
         cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
-    def __call__(cls, source):
+    def create(cls, source):
+        pass
+
+    def locate(cls, source):
         locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
         elements = [element for element in cls.locate(source, locator=locator)]
         if not bool(elements) and not optional:
@@ -101,10 +104,6 @@ class WebNodeMeta(ABCMeta):
 
 
 class WebNode(ABC, metaclass=WebNodeMeta):
-    def __init_subclass__(cls, *args, register=None, **kwargs):
-        if register is not None:
-            setattr(WebNode, register, cls)
-
     def __init__(self, contents, *args, **kwargs):
         style = self.__class__.__style__
         super().__init__(style=style)
