@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sat Aug 5 2023
-@name:   WebNode Objects
+@name:   WebData Objects
 @author: Jack Kirby Cook
 
 """
@@ -32,37 +32,37 @@ single = Style("├──", "└──", "│  ", "   ")
 curved = Style("├──", "╰──", "│  ", "   ")
 
 
-class WebNodeError(Exception): pass
-class WebNodeEmptyError(WebNodeError): pass
-class WebNodeMultipleError(WebNodeError): pass
+class WebDataError(Exception): pass
+class WebDataEmptyError(WebDataError): pass
+class WebDataMultipleError(WebDataError): pass
 
 
-class WebNodeMeta(ABCMeta):
+class WebDataMeta(ABCMeta):
     def __repr__(cls):
         renderer = cls.hierarchy(style=cls.__style__)
         rows = [pre + "|".join(key, value.__name__) for pre, key, value in iter(renderer)]
         return "\n".format(rows)
 
     def __new__(mcs, name, bases, attrs, *args, **kwargs):
-        cls = super(WebNodeMeta, mcs).__new__(mcs, name, bases, attrs)
-        if not any([type(base) is WebNodeMeta for base in bases]):
+        cls = super(WebDataMeta, mcs).__new__(mcs, name, bases, attrs)
+        if not any([type(base) is WebDataMeta for base in bases]):
             return cls
-        assert type(bases[0]) is WebNodeMeta
-        assert all([type(base) is not WebNodeMeta for base in bases[1:]])
+        assert type(bases[0]) is WebDataMeta
+        assert all([type(base) is not WebDataMeta for base in bases[1:]])
         if ABC in bases:
             setattr(bases[0], kwargs["register"], cls)
             return cls
         children = {key: value for key, value in getattr(cls, "__children__", {}).items()}
-        update = {key: value for key, value in attrs.items() if type(value) is WebNodeMeta}
+        update = {key: value for key, value in attrs.items() if type(value) is WebDataMeta}
         children.update(update)
         setattr(cls, "__children__", children)
         return cls
 
     def __init__(cls, name, bases, attrs, *args, **kwargs):
-        if not any([type(base) is WebNodeMeta for base in bases]):
+        if not any([type(base) is WebDataMeta for base in bases]):
             return
-        assert type(bases[0]) is WebNodeMeta
-        assert all([type(base) is not WebNodeMeta for base in bases[1:]])
+        assert type(bases[0]) is WebDataMeta
+        assert all([type(base) is not WebDataMeta for base in bases[1:]])
         if ABC in bases:
             return
         cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
@@ -73,17 +73,14 @@ class WebNodeMeta(ABCMeta):
         cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
-    def create(cls, source):
-        pass
-
-    def locate(cls, source):
+    def __call__(cls, source):
         locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
         elements = [element for element in cls.locate(source, locator=locator)]
         if not bool(elements) and not optional:
-            raise WebNodeEmptyError()
+            raise WebDataEmptyError()
         if len(elements) > 1 and not collection:
-            raise WebNodeMultipleError()
-        instances = [super(WebNodeMeta, cls).__call__(content) for content in elements]
+            raise WebDataMultipleError()
+        instances = [super(WebDataMeta, cls).__call__(content) for content in elements]
         for instance in instances:
             for key, subcls in cls.__children__.items():
                 subinstances = subcls(instance.contents)
@@ -103,7 +100,7 @@ class WebNodeMeta(ABCMeta):
                 yield from value.renderer(layers=[*layers, last(index, len(cls.__children__) - 1)])
 
 
-class WebNode(ABC, metaclass=WebNodeMeta):
+class WebData(ABC, metaclass=WebDataMeta):
     def __init__(self, contents, *args, **kwargs):
         style = self.__class__.__style__
         super().__init__(style=style)
@@ -115,41 +112,35 @@ class WebNode(ABC, metaclass=WebNodeMeta):
     def __iter__(self): return iter(self.items())
 
     def __call__(self, *args, **kwargs):
-        parameters = {key: value for key, value in self.parameters.items()}
-        parameters.update(kwargs)
-        data = self.data(*args, **parameters)
-        data = self.value(data)
-        data = self.parser(data, *args, **parameters)
+        data = self.data
+        data = self.parser(data)
+        data = self.execute(data, *args, **kwargs)
         return data
-
-    @property
-    @abstractmethod
-    def string(self): pass
-    @abstractmethod
-    def data(self, *args, **kwargs): pass
 
     @staticmethod
     @abstractmethod
     def locate(source, *args, locator, **kwargs): pass
-    @staticmethod
-    def parser(contents, *args, **kwargs): return contents
-    @staticmethod
-    def extractor(contents, *args, **kwargs): return contents
 
     @property
-    def parameters(self): return self.__class__.__parameters__
+    @abstractmethod
+    def string(self): pass
     @property
-    def locator(self): return self.__class__.__locator__
+    @abstractmethod
+    def data(self): pass
+
     @property
     def key(self): return self.__class__.__key__
     @property
-    def value(self): return self.__class__.__value__
+    def parser(self): return self.__class__.__parser__
+    @property
+    def locator(self): return self.__class__.__locator__
+    @property
+    def parameters(self): return self.__class__.__parameters__
     @property
     def contents(self): return self.__contents
 
 
-class WebELMT(WebNode, ABC, register="Element"):
-    def data(self, *args, **kwargs): return str(self.string)
+class WebELMT(WebData, ABC, register="Element"):
     def click(self): self.element.click()
 
     @staticmethod
@@ -161,9 +152,12 @@ class WebELMT(WebNode, ABC, register="Element"):
         yield from iter(elements)
 
     @property
-    def html(self): return lxml.html.fromstring(self.string)
+    def html(self): return lxml.html.fromstring(self.element.get_attribute("outerHTML"))
+
     @property
     def string(self): return self.element.get_attribute("outerHTML")
+    @property
+    def data(self): return self.element.get_attribute("outerHTML")
     @property
     def element(self): return self.contents
 
@@ -196,9 +190,7 @@ class WebELMTCheckBox(WebELMT, ABC, register="CheckBox"):
     def checked(self): return True if self.element.get_attribute("ariaChecked") in ("true", "mixed") else False
 
 
-class WebHTML(WebNode, ABC, register="Html"):
-    def data(self, *args, **kwargs): return str(self.string)
-
+class WebHTML(WebData, ABC, register="Html"):
     @staticmethod
     def locate(source, *args, locator, removal=None, **kwargs):
         elements = [element.remove(removal) if bool(removal) else element for element in source.xpath(locator)]
@@ -208,30 +200,34 @@ class WebHTML(WebNode, ABC, register="Html"):
     def text(self): return self.contents.attrib["text"]
     @property
     def link(self): return self.contents.attrib["href"]
+
     @property
     def string(self): return lxml.html.tostring(self.html)
+    @property
+    def data(self): return lxml.html.tostring(self.html)
     @property
     def html(self): return self.contents
 
 
 class WebHTMLText(WebHTML, ABC, register="Text"):
-    def data(self, *args, **kwargs): return str(self.text)
+    @property
+    def data(self): return str(self.text)
 
 
 class WebHTMLLink(WebHTML, ABC, register="Link"):
-    def data(self, *args, **kwargs): return str(self.link)
+    @property
+    def data(self): return str(self.link)
 
 
 class WebHTMLTable(WebHTML, ABC, register="Table"):
-    def data(self, *args, header=None, index=None, **kwargs):
+    @property
+    def data(self):
+        header = self.parameters.get("header", 0)
+        index = self.parameters.get("index", None)
         return pd.concat(pd.read_html(self.string, header=header, index_col=index), axis=0)
 
 
-class WebJSON(WebNode, ABC, register="Json"):
-    @property
-    def string(self): return str(json.dumps(self.contents, sort_keys=True, indent=3, separators=(',', ' : '), default=str))
-    def data(self, *args, **kwargs): return self.contents
-
+class WebJSON(WebData, ABC, register="Json"):
     @classmethod
     def locate(cls, source, *args, locator, **kwargs):
         assert isinstance(source, (list, dict)) and isinstance(locator, (list, str))
@@ -245,53 +241,18 @@ class WebJSON(WebNode, ABC, register="Json"):
             else:
                 yield element
 
-    def toJSON(self, *args, **kwargs):
-        root = dict()
-        layer = lambda content, path: {path[0]: layer(path[1:], value)} if bool(path) else value
-        for child in self.children:
-            locator = str(child.locator).strip("/").split("/")
-            key = locator.pop(0)
-            if bool(child.collection):
-                root[key] = []
-                for value in child:
-                    root.append(layer(value.toJSON(*args, **kwargs), locator))
-            else:
-                root[key] = layer(value.toJSON(*args, **kwargs), locator)
-        return root
+    @property
+    def string(self): return str(json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str))
+    @property
+    def data(self): return self.json
+    @property
+    def json(self): return self.contents
 
-    def toXML(self, *args, **kwargs):
-        locator = str(self.locator).strip("/").split("/")
-        root = lxml.etree.Element(locator.pop(0))
-        element = root
-        while bool(locator):
-            element = lxml.etree.SubElement(element, locator.pop(0))
-        for child in self.children:
-            element.append(child.toXML(*args, **kwargs))
-        return root
 
 
 class WebJsonText(WebJSON, ABC, register="Text"):
     @property
-    def string(self): return str(self.contents)
-    def data(self, *args, **kwargs): return self.contents
+    def string(self): return str(self.json)
 
-    def toJSON(self, *args, **kwargs):
-        parameters = {key: value for key, value in self.parameters.items()}
-        parameters.update(kwargs)
-        data = self.data(*args, **parameters)
-        data = self.parser(data, *args, **parameters)
-        return data
 
-    def toXML(self, *args, **kwargs):
-        locator = str(self.locator).strip("/").split("/")
-        root = lxml.etree.Element(locator.pop(0))
-        element = root
-        while bool(locator):
-            element = lxml.etree.SubElement(element, locator.pop(0))
-        parameters = {key: value for key, value in self.parameters.items()}
-        parameters.update(kwargs)
-        data = self.data(*args, **parameters)
-        data = self.parser(data, *args, **parameters)
-        element.text = str(data)
-        return root
 
