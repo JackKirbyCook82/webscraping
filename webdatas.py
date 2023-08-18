@@ -249,7 +249,6 @@ class WebJSON(WebData, ABC, register="Json"):
     def json(self): return self.contents
 
 
-
 class WebJsonText(WebJSON, ABC, register="Text"):
     @property
     def string(self): return str(self.json)

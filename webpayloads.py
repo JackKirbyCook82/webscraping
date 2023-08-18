@@ -37,6 +37,10 @@ class WebPayloadMeta(ABCMeta):
         assert all([type(base) is not WebPayloadMeta for base in bases[1:]])
         if ABC in bases:
             return cls
+        children = {key: value for key, value in getattr(cls, "__children__", {}).items()}
+        update = {key: value for key, value in attrs.items() if type(value) is WebPayloadMeta}
+        children.update(update)
+        setattr(cls, "__children__", children)
         return cls
 
     def __init__(cls, name, bases, attrs, *args, **kwargs):
@@ -46,6 +50,11 @@ class WebPayloadMeta(ABCMeta):
         assert all([type(base) is not WebPayloadMeta for base in bases[1:]])
         if ABC in bases:
             return
+        cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
+        cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
+        cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
+        cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
+        cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
     def hierarchy(cls, layers=[], style=single):
         last = lambda i, x: i == x
@@ -61,7 +70,26 @@ class WebPayloadMeta(ABCMeta):
 
 
 class WebPayload(ABC, metaclass=WebPayloadMeta):
-    pass
+    def __init__(self, contents, *args, **kwargs):
+        style = self.__class__.__style__
+        super().__init__(style=style)
+        self.__contents = contents
+
+    def __setitem__(self, key, value): self.set(key, value)
+    def __getitem__(self, key): return self.get(key)
+    def __reversed__(self): return reversed(self.items())
+    def __iter__(self): return iter(self.items())
+
+    @property
+    def key(self): return self.__class__.__key__
+    @property
+    def locator(self): return self.__class__.__locator__
+    @property
+    def contents(self): return self.__contents
+
+
+
+
 
 
 
