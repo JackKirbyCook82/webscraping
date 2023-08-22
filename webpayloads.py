@@ -50,8 +50,8 @@ class WebPayloadMeta(ABCMeta):
         assert all([type(base) is not WebPayloadMeta for base in bases[1:]])
         if ABC in bases:
             return
-        cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
-        cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
+        cls.__contents__ = {key: value for key, value in getattr(cls, "__contents__", {}).items()}
+        cls.__contents__.update(kwargs.get("contents", {}))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
         cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
@@ -70,10 +70,9 @@ class WebPayloadMeta(ABCMeta):
 
 
 class WebPayload(ABC, metaclass=WebPayloadMeta):
-    def __init__(self, contents, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         style = self.__class__.__style__
         super().__init__(style=style)
-        self.__contents = contents
 
     def __setitem__(self, key, value): self.set(key, value)
     def __getitem__(self, key): return self.get(key)
@@ -84,8 +83,6 @@ class WebPayload(ABC, metaclass=WebPayloadMeta):
     def key(self): return self.__class__.__key__
     @property
     def locator(self): return self.__class__.__locator__
-    @property
-    def contents(self): return self.__contents
 
 
 
