@@ -235,22 +235,19 @@ class WebHTMLTable(WebHTML, ABC, register="Table"):
 
 
 class WebJSON(WebData, ABC, register="Json"):
-    @staticmethod
-    def locate(source, *args, locator, **kwargs):
-
-#    @classmethod
-#    def locate(cls, source, *args, locator, **kwargs):
-#        assert isinstance(source, (list, dict)) and isinstance(locator, (list, str))
-#        locators = str(locator).strip("/").split("/") if isinstance(locator, str) else locator
-#        locators = [str(locator).strip("[]") for locator in locators]
-#        source = [source] if isinstance(source, dict) else source
-#        generator = lambda key: (items[key] for items in source if key in items.keys())
-#        elements = generator(locators.pop(0))
-#        for element in iter(elements):
-#            if bool(locators):
-#                yield from cls.locate(element, *args, locator=locators, **kwargs)
-#            else:
-#                yield element
+    @classmethod
+    def locate(cls, source, *args, locator, **kwargs):
+        assert isinstance(source, (list, dict)) and isinstance(locator, (list, str))
+        locators = str(locator).strip("/").split("/") if isinstance(locator, str) else locator
+        locator = locators.pop(0)
+        locator, collection = str(locator).strip("[]"), str(locator).endswith("[]")
+        elements = source[str(locator)] if isinstance(source, dict) else source[int(locator)]
+        elements = [elements] if not bool(collection) else aslist(elements)
+        for element in iter(elements):
+            if bool(locators):
+                yield from cls.locate(element, *args, locator=locators, **kwargs)
+            else:
+                yield element
 
     @property
     def string(self): return str(json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str))

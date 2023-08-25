@@ -33,6 +33,35 @@ class WebField(Field):
     def __init__(self, *args, **kwargs): self.__value = None
     def __bool__(self): return self.__value is not None
 
+    def toJSON(self, element, locators):
+        assert isinstance(locators, list)
+        locator = str(locators.pop(-1))
+        locator, collection = str(locator).strip("[]"), str(locator).endswith("[]")
+        root = [{locator: element}] if bool(collection) else {locator: element}
+        return root if not bool(locators) else self.toJSON(root, locators)
+
+    def toXML(self, element, locators):
+        assert isinstance(locators, list)
+        if not bool(locators):
+            return element
+        locator = str(locators.pop(-1)).strip("[]")
+        root = lxml.etree.Element(locator)
+        root.append(element)
+        return self.toXML(root, locators)
+
+    @property
+    def json(self):
+        locators = [str(locator) for locator in str(self.locator).strip("//").split("/")]
+        element = str(self.value)
+        return self.toJSON(element, locators)
+
+    @property
+    def xml(self):
+        locators = [str(locator) for locator in str(self.locator).strip("//").split("/")]
+        element = lxml.etree.Element(locators.pop(-1).strip("[]"))
+        element.text = str(self.value)
+        return self.toXML(element, locators)
+
     @property
     def value(self): return self.__value
     @value.setter
@@ -80,9 +109,9 @@ class WebPayloadMeta(ABCMeta):
 
     def __call__(cls, *args, **kwargs):
         fields, collection = (field for field in cls.__fields__.values()), cls.__collection__
-        contents = [WebField(field.key, field.locator, field.value if bool(field) else kwargs.get(field.key, None)) for field in fields]
+        fields = [WebField(field.key, field.locator, field.value if bool(field) else kwargs.get(field.key, None)) for field in fields]
         attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("locator", "key", "style")}
-        instance = super(WebPayloadMeta, cls).__call__(contents, **attributes)
+        instance = super(WebPayloadMeta, cls).__call__(fields, **attributes)
         for child in cls.__children__:
             if inspect.isclass(child):
                 assert type(child) is WebPayloadMeta
@@ -114,9 +143,9 @@ class WebPayloadMeta(ABCMeta):
 
 
 class WebPayload(Node, metaclass=WebPayloadMeta):
-    def __init__(self, contents, *args, key, locator, style, **kwargs):
+    def __init__(self, fields, *args, key, locator, style, **kwargs):
         super().__init__(style=style)
-        self.__contents = contents
+        self.__fields = fields
         self.__locator = locator
         self.__key = key
 
@@ -126,7 +155,7 @@ class WebPayload(Node, metaclass=WebPayloadMeta):
     def __iter__(self): return iter(self.items())
 
     @property
-    def contents(self): return self.__contents
+    def fields(self): return self.__fields
     @property
     def locator(self): return self.__locator
     @property
