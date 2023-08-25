@@ -18,6 +18,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.support import expected_conditions as EC
 
+from support.mixins import Node
+
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebELMT", "WebHTML", "WebJSON"]
@@ -27,6 +29,7 @@ __license__ = ""
 
 Style = ntuple("Style", "branch terminate run blank")
 aslist = lambda x: [x] if not isinstance(x, (list, tuple)) else list(x)
+asdunder = lambda x: "__{}__".format(x)
 double = Style("╠══", "╚══", "║  ", "   ")
 single = Style("├──", "└──", "│  ", "   ")
 curved = Style("├──", "╰──", "│  ", "   ")
@@ -66,8 +69,8 @@ class WebDataMeta(ABCMeta):
         if ABC in bases:
             return
         cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
-        cls.__parameters__ = kwargs.get("parameters", getattr(cls, "__parameters__", {}))
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
+        cls.__parameters__ = kwargs.get("parameters", getattr(cls, "__parameters__", {}))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
         cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", None))
         cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
@@ -75,15 +78,16 @@ class WebDataMeta(ABCMeta):
 
     def __call__(cls, source):
         locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
-        elements = [element for element in cls.locate(source, locator=locator)]
+        elements = [element for element in cls.locate(source, locator=cls.__locator__)]
         if not bool(elements) and not optional:
             raise WebDataEmptyError()
         if len(elements) > 1 and not collection:
             raise WebDataMultipleError()
-        instances = [super(WebDataMeta, cls).__call__(content) for content in elements]
+        attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("parameters", "parser", "locator", "key", "style")}
+        instances = [super(WebDataMeta, cls).__call__(element, **attributes) for element in elements]
         for instance in instances:
-            for key, subcls in cls.__children__.items():
-                subinstances = subcls(instance.contents)
+            for key, child in cls.__children__.items():
+                subinstances = child(instance.contents)
                 instance[key] = subinstances
         return (instances[0] if bool(instances) else None) if collection else instances
 
@@ -100,11 +104,14 @@ class WebDataMeta(ABCMeta):
                 yield from value.renderer(layers=[*layers, last(index, len(cls.__children__) - 1)])
 
 
-class WebData(ABC, metaclass=WebDataMeta):
-    def __init__(self, contents, *args, **kwargs):
-        style = self.__class__.__style__
+class WebData(Node, metaclass=WebDataMeta):
+    def __init__(self, contents, *args, key, locator, parser, parameters, style, **kwargs):
         super().__init__(style=style)
+        self.__parameters = parameters
+        self.__parser = parser
         self.__contents = contents
+        self.__locator = locator
+        self.__key = key
 
     def __setitem__(self, key, value): self.set(key, value)
     def __getitem__(self, key): return self.get(key)
@@ -129,15 +136,15 @@ class WebData(ABC, metaclass=WebDataMeta):
     def data(self): pass
 
     @property
-    def key(self): return self.__class__.__key__
+    def parameters(self): return self.__parameters
     @property
-    def parser(self): return self.__class__.__parser__
-    @property
-    def locator(self): return self.__class__.__locator__
-    @property
-    def parameters(self): return self.__class__.__parameters__
+    def parser(self): return self.__parser
     @property
     def contents(self): return self.__contents
+    @property
+    def locator(self): return self.__locator
+    @property
+    def key(self): return self.__key
 
 
 class WebELMT(WebData, ABC, register="Element"):
@@ -197,9 +204,9 @@ class WebHTML(WebData, ABC, register="Html"):
         yield from iter(elements)
 
     @property
-    def text(self): return self.contents.attrib["text"]
+    def text(self): return self.html.attrib["text"]
     @property
-    def link(self): return self.contents.attrib["href"]
+    def link(self): return self.html.attrib["href"]
 
     @property
     def string(self): return lxml.html.tostring(self.html)
@@ -228,18 +235,22 @@ class WebHTMLTable(WebHTML, ABC, register="Table"):
 
 
 class WebJSON(WebData, ABC, register="Json"):
-    @classmethod
-    def locate(cls, source, *args, locator, **kwargs):
-        assert isinstance(source, (list, dict)) and isinstance(locator, (list, str))
-        locator = str(locator).strip("/").split("/") if isinstance(locator, str) else locator
-        source = [source] if isinstance(source, dict) else source
-        generator = lambda key: (items[key] for items in source if key in items.keys())
-        elements = generator(locator.pop(0))
-        for element in iter(elements):
-            if bool(locator):
-                yield from cls.locate(element, *args, locator=locator, **kwargs)
-            else:
-                yield element
+    @staticmethod
+    def locate(source, *args, locator, **kwargs):
+
+#    @classmethod
+#    def locate(cls, source, *args, locator, **kwargs):
+#        assert isinstance(source, (list, dict)) and isinstance(locator, (list, str))
+#        locators = str(locator).strip("/").split("/") if isinstance(locator, str) else locator
+#        locators = [str(locator).strip("[]") for locator in locators]
+#        source = [source] if isinstance(source, dict) else source
+#        generator = lambda key: (items[key] for items in source if key in items.keys())
+#        elements = generator(locators.pop(0))
+#        for element in iter(elements):
+#            if bool(locators):
+#                yield from cls.locate(element, *args, locator=locators, **kwargs)
+#            else:
+#                yield element
 
     @property
     def string(self): return str(json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str))
