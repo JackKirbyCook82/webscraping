@@ -86,8 +86,8 @@ class WebDataMeta(ABCMeta):
             raise WebDataMultipleError()
         instances = [super(WebDataMeta, cls).__call__(element, **attributes) for element in elements]
         for instance in instances:
-            for key, child in cls.__children__.items():
-                subinstances = child(instance.contents)
+            for key, subcls in cls.__children__.items():
+                subinstances = subcls(instance.contents)
                 instance[key] = subinstances
         return (instances[0] if bool(instances) else None) if collection else instances
 
