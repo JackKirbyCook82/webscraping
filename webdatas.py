@@ -77,13 +77,13 @@ class WebDataMeta(ABCMeta):
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
     def __call__(cls, source):
+        attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("locator", "key", "style", "parameters", "parser")}
         locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
         elements = [element for element in cls.locate(source, locator=cls.__locator__)]
         if not bool(elements) and not optional:
             raise WebDataEmptyError()
         if len(elements) > 1 and not collection:
             raise WebDataMultipleError()
-        attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("parameters", "parser", "locator", "key", "style")}
         instances = [super(WebDataMeta, cls).__call__(element, **attributes) for element in elements]
         for instance in instances:
             for key, child in cls.__children__.items():
@@ -124,10 +124,6 @@ class WebData(Node, metaclass=WebDataMeta):
         data = self.execute(data, *args, **kwargs)
         return data
 
-    @staticmethod
-    @abstractmethod
-    def locate(source, *args, locator, **kwargs): pass
-
     @property
     @abstractmethod
     def string(self): pass
@@ -146,17 +142,13 @@ class WebData(Node, metaclass=WebDataMeta):
     @property
     def key(self): return self.__key
 
+    @staticmethod
+    @abstractmethod
+    def locate(source, *args, locator, **kwargs): pass
+
 
 class WebELMT(WebData, ABC, register="Element"):
     def click(self): self.element.click()
-
-    @staticmethod
-    def locate(source, *args, locator, timeout=5, **kwargs):
-        try:
-            elements = WebDriverWait(source, timeout).until(EC.presence_of_all_elements_located((By.XPATH, locator)))
-        except (NoSuchElementException, TimeoutException, WebDriverException):
-            elements = []
-        yield from iter(elements)
 
     @property
     def html(self): return lxml.html.fromstring(self.element.get_attribute("outerHTML"))
@@ -167,6 +159,14 @@ class WebELMT(WebData, ABC, register="Element"):
     def data(self): return self.element.get_attribute("outerHTML")
     @property
     def element(self): return self.contents
+
+    @staticmethod
+    def locate(source, *args, locator, timeout=5, **kwargs):
+        try:
+            elements = WebDriverWait(source, timeout).until(EC.presence_of_all_elements_located((By.XPATH, locator)))
+        except (NoSuchElementException, TimeoutException, WebDriverException):
+            elements = []
+        yield from iter(elements)
 
 
 class WebELMTCaptcha(WebELMT, ABC, register="Captcha"):
@@ -198,11 +198,6 @@ class WebELMTCheckBox(WebELMT, ABC, register="CheckBox"):
 
 
 class WebHTML(WebData, ABC, register="Html"):
-    @staticmethod
-    def locate(source, *args, locator, removal=None, **kwargs):
-        elements = [element.remove(removal) if bool(removal) else element for element in source.xpath(locator)]
-        yield from iter(elements)
-
     @property
     def text(self): return self.html.attrib["text"]
     @property
@@ -214,6 +209,11 @@ class WebHTML(WebData, ABC, register="Html"):
     def data(self): return lxml.html.tostring(self.html)
     @property
     def html(self): return self.contents
+
+    @staticmethod
+    def locate(source, *args, locator, removal=None, **kwargs):
+        elements = [element.remove(removal) if bool(removal) else element for element in source.xpath(locator)]
+        yield from iter(elements)
 
 
 class WebHTMLText(WebHTML, ABC, register="Text"):
@@ -235,26 +235,23 @@ class WebHTMLTable(WebHTML, ABC, register="Table"):
 
 
 class WebJSON(WebData, ABC, register="Json"):
-    @classmethod
-    def locate(cls, source, *args, locator, **kwargs):
-        assert isinstance(source, (list, dict)) and isinstance(locator, (list, str))
-        locators = str(locator).strip("/").split("/") if isinstance(locator, str) else locator
-        locator = locators.pop(0)
-        locator, collection = str(locator).strip("[]"), str(locator).endswith("[]")
-        elements = source[str(locator)] if isinstance(source, dict) else source[int(locator)]
-        elements = [elements] if not bool(collection) else aslist(elements)
-        for element in iter(elements):
-            if bool(locators):
-                yield from cls.locate(element, *args, locator=locators, **kwargs)
-            else:
-                yield element
-
     @property
     def string(self): return str(json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str))
     @property
     def data(self): return self.json
     @property
     def json(self): return self.contents
+
+    @classmethod
+    def locate(cls, source, *args, locator, **kwargs):
+        assert isinstance(source, dict) and isinstance(locator, (list, str))
+        locators = str(locator).strip("/").split("/") if isinstance(locator, str) else locator
+        locator = str(locators.pop(0)).strip("[]")
+        for element in aslist(source[locator]):
+            if bool(locators):
+                yield from cls.locate(element, *args, locator=locators, **kwargs)
+            else:
+                yield element
 
 
 class WebJsonText(WebJSON, ABC, register="Text"):

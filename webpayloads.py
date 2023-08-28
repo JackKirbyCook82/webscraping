@@ -6,12 +6,13 @@ Created on Sat Aug 5 2023
 
 """
 
+import inspect
 import lxml.etree
 from abc import ABC, ABCMeta
 from collections import namedtuple as ntuple
 
 from support.mixins import Node
-from support.custom import StackOrderedDict
+from support.custom import StackOrderedDict as SODict
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -39,7 +40,7 @@ class WebField(Field):
         element = self.value
         for locator in locators:
             locator, collection = str(locator).strip("[]"), str(locator).endswith("[]")
-            element = {locator: [element] if bool(collection) else element}
+            element = SODict([(locator, [element] if bool(collection) else element)])
         return element
 
     @property
@@ -58,12 +59,12 @@ class WebField(Field):
     def value(self, value): self.__value = value
 
 
-class WebPayloadMeta(ABCMeta):
-    def __repr__(cls):
-        renderer = cls.hierarchy(style=cls.__style__)
-        rows = [pre + "|".join(key, value.__name__) for pre, key, value in iter(renderer)]
-        return "\n".format(rows)
+class WebPayloadError(Exception): pass
+class WebPayloadEmptyError(WebPayloadError): pass
+class WebPayloadMultipleError(WebPayloadError): pass
 
+
+class WebPayloadMeta(ABCMeta):
     def __new__(mcs, name, bases, attrs, *args, **kwargs):
         cls = super(WebPayloadMeta, mcs).__new__(mcs, name, bases, attrs)
         if not any([type(base) is WebPayloadMeta for base in bases]):
@@ -72,14 +73,18 @@ class WebPayloadMeta(ABCMeta):
         assert all([type(base) is not WebPayloadMeta for base in bases[1:]])
         if ABC in bases:
             return cls
+        children = getattr(cls, "__children__", []) + kwargs.get("payloads", [])
+        fields = {key: field for key, field in getattr(cls, "__fields__", {}).items()}
+        fields.update({key: WebField(key, locator) for key, locator in kwargs.get("fields", {}).items()})
+        for key, field in fields.items():
+            if key in kwargs.keys():
+                field.value = kwargs[key]
+        assert all([type(child) is WebPayloadMeta for child in children if inspect.isclass(child)])
+        assert all([isinstance(mapping, dict) for mapping in children if not inspect.isclass(mapping)])
+        assert all([all([type(child) is WebPayloadMeta for child in mapping.values()]) for mapping in children if not inspect.isclass(mapping)])
+        setattr(cls, "__children__", children)
+        setattr(cls, "__fields__", fields)
         return cls
-
-#        children = [payload for payload in getattr(cls, "__children__", [])]
-#        children = children + kwargs.get("payloads", [])
-#        assert all([type(child) is WebPayloadMeta for child in children if inspect.isclass(child)])
-#        assert all([isinstance(child, dict) for child in children if not inspect.isclass(child)])
-#        assert all([all([type(value) is WebPayloadMeta for value in child.values()]) for child in children if not inspect.isclass(child)])
-#        setattr(cls, "__children__", children)
 
     def __init__(cls, name, bases, attrs, *args, **kwargs):
         if not any([type(base) is WebPayloadMeta for base in bases]):
@@ -88,22 +93,27 @@ class WebPayloadMeta(ABCMeta):
         assert all([type(base) is not WebPayloadMeta for base in bases[1:]])
         if ABC in bases:
             return
-        cls.__fields__ = {key: field for key, field in getattr(cls, "__fields__", {}).items()}
-        cls.__fields__.update({key: WebField(key, locator) for key, locator in kwargs.get("fields", {}).items()})
         cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
         cls.__locator__ = kwargs.pop("locator", getattr(cls, "__locator__", None))
         cls.__style__ = kwargs.pop("style", getattr(cls, "__style__", single))
         cls.__key__ = kwargs.pop("key", getattr(cls, "__key__", None))
-        for key, field in cls.__fields__.items():
-            if key in kwargs.keys():
-                field.value = kwargs[key]
 
-    def __call__(cls, *args, **kwargs):
-        pass
+    def __call__(cls, source, **parameters):
+        assert isinstance(source, (dict, list))
+        attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("locator", "key", "style")}
+        optional, collection = cls.__optional__, cls.__collection__
+        static = [field for field in cls.__fields__.values() if bool(field)]
+        dynamic = [field for field in cls.__fields__.values() if not bool(field)]
+        elements = [element for element in cls.create(source, fields=dynamic)]
+        if not bool(elements) and not optional:
+            raise WebPayloadEmptyError()
+        if len(elements) > 1 and not collection:
+            raise WebPayloadMultipleError()
+        instances = [super(WebPayloadMeta, cls).__call__(static + element, **attributes) for element in elements]
+        for instance in instances:
+            pass
+        return instances
 
-#        fields, collection = (field for field in cls.__fields__.values()), cls.__collection__
-#        fields = [WebField(field.key, field.locator, field.value if bool(field) else kwargs.get(field.key, None)) for field in fields]
-#        attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("locator", "key", "style")}
 #        instance = super(WebPayloadMeta, cls).__call__(fields, **attributes)
 #        for child in cls.__children__:
 #            if inspect.isclass(child):
@@ -122,23 +132,17 @@ class WebPayloadMeta(ABCMeta):
 #                instance[subinstance.key] = subinstance
 #        return instance
 
-#    def hierarchy(cls, layers=[], style=single):
-#        last = lambda i, x: i == x
-#        func = lambda i, x: "".join([pads(), pre(i, x)])
-#        pre = lambda i, x: style.terminate if last(i, x) else style.blank
-#        pads = lambda: "".join([style.blank if layer else style.run for layer in layers])
-#        if not layers:
-#            yield "", None, cls
-#        for index, (key, values) in enumerate(iter(cls.__children__)):
-#            for value in aslist(values):
-#                yield func(index, len(cls.__children__) - 1), key, value
-#                yield from value.renderer(layers=[*layers, last(index, len(cls.__children__) - 1)])
+    @staticmethod
+    def create(source, *args, fields=[], **kwargs):
+        for element in aslist(source):
+            assert isinstance(element, dict)
+            fields = [WebField(field.key, field.locator, source.get(field.key, None)) for field in fields]
+            yield fields
 
 
 class WebPayload(Node, metaclass=WebPayloadMeta):
-    def __init__(self, payloads, fields, *args, key, locator, style, **kwargs):
+    def __init__(self, fields, *args, key, locator, style, **kwargs):
         super().__init__(style=style)
-        self.__payloads = payloads
         self.__fields = fields
         self.__locator = locator
         self.__key = key
@@ -151,12 +155,12 @@ class WebPayload(Node, metaclass=WebPayloadMeta):
     @property
     def json(self):
         locators = [str(locator) for locator in str(self.locator).strip("//").split("/")]
-        contents = [(key, value) for field in self.fields for key, value in field.json.items()]
-        elements = StackOrderedDict(contents)
-
+        element = SODict()
+        for field in self.fields:
+            element[field.key] = field.json
         for locator in locators:
             locator, collection = str(locator).strip("[]"), str(locator).endswith("{}")
-            element = {locator: [elements] if bool(collection) else elements}
+            element = SODict([(locator, [element] if bool(collection) else element)])
         return element
 
     @property
@@ -166,13 +170,10 @@ class WebPayload(Node, metaclass=WebPayloadMeta):
         element = root
         for locator in locators:
             element = lxml.etree.SubElement(element, str(locator).strip("[]"))
-
         for field in self.fields:
             element.append(field.xml)
         return root
 
-    @property
-    def payloads(self): return self.__payloads
     @property
     def fields(self): return self.__fields
     @property
