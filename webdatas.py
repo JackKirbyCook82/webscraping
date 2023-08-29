@@ -35,16 +35,28 @@ single = Style("├──", "└──", "│  ", "   ")
 curved = Style("├──", "╰──", "│  ", "   ")
 
 
+def renderer(node, layers=[], style=single):
+    last = lambda i, x: i == x
+    func = lambda i, x: "".join([pads(), pre(i, x)])
+    pre = lambda i, x: style.terminate if last(i, x) else style.blank
+    pads = lambda: "".join([style.blank if layer else style.run for layer in layers])
+    if not layers:
+        yield "", None, node
+    children = iter(node.__children__.items())
+    size = len(list(children))
+    for index, (key, values) in enumerate(children):
+        for value in aslist(values):
+            yield func(index, size - 1), key, value
+            yield from renderer(value, layers=[*layers, last(index, size - 1)], style=style)
+
+
 class WebDataError(Exception): pass
 class WebDataEmptyError(WebDataError): pass
 class WebDataMultipleError(WebDataError): pass
 
 
 class WebDataMeta(ABCMeta):
-    def __repr__(cls):
-        renderer = cls.hierarchy(style=cls.__style__)
-        rows = [pre + "|".join(key, value.__name__) for pre, key, value in iter(renderer)]
-        return "\n".format(rows)
+    def __repr__(cls): return str(cls.__name__)
 
     def __new__(mcs, name, bases, attrs, *args, **kwargs):
         cls = super(WebDataMeta, mcs).__new__(mcs, name, bases, attrs)
@@ -91,17 +103,11 @@ class WebDataMeta(ABCMeta):
                 instance[key] = subinstances
         return (instances[0] if bool(instances) else None) if collection else instances
 
-    def hierarchy(cls, layers=[], style=single):
-        last = lambda i, x: i == x
-        func = lambda i, x: "".join([pads(), pre(i, x)])
-        pre = lambda i, x: style.terminate if last(i, x) else style.blank
-        pads = lambda: "".join([style.blank if layer else style.run for layer in layers])
-        if not layers:
-            yield "", None, cls
-        for index, (key, values) in enumerate(iter(cls.__children__)):
-            for value in aslist(values):
-                yield func(index, len(cls.__children__) - 1), key, value
-                yield from value.renderer(layers=[*layers, last(index, len(cls.__children__) - 1)])
+    @property
+    def hierarchy(cls):
+        generator = renderer(cls, style=cls.__style__)
+        rows = [pre + repr(value) for pre, key, value in iter(generator)]
+        return "\n".format(rows)
 
 
 class WebData(Node, metaclass=WebDataMeta):
