@@ -52,7 +52,7 @@ class WebPayloadMultipleError(WebPayloadError): pass
 class WebPayloadMeta(ABCMeta):
     def __repr__(cls): return str(cls.__name__)
 
-    def __new__(mcs, name, bases, attrs, *args, payloads={}, **kwargs):
+    def __new__(mcs, name, bases, attrs, *args, key, payloads={}, **kwargs):
         cls = super(WebPayloadMeta, mcs).__new__(mcs, name, bases, attrs)
         if not any([type(base) is WebPayloadMeta for base in bases]):
             return cls
@@ -73,6 +73,7 @@ class WebPayloadMeta(ABCMeta):
                 field.value = kwargs[key]
         setattr(cls, "__children__", children)
         setattr(cls, "__fields__", fields)
+        setattr(cls, "__key__", key)
         return cls
 
     def __init__(cls, name, bases, attrs, *args, **kwargs):
@@ -85,7 +86,6 @@ class WebPayloadMeta(ABCMeta):
         cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
         cls.__locator__ = kwargs.pop("locator", getattr(cls, "__locator__", None))
         cls.__style__ = kwargs.pop("style", getattr(cls, "__style__", single))
-        cls.__key__ = kwargs.pop("key", getattr(cls, "__key__", None))
 
     def __and__(cls, payloads):
         assert all([inspect.isclass(payload) for payload in aslist(payloads)])
