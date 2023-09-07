@@ -96,6 +96,7 @@ class WebPayloadMeta(ABCMeta):
         payloads = {str(payload.__key__): payload for payload in aslist(payloads)}
         return type(cls.__name__, (cls,), {}, key=key, payloads=payloads)
 
+    def __getitem__(cls, key): return cls.subclasses[key]
     def __call__(cls, sources):
         assert isinstance(sources, (dict, list))
         attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("locator", "key", "style")}
@@ -121,6 +122,13 @@ class WebPayloadMeta(ABCMeta):
         generator = renderer(cls, style=cls.__style__)
         rows = [pre + repr(value) for pre, key, value in iter(generator)]
         return "\n".format(rows)
+
+    @property
+    def subclasses(cls):
+        subclasses = {subcls.__key__: subcls for subcls in cls.__subclasses__}
+        for subcls in subclasses:
+            subclasses.update(subcls.subclasses)
+        return subclasses
 
 
 class WebField(ntuple("Field", "key locator")):
@@ -187,7 +195,7 @@ class WebPayload(Node, metaclass=WebPayloadMeta):
         for field in self.fields:
             element.append(field.xml)
         for payload in self.children:
-            pass
+            element.append(payload.xml)
         return root
 
     @property
