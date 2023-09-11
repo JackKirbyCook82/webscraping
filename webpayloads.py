@@ -44,6 +44,35 @@ def renderer(node, layers=[], style=single):
             yield from renderer(value, layers=[*layers, last(index, size - 1)], style=style)
 
 
+class WebField(ntuple("Field", "key locator")):
+    def __init__(self, *args, **kwargs): self.__value = None
+    def __bool__(self): return self.__value is not None
+
+    @property
+    def json(self):
+        locators = [str(locator) for locator in str(self.locator).strip("//").split("/")]
+        element = self.value
+        for locator in locators:
+            locator, collection = str(locator).strip("[]"), str(locator).endswith("[]")
+            element = SODict([(locator, [element] if bool(collection) else element)])
+        return element
+
+    @property
+    def xml(self):
+        locators = [str(locator) for locator in str(self.locator).strip("//").split("/")]
+        root = lxml.etree.Element(str(locators.pop(0)).strip("[]"))
+        element = root
+        for locator in locators:
+            element = lxml.etree.SubElement(element, str(locator).strip("[]"))
+        element.text = str(self.value)
+        return root
+
+    @property
+    def value(self): return self.__value
+    @value.setter
+    def value(self, value): self.__value = value
+
+
 class WebPayloadError(Exception): pass
 class WebPayloadEmptyError(WebPayloadError): pass
 class WebPayloadMultipleError(WebPayloadError): pass
@@ -51,7 +80,6 @@ class WebPayloadMultipleError(WebPayloadError): pass
 
 class WebPayloadMeta(ABCMeta):
     def __repr__(cls): return str(cls.__name__)
-
     def __new__(mcs, name, bases, attrs, *args, key, payloads={}, **kwargs):
         cls = super(WebPayloadMeta, mcs).__new__(mcs, name, bases, attrs)
         if not any([type(base) is WebPayloadMeta for base in bases]):
@@ -97,8 +125,9 @@ class WebPayloadMeta(ABCMeta):
         return type(cls.__name__, (cls,), {}, key=key, payloads=payloads)
 
     def __getitem__(cls, key): return cls.subclasses[key]
-    def __call__(cls, sources):
+    def __call__(cls, sources, *args, **kwargs):
         assert isinstance(sources, (dict, list))
+        assert not any([attr in kwargs.keys() for attr in ("locator", "key", "style")])
         attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("locator", "key", "style")}
         optional, collection = cls.__optional__, cls.__collection__
         defined = [field for field in cls.__fields__.values() if bool(field)]
@@ -109,11 +138,11 @@ class WebPayloadMeta(ABCMeta):
             raise WebPayloadEmptyError()
         if len(elements) > 1 and not collection:
             raise WebPayloadMultipleError()
-        instances = [super(WebPayloadMeta, cls).__call__(element, **attributes) for element in elements]
+        instances = [super(WebPayloadMeta, cls).__call__(element, *args, **attributes, **kwargs) for element in elements]
         for source, instance in zip(aslist(sources), aslist(instances)):
             for key, subcls in cls.__children__.items():
                 subsources = aslist(source.get(key, []))
-                subinstances = subcls(subsources)
+                subinstances = subcls(subsources, *args, **kwargs)
                 instance[key] = subinstances
         return instances
 
@@ -129,35 +158,6 @@ class WebPayloadMeta(ABCMeta):
         for subcls in subclasses:
             subclasses.update(subcls.subclasses)
         return subclasses
-
-
-class WebField(ntuple("Field", "key locator")):
-    def __init__(self, *args, **kwargs): self.__value = None
-    def __bool__(self): return self.__value is not None
-
-    @property
-    def json(self):
-        locators = [str(locator) for locator in str(self.locator).strip("//").split("/")]
-        element = self.value
-        for locator in locators:
-            locator, collection = str(locator).strip("[]"), str(locator).endswith("[]")
-            element = SODict([(locator, [element] if bool(collection) else element)])
-        return element
-
-    @property
-    def xml(self):
-        locators = [str(locator) for locator in str(self.locator).strip("//").split("/")]
-        root = lxml.etree.Element(str(locators.pop(0)).strip("[]"))
-        element = root
-        for locator in locators:
-            element = lxml.etree.SubElement(element, str(locator).strip("[]"))
-        element.text = str(self.value)
-        return root
-
-    @property
-    def value(self): return self.__value
-    @value.setter
-    def value(self, value): self.__value = value
 
 
 class WebPayload(Node, metaclass=WebPayloadMeta):
