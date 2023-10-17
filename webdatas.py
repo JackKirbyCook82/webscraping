@@ -84,7 +84,7 @@ class WebDataMeta(ABCMeta):
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__parameters__ = kwargs.get("parameters", getattr(cls, "__parameters__", {}))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
-        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", None))
+        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", lambda x: x))
         cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
@@ -124,12 +124,6 @@ class WebData(Node, metaclass=WebDataMeta):
     def __reversed__(self): return reversed(self.items())
     def __iter__(self): return iter(self.items())
 
-    def __call__(self, *args, **kwargs):
-        data = self.data
-        data = self.parser(data)
-        data = self.execute(data, *args, **kwargs)
-        return data
-
     @property
     @abstractmethod
     def string(self): pass
@@ -162,7 +156,7 @@ class WebELMT(WebData, ABC, register="Element"):
     @property
     def string(self): return self.element.get_attribute("outerHTML")
     @property
-    def data(self): return self.element.get_attribute("outerHTML")
+    def data(self): return self.parser(self.element.get_attribute("outerHTML"))
     @property
     def element(self): return self.contents
 
@@ -212,7 +206,7 @@ class WebHTML(WebData, ABC, register="Html"):
     @property
     def string(self): return lxml.html.tostring(self.html)
     @property
-    def data(self): return lxml.html.tostring(self.html)
+    def data(self): return self.parser(lxml.html.tostring(self.html))
     @property
     def html(self): return self.contents
 
@@ -224,40 +218,40 @@ class WebHTML(WebData, ABC, register="Html"):
 
 class WebHTMLText(WebHTML, ABC, register="Text"):
     @property
-    def data(self): return str(self.text)
-
+    def data(self): return self.parser(str(self.text))
 
 class WebHTMLLink(WebHTML, ABC, register="Link"):
     @property
-    def data(self): return str(self.link)
-
+    def data(self): return self.parser(str(self.link))
 
 class WebHTMLTable(WebHTML, ABC, register="Table"):
     @property
     def data(self):
         header = self.parameters.get("header", 0)
         index = self.parameters.get("index", None)
-        return pd.concat(pd.read_html(self.string, header=header, index_col=index), axis=0)
+        table = pd.concat(pd.read_html(self.string, header=header, index_col=index), axis=0)
+        return self.parser(table)
 
 
 class WebJSON(WebData, ABC, register="Json"):
     @property
     def string(self): return str(json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str))
     @property
-    def data(self): return self.json
+    def data(self): return self.parser(self.json)
     @property
     def json(self): return self.contents
 
     @classmethod
     def locate(cls, source, *args, locator, **kwargs):
-        assert isinstance(source, dict) and isinstance(locator, (list, str))
-        locators = str(locator).strip("/").split("/") if isinstance(locator, str) else locator
-        locator = str(locators.pop(0)).strip("[]")
-        for element in aslist(source[locator]):
-            if bool(locators):
-                yield from cls.locate(element, *args, locator=locators, **kwargs)
-            else:
-                yield element
+        assert isinstance(source, dict) and isinstance(locator, str)
+        if not bool(locator):
+            yield source
+            return
+        locators = str(locator).strip("/").split("/")
+        elements = source[str(locators.pop(0)).strip("[]")]
+        for value in locators:
+            elements = elements[str(value).strip("[]")]
+        yield from iter(aslist(elements))
 
 
 class WebJsonText(WebJSON, ABC, register="Text"):
