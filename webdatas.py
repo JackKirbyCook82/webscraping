@@ -68,7 +68,7 @@ class WebDataMeta(ABCMeta):
             setattr(bases[0], kwargs["register"], cls)
             return cls
         children = {key: value for key, value in getattr(cls, "__children__", {}).items()}
-        update = {key: value for key, value in attrs.items() if type(value) is WebDataMeta}
+        update = {value.__key__: value for value in attrs.values() if type(value) is WebDataMeta}
         children.update(update)
         setattr(cls, "__children__", children)
         return cls
@@ -101,7 +101,7 @@ class WebDataMeta(ABCMeta):
             for key, subcls in cls.__children__.items():
                 subinstances = subcls(instance.contents)
                 instance[key] = subinstances
-        return (instances[0] if bool(instances) else None) if collection else instances
+        return (instances[0] if bool(instances) else None) if not bool(collection) else instances
 
     @property
     def hierarchy(cls):
