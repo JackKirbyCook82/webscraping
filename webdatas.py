@@ -57,7 +57,6 @@ class WebDataMultipleError(WebDataError): pass
 
 class WebDataMeta(ABCMeta):
     def __repr__(cls): return str(cls.__name__)
-
     def __new__(mcs, name, bases, attrs, *args, **kwargs):
         cls = super(WebDataMeta, mcs).__new__(mcs, name, bases, attrs)
         if not any([type(base) is WebDataMeta for base in bases]):
