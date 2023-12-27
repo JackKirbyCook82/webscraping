@@ -22,7 +22,7 @@ LOGGER = logging.getLogger(__name__)
 
 class WebPage(ABC):
     def __repr__(self): return self.name
-    def __init__(self, feed, *args, **kwargs):
+    def __init__(self, *args, feed, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
         self.__feed = feed
 
