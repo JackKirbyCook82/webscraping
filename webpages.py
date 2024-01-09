@@ -30,7 +30,7 @@ class WebPage(ABC):
         string = "&".join(["=".join([str(key), str(value)]) for key, value in params.items()])
         string = ("?" + string) if "?" not in str(url) else ("&" + string)
         string = str(url) + (string if bool(params) else "")
-        LOGGER.info("Loading: {}".format(repr(self)))
+        LOGGER.info(f"Loading: {repr(self)}")
         LOGGER.info(str(string))
         self.feed.load(url, payload=payload, params=params, headers=headers)
 
@@ -47,12 +47,12 @@ class WebPage(ABC):
 
 
 class WebJsonPage(WebPage, ABC):
-    def __repr__(self): return "{}|{}|{}".format(self.name, "Session", "Json")
+    def __repr__(self): return f"{self.name}|Session|Json"
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
         status_code = self.feed.response.status_code
-        LOGGER.info("Loaded: {}: StatusCode|{}".format(repr(self), str(status_code)))
+        LOGGER.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
     @property
     def source(self): return self.json
@@ -67,12 +67,12 @@ class WebJsonPage(WebPage, ABC):
 
 
 class WebHtmlPage(WebPage, ABC):
-    def __repr__(self): return "{}|{}|{}".format(self.name, "Session", "Html")
+    def __repr__(self): return f"{self.name}|Session|Html"
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
         status_code = self.feed.response.status_code
-        LOGGER.info("Loaded: {}: StatusCode|{}".format(repr(self), str(status_code)))
+        LOGGER.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
     @property
     def source(self): return self.html
@@ -85,14 +85,14 @@ class WebHtmlPage(WebPage, ABC):
 
 
 class WebBrowserPage(WebPage, ABC):
-    def __repr__(self): return "{}|{}|{}".format(self.name, "Browser", str(self.feed.browser).title())
+    def __repr__(self): return f"{self.name}|Browser|{str(self.feed.browser).title()}"
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        LOGGER.info("Loaded: {}".format(repr(self)))
+        LOGGER.info(f"Loaded: {repr(self)}")
 
     def run(self, *args, **kwargs):
-        LOGGER.info("Running: {}".format(repr(self)))
+        LOGGER.info(f"Running: {repr(self)}")
         self.execute(*args, **kwargs)
 
     def execute(self, *args, **kwargs): pass

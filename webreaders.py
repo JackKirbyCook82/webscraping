@@ -72,7 +72,7 @@ class WebAuthorizer(object):
 
 
 class WebReader(object, metaclass=DelayerMeta):
-    def __repr__(self): return "{}|{}".format(self.name, "Session")
+    def __repr__(self): return f"{self.name}|Session"
     def __init__(self, *args, authorizer=None, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
         self.__mutex = multiprocessing.Lock()

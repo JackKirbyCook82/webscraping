@@ -29,7 +29,7 @@ __license__ = ""
 
 Style = ntuple("Style", "branch terminate run blank")
 aslist = lambda x: [x] if not isinstance(x, (list, tuple)) else list(x)
-asdunder = lambda x: "__{}__".format(x)
+asdunder = lambda x: f"__{x}__"
 double = Style("╠══", "╚══", "║  ", "   ")
 single = Style("├──", "└──", "│  ", "   ")
 curved = Style("├──", "╰──", "│  ", "   ")

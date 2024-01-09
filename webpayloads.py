@@ -23,7 +23,7 @@ __license__ = ""
 
 Style = ntuple("Style", "branch terminate run blank")
 aslist = lambda x: [x] if not isinstance(x, (list, tuple)) else list(x)
-asdunder = lambda x: "__{}__".format(x)
+asdunder = lambda x: f"__{x}__"
 double = Style("╠══", "╚══", "║  ", "   ")
 single = Style("├──", "└──", "│  ", "   ")
 curved = Style("├──", "╰──", "│  ", "   ")
@@ -120,7 +120,7 @@ class WebPayloadMeta(ABCMeta):
         assert all([type(payload) is WebPayloadMeta for payload in aslist(payloads)])
         rootkey = str(cls.__key__)
         childkeys = "|".join([str(payload.__key__) for payload in aslist(payloads)])
-        key = "{}[{}]".format(rootkey, childkeys)
+        key = f"{rootkey}[{childkeys}]"
         payloads = {str(payload.__key__): payload for payload in aslist(payloads)}
         return type(cls.__name__, (cls,), {}, key=key, payloads=payloads)
 

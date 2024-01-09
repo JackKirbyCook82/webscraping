@@ -35,7 +35,7 @@ class WebDriver(object, metaclass=DelayerMeta):
         cls.__browser__ = browser
         cls.__file__ = file
 
-    def __repr__(self): return "{}|{}".format(self.name, self.browser.title())
+    def __repr__(self): return f"{self.name}|{self.browser.title()}"
     def __init__(self, *args, timeout=60, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
         self.__browser = self.__class__.__browser__

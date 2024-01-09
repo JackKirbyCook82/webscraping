@@ -38,13 +38,13 @@ class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
         super().__init_subclass__(**kwargs)
 
     def __init__(self, feed):
-        LOGGER.info(str(self.__class__.__name__).replace("Error", ": {}").format(repr(feed)))
+        LOGGER.info(str(self.__class__.__name__).replace("Error", f": {repr(feed)}"))
         LOGGER.info(str(feed.url))
         self.__feed = feed
         self.__url = feed.url
 
-    def __repr__(self): return "{}({}, statuscode={})".format(self.__class__.__name__, repr(self.feed), str(self.__class__.statuscode))
-    def __str__(self): return "{}|{}[{}]\n{}".format(self.__class__.__name__, repr(self.feed), str(self.__class__.statuscode), str(self.url))
+    def __repr__(self): return f"{self.__class__.__name__}({repr(self.feed)}, statuscode={str(self.__class__.statuscode)})"
+    def __str__(self): return f"{self.__class__.__name__}|{repr(self.feed)}[{str(self.__class__.statuscode)}]\n{str(self.url)}"
 
     @property
     def feed(self): return self.__feed
@@ -65,11 +65,11 @@ class WebPageError(Exception, metaclass=RegistryMeta):
         super().__init_subclass__(**kwargs)
 
     def __init__(self, page):
-        LOGGER.info(str(self.__class__.__name__).replace("Error", ": {}").format(repr(page)))
+        LOGGER.info(str(self.__class__.__name__).replace("Error", f": {repr(page)}"))
         self.__page = page
 
-    def __repr__(self): return "{}({})".format(self.__class__.__name__, repr(self.page))
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, repr(self.page))
+    def __repr__(self): return f"{self.__class__.__name__}({repr(self.page)})"
+    def __str__(self): return f"{self.__class__.__name__}|{repr(self.page)}"
 
     @property
     def page(self): return self.__page
@@ -90,11 +90,11 @@ class WebFeedError(Exception):
         super().__init_subclass__(**kwargs)
 
     def __init__(self, feed):
-        LOGGER.info(str(self.__class__.__name__).replace("Error", ": {}").format(str(feed)))
+        LOGGER.info(str(self.__class__.__name__).replace("Error", f": {str(feed)}"))
         self.__feed = feed
 
-    def __repr__(self): return "{}({})".format(self.__class__.__name__, repr(self.feed))
-    def __str__(self): return "{}|{}".format(self.__class__.__name__, repr(self.feed))
+    def __repr__(self): return f"{self.__class__.__name__}({repr(self.feed)})"
+    def __str__(self): return f"{self.__class__.__name__}|{repr(self.feed)}"
 
     @property
     def feed(self): return self.__feed
