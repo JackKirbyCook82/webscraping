@@ -118,6 +118,7 @@ class WebData(Node, metaclass=WebDataMeta):
         self.__locator = locator
         self.__key = key
 
+    def __contains__(self, key): return bool(key in self.nodes.keys())
     def __setitem__(self, key, value): self.set(key, value)
     def __getitem__(self, key): return self.get(key)
     def __reversed__(self): return reversed(self.items())
