@@ -121,8 +121,13 @@ class WebData(Node, metaclass=WebDataMeta):
     def __contains__(self, key): return bool(key in self.nodes.keys())
     def __setitem__(self, key, value): self.set(key, value)
     def __getitem__(self, key): return self.get(key)
+
+    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
     def __reversed__(self): return reversed(self.items())
     def __iter__(self): return iter(self.items())
+
+    def execute(self, *args, **kwargs):
+        return self.data
 
     @property
     @abstractmethod
