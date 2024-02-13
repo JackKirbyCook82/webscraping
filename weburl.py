@@ -13,7 +13,7 @@ __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebURL"]
 __copyright__ = "Copyright 2020, Jack Kirby Cook"
-__license__ = ""
+__license__ = "MIT License"
 
 
 class WebURLBase(ntuple("URL", "address query")):

@@ -14,10 +14,8 @@ __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebStatusError", "WebPageError", "WebFeedError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
-__license__ = ""
-
-
-LOGGER = logging.getLogger(__name__)
+__license__ = "MIT License"
+__logger__ = logging.getLogger(__name__)
 
 
 class WebStatusErrorMeta(RegistryMeta):
@@ -38,8 +36,8 @@ class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
         super().__init_subclass__(**kwargs)
 
     def __init__(self, feed):
-        LOGGER.info(str(self.__class__.__name__).replace("Error", f": {repr(feed)}"))
-        LOGGER.info(str(feed.url))
+        __logger__.info(str(self.__class__.__name__).replace("Error", f": {repr(feed)}"))
+        __logger__.info(str(feed.url))
         self.__feed = feed
         self.__url = feed.url
 
@@ -65,7 +63,7 @@ class WebPageError(Exception, metaclass=RegistryMeta):
         super().__init_subclass__(**kwargs)
 
     def __init__(self, page):
-        LOGGER.info(str(self.__class__.__name__).replace("Error", f": {repr(page)}"))
+        __logger__.info(str(self.__class__.__name__).replace("Error", f": {repr(page)}"))
         self.__page = page
 
     def __repr__(self): return f"{self.__class__.__name__}({repr(self.page)})"
@@ -90,7 +88,7 @@ class WebFeedError(Exception):
         super().__init_subclass__(**kwargs)
 
     def __init__(self, feed):
-        LOGGER.info(str(self.__class__.__name__).replace("Error", f": {str(feed)}"))
+        __logger__.info(str(self.__class__.__name__).replace("Error", f": {str(feed)}"))
         self.__feed = feed
 
     def __repr__(self): return f"{self.__class__.__name__}({repr(self.feed)})"

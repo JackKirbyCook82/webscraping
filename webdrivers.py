@@ -6,7 +6,6 @@ Created on Mon Dec 30 2019
 
 """
 
-import logging
 import os.path
 import lxml.html
 import multiprocessing
@@ -20,10 +19,9 @@ __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebDriver"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
-__license__ = ""
+__license__ = "MIT License"
 
 
-LOGGER = logging.getLogger(__name__)
 DRIVERS = {"chrome": selenium.webdriver.Chrome, "firefox": selenium.webdriver.Firefox}
 CAPABILITIES = {"chrome": DesiredCapabilities.CHROME, "firefox": DesiredCapabilities.FIREFOX}
 OPTIONS = {"chrome": selenium.webdriver.ChromeOptions, "firefox": selenium.webdriver.FirefoxOptions}

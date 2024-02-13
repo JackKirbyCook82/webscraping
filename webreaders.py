@@ -6,7 +6,6 @@ Created on Sat Mar 23 2019
 
 """
 
-import logging
 import requests
 import lxml.html
 import webbrowser
@@ -24,10 +23,7 @@ __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebAuthorizer", "WebReader"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
-__license__ = ""
-
-
-LOGGER = logging.getLogger(__name__)
+__license__ = "MIT License"
 
 
 class WebAuthenticator(ntuple("Authenticator", "username password")): pass
