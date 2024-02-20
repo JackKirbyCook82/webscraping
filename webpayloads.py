@@ -73,7 +73,9 @@ class WebField(ntuple("Field", "key locator")):
     def value(self, value): self.__value = value
 
 
-class WebPayloadError(Exception): pass
+class WebPayloadError(Exception):
+    def __str__(self): return f"{self.__class__.__name__}[{self.args[0].__name__}]"
+
 class WebPayloadEmptyError(WebPayloadError): pass
 class WebPayloadMultipleError(WebPayloadError): pass
 
@@ -135,9 +137,9 @@ class WebPayloadMeta(ABCMeta):
         define = lambda fields, element: [WebField(field.key, field.locator, element.get(field.key, None)) for field in fields]
         elements = [defined + define(undefined, element) for element in aslist(sources)]
         if not bool(elements) and not optional:
-            raise WebPayloadEmptyError()
+            raise WebPayloadEmptyError(cls)
         if len(elements) > 1 and not collection:
-            raise WebPayloadMultipleError()
+            raise WebPayloadMultipleError(cls)
         instances = [super(WebPayloadMeta, cls).__call__(element, *args, **attributes, **kwargs) for element in elements]
         for source, instance in zip(aslist(sources), aslist(instances)):
             for key, subcls in cls.__children__.items():

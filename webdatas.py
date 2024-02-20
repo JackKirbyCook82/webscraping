@@ -50,7 +50,9 @@ def renderer(node, layers=[], style=single):
             yield from renderer(value, layers=[*layers, last(index, size - 1)], style=style)
 
 
-class WebDataError(Exception): pass
+class WebDataError(Exception):
+    def __str__(self): return f"{self.__class__.__name__}[{self.args[0].__name__}]"
+
 class WebDataEmptyError(WebDataError): pass
 class WebDataMultipleError(WebDataError): pass
 
@@ -92,9 +94,9 @@ class WebDataMeta(ABCMeta):
         locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
         elements = [element for element in cls.locate(source, locator=cls.__locator__)]
         if not bool(elements) and not optional:
-            raise WebDataEmptyError()
+            raise WebDataEmptyError(cls)
         if len(elements) > 1 and not collection:
-            raise WebDataMultipleError()
+            raise WebDataMultipleError(cls)
         instances = [super(WebDataMeta, cls).__call__(element, **attributes) for element in elements]
         for instance in instances:
             for key, subcls in cls.__children__.items():
