@@ -5,7 +5,7 @@ Created on Mon Dec 30 2019
 @author: Jack Kirby Cook
 
 """
-
+import inspect
 import logging
 
 from support.meta import RegistryMeta
@@ -31,9 +31,8 @@ class WebStatusErrorMeta(RegistryMeta):
 
 
 class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, *args, **kwargs):
         assert str(cls.__name__).endswith("Error")
-        super().__init_subclass__(**kwargs)
 
     def __init__(self, feed):
         __logger__.info(str(self.__class__.__name__).replace("Error", f": {repr(feed)}"))
@@ -58,9 +57,8 @@ class UnavailableError(WebStatusError, statuscode=503): pass
 
 
 class WebPageError(Exception, metaclass=RegistryMeta):
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, *args, **kwargs):
         assert str(cls.__name__).endswith("Error")
-        super().__init_subclass__(**kwargs)
 
     def __init__(self, page):
         __logger__.info(str(self.__class__.__name__).replace("Error", f": {repr(page)}"))
@@ -83,9 +81,8 @@ class CrawlingError(WebPageError, key="crawling"): pass
 
 
 class WebFeedError(Exception):
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, *args, **kwargs):
         assert str(cls.__name__).endswith("Error")
-        super().__init_subclass__(**kwargs)
 
     def __init__(self, feed):
         __logger__.info(str(self.__class__.__name__).replace("Error", f": {str(feed)}"))

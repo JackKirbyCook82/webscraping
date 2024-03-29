@@ -68,6 +68,8 @@ class WebAuthorizer(object):
 
 
 class WebReader(object, metaclass=DelayerMeta):
+    def __init_subclass__(cls, *args, **kwargs): pass
+
     def __repr__(self): return f"{self.name}|Session"
     def __init__(self, *args, authorizer=None, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
