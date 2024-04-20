@@ -34,14 +34,12 @@ class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
     def __init_subclass__(cls, *args, **kwargs):
         assert str(cls.__name__).endswith("Error")
 
+    def __str__(self): return f"{self.__class__.__name__}|{repr(self.feed)}[{str(self.__class__.statuscode)}]\n{str(self.url)}"
     def __init__(self, feed):
         __logger__.info(str(self.__class__.__name__).replace("Error", f": {repr(feed)}"))
         __logger__.info(str(feed.url))
         self.__feed = feed
         self.__url = feed.url
-
-    def __repr__(self): return f"{self.__class__.__name__}({repr(self.feed)}, statuscode={str(self.__class__.statuscode)})"
-    def __str__(self): return f"{self.__class__.__name__}|{repr(self.feed)}[{str(self.__class__.statuscode)}]\n{str(self.url)}"
 
     @property
     def feed(self): return self.__feed
@@ -60,12 +58,10 @@ class WebPageError(Exception, metaclass=RegistryMeta):
     def __init_subclass__(cls, *args, **kwargs):
         assert str(cls.__name__).endswith("Error")
 
+    def __str__(self): return f"{self.__class__.__name__}|{repr(self.page)}"
     def __init__(self, page):
         __logger__.info(str(self.__class__.__name__).replace("Error", f": {repr(page)}"))
         self.__page = page
-
-    def __repr__(self): return f"{self.__class__.__name__}({repr(self.page)})"
-    def __str__(self): return f"{self.__class__.__name__}|{repr(self.page)}"
 
     @property
     def page(self): return self.__page

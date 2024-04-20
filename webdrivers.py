@@ -6,38 +6,40 @@ Created on Mon Dec 30 2019
 
 """
 
-import os.path
 import lxml.html
 import multiprocessing
 import selenium.webdriver
+from collections import namedtuple as ntuple
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.firefox.service import Service as FirefoxService
 
 from support.meta import DelayerMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebDriver"]
+__all__ = ["WebDriver", "WebBrowser"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-DRIVERS = {"chrome": selenium.webdriver.Chrome, "firefox": selenium.webdriver.Firefox}
-CAPABILITIES = {"chrome": DesiredCapabilities.CHROME, "firefox": DesiredCapabilities.FIREFOX}
-OPTIONS = {"chrome": selenium.webdriver.ChromeOptions, "firefox": selenium.webdriver.FirefoxOptions}
+class WebBrowser(object):
+    Browser = ntuple("Browser", "name service driver options")
+    CHROME = Browser("Chrome", ChromeService, selenium.webdriver.Chrome, selenium.webdriver.ChromeOptions)
+    FIREFOX = Browser("Firefox", FirefoxService, selenium.webdriver.Firefox, selenium.webdriver.FirefoxOptions)
 
 
 class WebDriver(object, metaclass=DelayerMeta):
-    def __init_subclass__(cls, *args, browser, file, **kwargs):
-        assert os.path.isfile(file)
+    def __init_subclass__(cls, *args, browser, executable, **kwargs):
+        cls.__executable__ = executable
         cls.__browser__ = browser
-        cls.__file__ = file
 
-    def __repr__(self): return f"{self.name}|{self.browser.title()}"
+    def __repr__(self): return f"{self.name}|{self.browser.name}"
     def __init__(self, *args, timeout=60, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
+        self.__executable = self.__class__.__executable__
         self.__browser = self.__class__.__browser__
-        self.__file = self.__class__.__file__
         self.__mutex = multiprocessing.Lock()
         self.__timeout = int(timeout)
         self.__driver = None
@@ -50,9 +52,11 @@ class WebDriver(object, metaclass=DelayerMeta):
         self.stop()
 
     def start(self):
-        options = OPTIONS[self.browser]()
+        executable = self.executable
+        options = self.browser.options()
         self.setup(options)
-        driver = DRIVERS[self.browser](executable_path=self.file, options=options)
+        service = self.browser.service(executable)
+        driver = self.browser.driver(service=service, options=options)
         driver.set_page_load_timeout(int(self.timeout))
         driver.delete_all_cookies()
         self.driver = driver
@@ -77,13 +81,13 @@ class WebDriver(object, metaclass=DelayerMeta):
     @DelayerMeta.delayer
     def minimize(self): self.driver.minimize_window()
     @DelayerMeta.delayer
-    def pageUp(self): self.driver.find_element_by_tag_name("html").send_keys(Keys.PAGE_UP)
+    def pageup(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_UP)
     @DelayerMeta.delayer
-    def pageDown(self): self.driver.find_element_by_tag_name("html").send_keys(Keys.PAGE_DOWN)
+    def pagedown(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_DOWN)
     @DelayerMeta.delayer
-    def pageHome(self): self.driver.find_element_by_tag_name("html").send_keys(Keys.HOME)
+    def pagehome(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.HOME)
     @DelayerMeta.delayer
-    def pageEnd(self): self.driver.find_element_by_tag_name("html").send_keys(Keys.END)
+    def pageend(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.END)
 
     @staticmethod
     def urlparse(url, params={}):
@@ -107,7 +111,7 @@ class WebDriver(object, metaclass=DelayerMeta):
     @property
     def browser(self): return self.__browser
     @property
-    def file(self): return self.__file
+    def executable(self): return self.__executable
     @property
     def timeout(self): return self.__timeout
     @property

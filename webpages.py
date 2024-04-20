@@ -83,7 +83,7 @@ class WebHtmlPage(WebPage, ABC):
 
 
 class WebBrowserPage(WebPage, ABC):
-    def __repr__(self): return f"{self.name}|Browser|{str(self.feed.browser).title()}"
+    def __repr__(self): return f"{self.name}|Browser|{str(self.feed.browser.name).title()}"
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
@@ -99,10 +99,10 @@ class WebBrowserPage(WebPage, ABC):
     def refresh(self): self.feed.refresh()
     def maximize(self): self.feed.maximize()
     def minimize(self): self.feed.minimize()
-    def pageUp(self): self.feed.pageUp()
-    def pageDown(self): self.feed.pageDown()
-    def pageHome(self): self.feed.pageHome()
-    def pageEnd(self): self.feed.pageEnd()
+    def pageup(self): self.feed.pageup()
+    def pagedown(self): self.feed.pagedown()
+    def pagehome(self): self.feed.pagehome()
+    def pageend(self): self.feed.pageend()
 
     @property
     def source(self): return self.feed.html
