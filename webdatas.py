@@ -7,6 +7,7 @@ Created on Sat Aug 5 2023
 """
 
 import json
+import logging
 import lxml.html
 import lxml.etree
 import pandas as pd
@@ -18,6 +19,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.support import expected_conditions as EC
 
+from support.meta import RegistryMeta
 from support.mixins import Node
 
 __version__ = "1.0.0"
@@ -25,6 +27,7 @@ __author__ = "Jack Kirby Cook"
 __all__ = ["WebELMT", "WebHTML", "WebJSON"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
+__logger__ = logging.getLogger(__name__)
 
 
 Style = ntuple("Style", "branch terminate run blank")
@@ -50,8 +53,28 @@ def renderer(node, layers=[], style=single):
             yield from renderer(value, layers=[*layers, last(index, size - 1)], style=style)
 
 
-class WebDataError(Exception):
-    def __str__(self): return f"{self.__class__.__name__}[{self.args[0].__name__}]"
+class WebDataErrorMeta(RegistryMeta):
+    def __init__(cls, name, bases, attrs, *args, **kwargs):
+        assert str(name).endswith("Error")
+        super(WebDataErrorMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
+
+    def __call__(cls, *args, **kwargs):
+        instance = super(WebDataErrorMeta, cls).__call__(*args, **kwargs)
+        __logger__.info(instance.name).replace("Error", f": {repr(instance.data)}")
+        return instance
+
+
+class WebDataError(Exception, metaclass=WebDataErrorMeta):
+    def __str__(self): return f"{self.name}|{repr(self.page)}"
+    def __init__(self, data):
+        self.__name = self.__class__.__name__
+        self.__data = data
+
+    @property
+    def page(self): return self.__page
+    @property
+    def name(self): return self.__name
+
 
 class WebDataEmptyError(WebDataError): pass
 class WebDataMultipleError(WebDataError): pass
@@ -59,28 +82,19 @@ class WebDataMultipleError(WebDataError): pass
 
 class WebDataMeta(ABCMeta):
     def __repr__(cls): return str(cls.__name__)
-    def __new__(mcs, name, bases, attrs, *args, **kwargs):
-        cls = super(WebDataMeta, mcs).__new__(mcs, name, bases, attrs)
+    def __init__(cls, name, bases, attrs, *args, **kwargs):
+        assert all([attr not in attrs.keys() for attr in ("children", "collection", "optional", "style")])
         if not any([type(base) is WebDataMeta for base in bases]):
-            return cls
+            return
         assert type(bases[0]) is WebDataMeta
         assert all([type(base) is not WebDataMeta for base in bases[1:]])
         if ABC in bases:
             setattr(bases[0], kwargs["register"], cls)
-            return cls
+            return
         children = {key: value for key, value in getattr(cls, "__children__", {}).items()}
         update = {value.__key__: value for value in attrs.values() if type(value) is WebDataMeta}
         children.update(update)
-        setattr(cls, "__children__", children)
-        return cls
-
-    def __init__(cls, name, bases, attrs, *args, **kwargs):
-        if not any([type(base) is WebDataMeta for base in bases]):
-            return
-        assert type(bases[0]) is WebDataMeta
-        assert all([type(base) is not WebDataMeta for base in bases[1:]])
-        if ABC in bases:
-            return
+        cls.__children__ = children | update
         cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__parameters__ = kwargs.get("parameters", getattr(cls, "__parameters__", {}))
@@ -107,7 +121,7 @@ class WebDataMeta(ABCMeta):
     @property
     def hierarchy(cls):
         generator = renderer(cls, style=cls.__style__)
-        rows = [pre + repr(value) for pre, key, value in iter(generator)]
+        rows = [pre + value.__name__ for pre, key, value in iter(generator)]
         return "\n".format(rows)
 
 

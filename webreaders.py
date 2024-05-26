@@ -6,6 +6,7 @@ Created on Sat Mar 23 2019
 
 """
 
+import logging
 import requests
 import lxml.html
 import webbrowser
@@ -15,15 +16,55 @@ from rauth import OAuth1Service
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 
-from support.meta import DelayerMeta
-
-from webscraping.weberrors import WebStatusError
+from support.meta import DelayerMeta, RegistryMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebAuthorizer", "WebReader"]
+__all__ = ["WebAuthorizer", "WebReader", "WebStatusError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
+__logger__ = logging.getLogger(__name__)
+
+
+class WebStatusErrorMeta(RegistryMeta):
+    def __init__(cls, name, bases, attrs, *args, statuscode=None, **kwargs):
+        assert str(name).endswith("Error")
+        assert isinstance(statuscode, (int, type(None)))
+        super(WebStatusErrorMeta, cls).__init__(name, bases, attrs, *args, register=statuscode, **kwargs)
+        if not any([type(base) is WebStatusErrorMeta for base in bases]):
+            return
+        cls.__statuscode__ = statuscode
+
+    def __call__(cls, *args, **kwargs):
+        instance = super(WebStatusErrorMeta, cls).__call__(*args, **kwargs)
+        __logger__.info(str(instance.name).replace("Error", f": {repr(instance.feed)}"))
+        __logger__.info(str(instance.url))
+        return instance
+
+
+class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
+    def __str__(self): return f"{self.name}|{repr(self.feed)}[{str(self.statuscode)}]\n{str(self.url)}"
+    def __init__(self, feed):
+        self.__statuscode = self.__class__.__statuscode__
+        self.__name = self.__class__.__name__
+        self.__url = feed.url
+        self.__feed = feed
+
+    @property
+    def statuscode(self): return self.__statuscode
+    @property
+    def feed(self): return self.__feed
+    @property
+    def name(self): return self.__name
+    @property
+    def url(self): return self.__url
+
+
+class AuthenticationError(WebStatusError, statuscode=401): pass
+class ForbiddenRequestError(WebStatusError, statuscode=403): pass
+class IncorrectRequestError(WebStatusError, statuscode=404): pass
+class GatewayError(WebStatusError, statuscode=502): pass
+class UnavailableError(WebStatusError, statuscode=503): pass
 
 
 class WebAuthenticator(ntuple("Authenticator", "username password")): pass
@@ -35,6 +76,7 @@ class WebAuthorizer(object):
     def __call__(self): return self.authorize()
     def __init__(self, *args, apikey, apicode, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
+        self.__urls = self.__class__.__urls__
         self.__apikey = apikey
         self.__apicode = apicode
 
@@ -58,13 +100,13 @@ class WebAuthorizer(object):
         return session
 
     @property
-    def urls(self): return self.__class__.__urls__
-    @property
-    def name(self): return self.__name
+    def apicode(self): return self.__apicode
     @property
     def apikey(self): return self.__apikey
     @property
-    def apicode(self): return self.__apicode
+    def urls(self): return self.__urls
+    @property
+    def name(self): return self.__name
 
 
 class WebReader(object, metaclass=DelayerMeta):

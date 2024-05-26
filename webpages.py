@@ -9,13 +9,46 @@ Created on Mon Dec 30 2019
 import time
 import logging
 from abc import ABC, abstractmethod
+from support.meta import RegistryMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebBrowserPage", "WebJsonPage", "WebHtmlPage"]
+__all__ = ["WebBrowserPage", "WebJsonPage", "WebHtmlPage", "WebPageError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 __logger__ = logging.getLogger(__name__)
+
+
+class WebPageErrorMeta(RegistryMeta):
+    def __init__(cls, name, bases, attrs, *args, **kwargs):
+        assert str(name).endswith("Error")
+        super(WebPageErrorMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
+
+    def __call__(cls, *args, **kwargs):
+        instance = super(WebPageErrorMeta, cls).__call__(*args, **kwargs)
+        __logger__.info(instance.name).replace("Error", f": {repr(instance.page)}")
+        return instance
+
+
+class WebPageError(Exception, metaclass=WebPageErrorMeta):
+    def __str__(self): return f"{self.name}|{repr(self.page)}"
+    def __init__(self, page):
+        self.__name = self.__class__.__name__
+        self.__page = page
+
+    @property
+    def page(self): return self.__page
+    @property
+    def name(self): return self.__name
+
+
+class BadRequestError(WebPageError, register="badrequest"): pass
+class CaptchaError(WebPageError, register="captcha"): pass
+class ServerFailureError(WebPageError, register="serverfailure"): pass
+class ResponseFailureError(WebPageError, register="responsefailure"): pass
+class RefusalError(WebPageError, register="refusal"): pass
+class PaginationError(WebPageError, register="pagination"): pass
+class CrawlingError(WebPageError, register="crawling"): pass
 
 
 class WebPage(ABC):
