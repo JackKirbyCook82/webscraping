@@ -43,6 +43,7 @@ class WebStatusErrorMeta(RegistryMeta):
 
 
 class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
+    def __init_subclass__(cls, *args, **kwargs): pass
     def __str__(self): return f"{self.name}|{repr(self.feed)}[{str(self.statuscode)}]\n{str(self.url)}"
     def __init__(self, feed):
         self.__statuscode = self.__class__.__statuscode__

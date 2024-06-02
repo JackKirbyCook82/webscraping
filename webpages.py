@@ -31,6 +31,7 @@ class WebPageErrorMeta(RegistryMeta):
 
 
 class WebPageError(Exception, metaclass=WebPageErrorMeta):
+    def __init_subclass__(cls, *args, **kwargs): pass
     def __str__(self): return f"{self.name}|{repr(self.page)}"
     def __init__(self, page):
         self.__name = self.__class__.__name__
