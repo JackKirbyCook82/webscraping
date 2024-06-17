@@ -72,7 +72,7 @@ class WebDataError(Exception, metaclass=WebDataErrorMeta):
         self.__data = data
 
     @property
-    def page(self): return self.__page
+    def data(self): return self.__data
     @property
     def name(self): return self.__name
 
