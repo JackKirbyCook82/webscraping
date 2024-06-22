@@ -26,7 +26,7 @@ class WebPageErrorMeta(RegistryMeta):
 
     def __call__(cls, *args, **kwargs):
         instance = super(WebPageErrorMeta, cls).__call__(*args, **kwargs)
-        __logger__.info(instance.name).replace("Error", f": {repr(instance.page)}")
+        __logger__.info(str(instance.name).replace("Error", f": {repr(instance.page)}"))
         return instance
 
 

@@ -60,13 +60,13 @@ class WebDataErrorMeta(RegistryMeta):
 
     def __call__(cls, *args, **kwargs):
         instance = super(WebDataErrorMeta, cls).__call__(*args, **kwargs)
-        __logger__.info(instance.name).replace("Error", f": {repr(instance.data)}")
+        __logger__.info(str(instance.name).replace("Error", f": {repr(instance.data)}"))
         return instance
 
 
 class WebDataError(Exception, metaclass=WebDataErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{self.name}|{repr(self.page)}"
+    def __str__(self): return f"{self.name}|{repr(self.data)}"
     def __init__(self, data):
         self.__name = self.__class__.__name__
         self.__data = data
