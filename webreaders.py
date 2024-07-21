@@ -11,7 +11,7 @@ import requests
 import lxml.html
 import webbrowser
 import multiprocessing
-import PySimpleGUI as gui
+import tkinter as tk
 from rauth import OAuth1Service
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
@@ -69,6 +69,12 @@ class UnavailableError(WebStatusError, statuscode=503): pass
 
 
 class WebAuthenticator(ntuple("Authenticator", "username password")): pass
+class WebSecurity(object):
+    def __str__(self): return str(self.variable) if isinstance(self.variable, str) else ""
+    def __init__(self, variable): self.variable = variable
+    def __call__(self, variable): self.variable = self.variable.get()
+
+
 class WebAuthorizer(object):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         cls.__urls__ = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
@@ -81,22 +87,29 @@ class WebAuthorizer(object):
         self.__apikey = apikey
         self.__apicode = apicode
 
+    @staticmethod
+    def prompt():
+        window = tk.Tk()
+        window.title("Enter Security Code:")
+        variable = tk.StringVar()
+        entry = tk.Entry(window, width=50, justify=tk.CENTER, textvariable=variable)
+        entry.focus_set()
+        entry.grid(padx=10, pady=10)
+        security = WebSecurity(variable)
+        button = tk.Button(window, text="Submit", command=security)
+        button.grid(row=0, column=1, padx=10, pady=10)
+        window.mainloop()
+        return str(security)
+
     def service(self):
         return OAuth1Service(**self.urls, consumer_key=self.apikey, consumer_secret=self.apicode)
-
-    def prompt(self, url):
-        webbrowser.open(str(url))
-        layout = [[gui.Text("Enter Security Code:", size=(30, 1))], [gui.Input()], [gui.Submit(), gui.Cancel()]]
-        window = gui.Window(repr(self), layout)
-        security = window.read()[1][0]
-        window.close()
-        return security
 
     def authorize(self):
         service = self.service()
         token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
         url = str(service.authorize_url).format(str(self.apikey), str(token))
-        security = self.prompt(url)
+        webbrowser.open(str(url))
+        security = self.prompt()
         session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
         return session
 
