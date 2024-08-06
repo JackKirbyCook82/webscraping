@@ -69,12 +69,6 @@ class UnavailableError(WebStatusError, statuscode=503): pass
 
 
 class WebAuthenticator(ntuple("Authenticator", "username password")): pass
-class WebSecurity(object):
-    def __str__(self): return str(self.variable) if isinstance(self.variable, str) else ""
-    def __init__(self, variable): self.variable = variable
-    def __call__(self, variable): self.variable = self.variable.get()
-
-
 class WebAuthorizer(object):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         cls.__urls__ = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
@@ -95,11 +89,10 @@ class WebAuthorizer(object):
         entry = tk.Entry(window, width=50, justify=tk.CENTER, textvariable=variable)
         entry.focus_set()
         entry.grid(padx=10, pady=10)
-        security = WebSecurity(variable)
-        button = tk.Button(window, text="Submit", command=security)
+        button = tk.Button(window, text="Submit", command=window.destroy)
         button.grid(row=0, column=1, padx=10, pady=10)
         window.mainloop()
-        return str(security)
+        return str(variable.get())
 
     def service(self):
         return OAuth1Service(**self.urls, consumer_key=self.apikey, consumer_secret=self.apicode)
