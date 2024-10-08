@@ -53,6 +53,8 @@ class CrawlingError(WebPageError, register="crawling"): pass
 
 
 class WebPage(ABC):
+    def __init_subclass__(cls, *args, **kwargs): pass
+
     def __repr__(self): return self.name
     def __init__(self, *args, feed, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)

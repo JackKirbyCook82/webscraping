@@ -127,8 +127,9 @@ class WebDataMeta(ABCMeta):
 
 
 class WebData(Node, metaclass=WebDataMeta):
+    def __init_subclass__(cls, *args, **kwargs): pass
     def __init__(self, contents, *args, key, locator, parser, parameters, style, **kwargs):
-        super().__init__(style=style)
+        Node.__init__(self, style=style)
         self.__parameters = parameters
         self.__parser = parser
         self.__contents = contents
@@ -203,7 +204,7 @@ class WebELMTInput(WebELMT, ABC, register="Input"):
 
 class WebELMTSelect(WebELMT, ABC, register="Select"):
     def __init__(self, contents, *args, **kwargs):
-        super().__init__(contents, *args, **kwargs)
+        WebELMT.__init__(self, contents, *args, **kwargs)
         self.__select = Select(contents)
 
     def sel(self, key): self.select.select_by_value(key)
