@@ -12,7 +12,6 @@ import lxml.html
 import lxml.etree
 import pandas as pd
 from abc import ABC, ABCMeta, abstractmethod
-from collections import namedtuple as ntuple
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
@@ -20,7 +19,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 from selenium.webdriver.support import expected_conditions as EC
 
 from support.meta import RegistryMeta
-from support.mixins import Node
+from support.mixins import MultiNode
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -28,29 +27,6 @@ __all__ = ["WebELMT", "WebHTML", "WebJSON"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 __logger__ = logging.getLogger(__name__)
-
-
-Style = ntuple("Style", "branch terminate run blank")
-aslist = lambda x: [x] if not isinstance(x, (list, tuple)) else list(x)
-asdunder = lambda x: f"__{x}__"
-double = Style("╠══", "╚══", "║  ", "   ")
-single = Style("├──", "└──", "│  ", "   ")
-curved = Style("├──", "╰──", "│  ", "   ")
-
-
-def renderer(node, layers=[], style=single):
-    last = lambda i, x: i == x
-    func = lambda i, x: "".join([pads(), pre(i, x)])
-    pre = lambda i, x: style.terminate if last(i, x) else style.blank
-    pads = lambda: "".join([style.blank if layer else style.run for layer in layers])
-    if not layers:
-        yield "", None, node
-    children = iter(node.__children__.items())
-    size = len(list(children))
-    for index, (key, values) in enumerate(children):
-        for value in aslist(values):
-            yield func(index, size - 1), key, value
-            yield from renderer(value, layers=[*layers, last(index, size - 1)], style=style)
 
 
 class WebDataErrorMeta(RegistryMeta):
@@ -101,11 +77,10 @@ class WebDataMeta(ABCMeta):
         cls.__parameters__ = kwargs.get("parameters", getattr(cls, "__parameters__", {}))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
         cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", lambda x: x))
-        cls.__style__ = kwargs.get("style", getattr(cls, "__style__", single))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
     def __call__(cls, source):
-        attributes = {attr: getattr(cls, asdunder(attr)) for attr in ("locator", "key", "style", "parameters", "parser")}
+        attributes = {attr: getattr(cls, f"__{attr}__") for attr in ("locator", "key", "parameters", "parser")}
         locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
         elements = [element for element in cls.locate(source, locator=cls.__locator__)]
         if not bool(elements) and not optional:
@@ -119,17 +94,11 @@ class WebDataMeta(ABCMeta):
                 instance[key] = subinstances
         return (instances[0] if bool(instances) else None) if not bool(collection) else instances
 
-    @property
-    def hierarchy(cls):
-        generator = renderer(cls, style=cls.__style__)
-        rows = [pre + value.__name__ for pre, key, value in iter(generator)]
-        return "\n".format(rows)
 
-
-class WebData(Node, metaclass=WebDataMeta):
+class WebData(MultiNode, metaclass=WebDataMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __init__(self, contents, *args, key, locator, parser, parameters, style, **kwargs):
-        Node.__init__(self, style=style)
+    def __init__(self, contents, *args, key, locator, parser, parameters, **kwargs):
+        MultiNode.__init__(self)
         self.__parameters = parameters
         self.__parser = parser
         self.__contents = contents
@@ -274,7 +243,8 @@ class WebJSON(WebData, ABC, register="Json"):
         elements = source[str(locators.pop(0)).strip("[]")]
         for value in locators:
             elements = elements[str(value).strip("[]")]
-        yield from iter(aslist(elements))
+        elements = [elements] if not isinstance(elements, (list, tuple)) else list(elements)
+        yield from iter(elements)
 
 
 class WebJsonText(WebJSON, ABC, register="Text"):
