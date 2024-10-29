@@ -107,22 +107,11 @@ class WebDriver(object, metaclass=DelayerMeta):
         options.add_argument("--disable-gpu")
 
     @property
-    def mutex(self): return self.__mutex
-    @property
-    def browser(self): return self.__browser
-    @property
-    def executable(self): return self.__executable
-    @property
-    def timeout(self): return self.__timeout
-    @property
-    def name(self): return self.__name
-
-    @property
-    def url(self): return self.driver.current_url
-    @property
     def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")
     @property
     def html(self): return lxml.html.fromstring(self.driver.page_source)
+    @property
+    def url(self): return self.driver.current_url
     @property
     def text(self): return self.driver.page_source
 
@@ -135,6 +124,17 @@ class WebDriver(object, metaclass=DelayerMeta):
     def driver(self): return self.__driver
     @driver.setter
     def driver(self, driver): self.__driver = driver
+
+    @property
+    def mutex(self): return self.__mutex
+    @property
+    def browser(self): return self.__browser
+    @property
+    def executable(self): return self.__executable
+    @property
+    def timeout(self): return self.__timeout
+    @property
+    def name(self): return self.__name
 
 
 

@@ -28,17 +28,18 @@ __logger__ = logging.getLogger(__name__)
 
 class WebStatusErrorMeta(RegistryMeta):
     def __init__(cls, name, bases, attrs, *args, statuscode=None, **kwargs):
-        assert str(name).endswith("Error")
-        assert isinstance(statuscode, (int, type(None)))
-        super(WebStatusErrorMeta, cls).__init__(name, bases, attrs, *args, register=statuscode, **kwargs)
+        assert str(name).endswith("Error") and isinstance(statuscode, (int, type(None)))
+        parameters = dict(register=statuscode) if bool(statuscode) else {}
+        super(WebStatusErrorMeta, cls).__init__(name, bases, attrs, *args, **parameters, **kwargs)
         if not any([type(base) is WebStatusErrorMeta for base in bases]):
             return
         cls.__statuscode__ = statuscode
+        cls.__logger__ = __logger__
 
-    def __call__(cls, *args, **kwargs):
-        instance = super(WebStatusErrorMeta, cls).__call__(*args, **kwargs)
-        __logger__.info(str(instance.name).replace("Error", f": {repr(instance.feed)}"))
-        __logger__.info(str(instance.url))
+    def __call__(cls, feed):
+        instance = super(WebStatusErrorMeta, cls).__call__(feed)
+        cls.logger.info(str(instance.name).replace("Error", f": {repr(instance.feed)}"))
+        cls.logger.info(str(instance.url))
         return instance
 
 

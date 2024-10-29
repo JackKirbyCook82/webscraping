@@ -18,8 +18,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.support import expected_conditions as EC
 
+from support.mixins import MultipleNode
 from support.meta import RegistryMeta
-from support.mixins import MultiNode
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -95,10 +95,10 @@ class WebDataMeta(ABCMeta):
         return (instances[0] if bool(instances) else None) if not bool(collection) else instances
 
 
-class WebData(MultiNode, metaclass=WebDataMeta):
+class WebData(MultipleNode, metaclass=WebDataMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
     def __init__(self, contents, *args, key, locator, parser, parameters, **kwargs):
-        MultiNode.__init__(self)
+        MultipleNode.__init__(self)
         self.__parameters = parameters
         self.__parser = parser
         self.__contents = contents
