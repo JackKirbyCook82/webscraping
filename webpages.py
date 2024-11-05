@@ -11,6 +11,8 @@ import logging
 from abc import ABC, abstractmethod
 from support.meta import RegistryMeta
 
+from support.mixins import Logging
+
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebBrowserPage", "WebJsonPage", "WebHtmlPage", "WebPageError"]
@@ -52,20 +54,18 @@ class PaginationError(WebPageError, register="pagination"): pass
 class CrawlingError(WebPageError, register="crawling"): pass
 
 
-class WebPage(ABC):
+class WebPage(Logging, ABC):
     def __init_subclass__(cls, *args, **kwargs): pass
-
-    def __repr__(self): return self.name
     def __init__(self, *args, feed, **kwargs):
-        self.__name = kwargs.get("name", self.__class__.__name__)
-        self.__feed = feed
+        Logging.__init__(self, *args, **kwargs)
+        self.feed = feed
 
     def load(self, url, *args, payload=None, params={}, headers={}, **kwargs):
         string = "&".join(["=".join([str(key), str(value)]) for key, value in params.items()])
         string = ("?" + string) if "?" not in str(url) else ("&" + string)
         string = str(url) + (string if bool(params) else "")
-        __logger__.info(f"Loading: {repr(self)}")
-        __logger__.info(str(string))
+        self.logger.info(f"Loading: {repr(self)}")
+        self.logger.info(str(string))
         self.feed.load(url, payload=payload, params=params, headers=headers)
 
     @staticmethod
@@ -74,10 +74,6 @@ class WebPage(ABC):
     @property
     @abstractmethod
     def source(self): pass
-    @property
-    def name(self): return self.__name
-    @property
-    def feed(self): return self.__feed
 
 
 class WebJsonPage(WebPage, ABC):
@@ -86,7 +82,7 @@ class WebJsonPage(WebPage, ABC):
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
         status_code = self.feed.response.status_code
-        __logger__.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
+        self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
     @property
     def source(self): return self.json
@@ -106,7 +102,7 @@ class WebHtmlPage(WebPage, ABC):
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
         status_code = self.feed.response.status_code
-        __logger__.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
+        self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
     @property
     def source(self): return self.html
@@ -123,10 +119,10 @@ class WebBrowserPage(WebPage, ABC):
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        __logger__.info(f"Loaded: {repr(self)}")
+        self.logger.info(f"Loaded: {repr(self)}")
 
     def run(self, *args, **kwargs):
-        __logger__.info(f"Running: {repr(self)}")
+        self.logger.info(f"Running: {repr(self)}")
         self.execute(*args, **kwargs)
 
     def execute(self, *args, **kwargs): pass

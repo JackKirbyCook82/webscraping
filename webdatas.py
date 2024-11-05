@@ -11,15 +11,15 @@ import logging
 import lxml.html
 import lxml.etree
 import pandas as pd
-from abc import ABC, ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.support import expected_conditions as EC
 
-from support.mixins import MultipleNode
-from support.meta import RegistryMeta
+from support.meta import RegistryMeta, AttributeMeta
+from support.trees import MixedNode
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -53,75 +53,78 @@ class WebDataError(Exception, metaclass=WebDataErrorMeta):
     def name(self): return self.__name
 
 
-class WebDataEmptyError(WebDataError): pass
+class WebDataMissingError(WebDataError): pass
 class WebDataMultipleError(WebDataError): pass
 
 
-class WebDataMeta(ABCMeta):
+class WebDataMeta(AttributeMeta):
     def __repr__(cls): return str(cls.__name__)
+    def __str__(cls): return str(cls.__key__)
+
     def __init__(cls, name, bases, attrs, *args, **kwargs):
-        assert all([attr not in attrs.keys() for attr in ("children", "collection", "optional", "style")])
+        super(WebDataMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
         if not any([type(base) is WebDataMeta for base in bases]):
             return
-        assert type(bases[0]) is WebDataMeta
-        assert all([type(base) is not WebDataMeta for base in bases[1:]])
         if ABC in bases:
-            setattr(bases[0], kwargs["register"], cls)
+            existing = getattr(cls, "__parameters__", [])
+            update = kwargs.get("parameters", [])
+            cls.__parameters__ = list(existing) + list(update)
             return
-        children = {key: value for key, value in getattr(cls, "__children__", {}).items()}
-        update = {value.__key__: value for value in attrs.values() if type(value) is WebDataMeta}
-        children.update(update)
-        cls.__children__ = children | update
-        cls.__collection__ = kwargs.get("collection", getattr(cls, "__collection__", False))
+        existing = {key: value for key, value in getattr(cls, "__subordinates__", {}).items()}
+        update = {str(value): value for value in attrs.values() if type(value) is WebDataMeta}
+        cls.__subordinates__ = existing | update
+        cls.__parameters__ = {key: kwargs[key] for key in getattr(cls, "__parameters__")}
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
-        cls.__parameters__ = kwargs.get("parameters", getattr(cls, "__parameters__", {}))
+        cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
-        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", lambda x: x))
+        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", lambda value: value))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
-    def __call__(cls, source):
-        attributes = {attr: getattr(cls, f"__{attr}__") for attr in ("locator", "key", "parameters", "parser")}
-        locator, optional, collection = cls.__locator__, cls.__optional__, cls.__collection__
-        elements = [element for element in cls.locate(source, locator=cls.__locator__)]
-        if not bool(elements) and not optional:
-            raise WebDataEmptyError(cls)
-        if len(elements) > 1 and not collection:
+    def __call__(cls, source, *args, **kwargs):
+        attributes = dict(parameters=cls.__parameters__, parser=cls.__parser__, key=cls.__key__)
+        elements = [element for element in cls.locate(source, *args, locator=cls.locator, **kwargs)]
+        if not bool(elements) and not cls.optional:
+            raise WebDataMissingError(cls)
+        if len(elements) > 1 and not cls.multiple:
             raise WebDataMultipleError(cls)
         instances = [super(WebDataMeta, cls).__call__(element, **attributes) for element in elements]
         for instance in instances:
-            for key, subcls in cls.__children__.items():
-                subinstances = subcls(instance.contents)
+            for key, subcls in cls.subordinates.items():
+                subinstances = subcls(instance.contents, *args, **kwargs)
                 instance[key] = subinstances
-        return (instances[0] if bool(instances) else None) if not bool(collection) else instances
+        return (instances[0] if bool(instances) else None) if not bool(cls.multiple) else instances
+
+    @staticmethod
+    @abstractmethod
+    def locate(source, *args, locator, **kwargs): pass
+
+    @property
+    def subordinates(cls): return cls.__subordinates__
+    @property
+    def optional(cls): return cls.__optional__
+    @property
+    def multiple(cls): return cls.__multiple__
+    @property
+    def locator(cls): return cls.__locator__
 
 
-class WebData(MultipleNode, metaclass=WebDataMeta):
+class WebData(MixedNode, ABC, metaclass=WebDataMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __init__(self, contents, *args, key, locator, parser, parameters, **kwargs):
-        MultipleNode.__init__(self)
+    def __init__(self, contents, *args, key, parser, parameters={}, **kwargs):
+        MixedNode.__init__(self, *args, **kwargs)
         self.__parameters = parameters
-        self.__parser = parser
         self.__contents = contents
-        self.__locator = locator
+        self.__parser = parser
         self.__key = key
 
-    def __contains__(self, key): return bool(key in self.nodes.keys())
-    def __setitem__(self, key, value): self.set(key, value)
-    def __getitem__(self, key): return self.get(key)
-
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
-    def __reversed__(self): return reversed(self.items())
-    def __iter__(self): return iter(self.items())
+    def __getattr__(self, attribute):
+        if attribute not in self.parameters.keys():
+            raise AttributeError(attribute)
+        return self.parameters[attribute]
 
     def execute(self, *args, **kwargs):
         return self.data
-
-    @property
-    @abstractmethod
-    def string(self): pass
-    @property
-    @abstractmethod
-    def data(self): pass
 
     @property
     def parameters(self): return self.__parameters
@@ -130,16 +133,17 @@ class WebData(MultipleNode, metaclass=WebDataMeta):
     @property
     def contents(self): return self.__contents
     @property
-    def locator(self): return self.__locator
-    @property
     def key(self): return self.__key
 
-    @staticmethod
+    @property
     @abstractmethod
-    def locate(source, *args, locator, **kwargs): pass
+    def string(self): pass
+    @property
+    @abstractmethod
+    def data(self): pass
 
 
-class WebELMT(WebData, ABC, register="Element"):
+class WebELMT(WebData, ABC, attribute="Element"):
     def click(self): self.element.click()
 
     @property
@@ -161,17 +165,17 @@ class WebELMT(WebData, ABC, register="Element"):
         yield from iter(elements)
 
 
-class WebELMTCaptcha(WebELMT, ABC, register="Captcha"):
+class WebELMTCaptcha(WebELMT, ABC, attribute="Captcha"):
     pass
 
 
-class WebELMTInput(WebELMT, ABC, register="Input"):
+class WebELMTInput(WebELMT, ABC, attribute="Input"):
     def fill(self, value): self.element.send_keys(value)
     def send(self): self.element.submit()
     def clear(self): self.element.clear()
 
 
-class WebELMTSelect(WebELMT, ABC, register="Select"):
+class WebELMTSelect(WebELMT, ABC, attribute="Select"):
     def __init__(self, contents, *args, **kwargs):
         WebELMT.__init__(self, contents, *args, **kwargs)
         self.__select = Select(contents)
@@ -184,12 +188,12 @@ class WebELMTSelect(WebELMT, ABC, register="Select"):
     def select(self): return self.__select
 
 
-class WebELMTCheckBox(WebELMT, ABC, register="CheckBox"):
+class WebELMTCheckBox(WebELMT, ABC, attribute="CheckBox"):
     @property
     def checked(self): return True if self.element.get_attribute("ariaChecked") in ("true", "mixed") else False
 
 
-class WebHTML(WebData, ABC, register="Html"):
+class WebHTML(WebData, ABC, attribute="Html"):
     @property
     def text(self): return self.html.attrib["text"]
     @property
@@ -208,24 +212,23 @@ class WebHTML(WebData, ABC, register="Html"):
         yield from iter(elements)
 
 
-class WebHTMLText(WebHTML, ABC, register="Text"):
+class WebHTMLText(WebHTML, ABC, attribute="Text"):
     @property
     def data(self): return self.parser(str(self.text))
 
-class WebHTMLLink(WebHTML, ABC, register="Link"):
+class WebHTMLLink(WebHTML, ABC, attribute="Link"):
     @property
     def data(self): return self.parser(str(self.link))
 
-class WebHTMLTable(WebHTML, ABC, register="Table"):
+class WebHTMLTable(WebHTML, ABC, attribute="Table", parameters=["index", "columns"]):
     @property
     def data(self):
-        header = self.parameters.get("header", 0)
-        index = self.parameters.get("index", None)
-        table = pd.concat(pd.read_html(self.string, header=header, index_col=index), axis=0)
+        header = self.columns + self.index
+        table = pd.concat(pd.read_html(self.string, header=header, index_col=self.index), axis=0)
         return self.parser(table)
 
 
-class WebJSON(WebData, ABC, register="Json"):
+class WebJSON(WebData, ABC, attribute="Json"):
     @property
     def string(self): return str(json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str))
     @property
@@ -233,8 +236,8 @@ class WebJSON(WebData, ABC, register="Json"):
     @property
     def json(self): return self.contents
 
-    @classmethod
-    def locate(cls, source, *args, locator, **kwargs):
+    @staticmethod
+    def locate(source, *args, locator, **kwargs):
         assert isinstance(source, dict) and isinstance(locator, str)
         if not bool(locator):
             yield source
@@ -247,9 +250,18 @@ class WebJSON(WebData, ABC, register="Json"):
         yield from iter(elements)
 
 
-class WebJsonText(WebJSON, ABC, register="Text"):
+class WebJsonText(WebJSON, ABC, attribute="Text"):
     @property
     def string(self): return str(self.json)
+
+
+
+
+
+
+
+
+
 
 
 
