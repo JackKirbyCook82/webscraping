@@ -220,11 +220,10 @@ class WebHTMLLink(WebHTML, ABC, attribute="Link"):
     @property
     def data(self): return self.parser(str(self.link))
 
-class WebHTMLTable(WebHTML, ABC, attribute="Table", parameters=["index", "columns"]):
+class WebHTMLTable(WebHTML, ABC, attribute="Table"):
     @property
     def data(self):
-        header = self.columns + self.index
-        table = pd.concat(pd.read_html(self.string, header=header, index_col=self.index), axis=0)
+        table = pd.concat(pd.read_html(self.string, header=0), axis=0)
         return self.parser(table)
 
 
