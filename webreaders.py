@@ -27,7 +27,7 @@ __logger__ = logging.getLogger(__name__)
 
 
 class WebStatusErrorMeta(RegistryMeta):
-    def __init__(cls, name, bases, attrs, *args, statuscode=None, **kwargs):
+    def __init__(cls, name, bases, attrs, *args, statuscode=None, title=None, **kwargs):
         assert str(name).endswith("Error") and isinstance(statuscode, (int, type(None)))
         parameters = dict(register=statuscode) if bool(statuscode) else {}
         super(WebStatusErrorMeta, cls).__init__(name, bases, attrs, *args, **parameters, **kwargs)
@@ -35,22 +35,24 @@ class WebStatusErrorMeta(RegistryMeta):
             return
         cls.__statuscode__ = statuscode
         cls.__logger__ = __logger__
+        cls.__title__ = title
 
     def __call__(cls, feed):
-        instance = super(WebStatusErrorMeta, cls).__call__(feed)
-        cls.logger.info(str(instance.name).replace("Error", f": {repr(instance.feed)}"))
-        cls.logger.info(str(instance.url))
+        logger, statuscode, title, name = cls.__logger__, cls.__statuscode__, cls.__title__, cls.__name__
+        instance = super(WebStatusErrorMeta, cls).__call__(name, feed, statuscode)
+        logger.info(f"{title}: {repr(instance.feed)}")
+        logger.info(str(instance.url))
         return instance
 
 
 class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
     def __str__(self): return f"{self.name}|{repr(self.feed)}[{str(self.statuscode)}]\n{str(self.url)}"
-    def __init__(self, feed):
-        self.__statuscode = self.__class__.__statuscode__
-        self.__name = self.__class__.__name__
+    def __init__(self, name, feed, statuscode):
+        self.__statuscode = statuscode
         self.__url = feed.url
         self.__feed = feed
+        self.__name = name
 
     @property
     def statuscode(self): return self.__statuscode
@@ -62,11 +64,11 @@ class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
     def url(self): return self.__url
 
 
-class AuthenticationError(WebStatusError, statuscode=401): pass
-class ForbiddenRequestError(WebStatusError, statuscode=403): pass
-class IncorrectRequestError(WebStatusError, statuscode=404): pass
-class GatewayError(WebStatusError, statuscode=502): pass
-class UnavailableError(WebStatusError, statuscode=503): pass
+class AuthenticationError(WebStatusError, statuscode=401, title="Authentication"): pass
+class ForbiddenRequestError(WebStatusError, statuscode=403, title="ForbiddenRequest"): pass
+class IncorrectRequestError(WebStatusError, statuscode=404, title="IncorrectRequest"): pass
+class GatewayError(WebStatusError, statuscode=502, title="Gateway"): pass
+class UnavailableError(WebStatusError, statuscode=503, title="Unavailable"): pass
 
 
 class WebAuthenticator(ntuple("Authenticator", "username password")): pass
@@ -74,7 +76,7 @@ class WebAuthorizer(object):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         cls.__urls__ = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
 
-    def __repr__(self): return "{}".format(self.name)
+    def __repr__(self): return self.name
     def __call__(self): return self.authorize()
     def __init__(self, *args, apikey, apicode, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)

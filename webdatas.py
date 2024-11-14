@@ -18,7 +18,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.support import expected_conditions as EC
 
-from support.meta import RegistryMeta, AttributeMeta
+from support.meta import AttributeMeta
 from support.trees import MixedNode
 
 __version__ = "1.0.0"
@@ -29,23 +29,25 @@ __license__ = "MIT License"
 __logger__ = logging.getLogger(__name__)
 
 
-class WebDataErrorMeta(RegistryMeta):
-    def __init__(cls, name, bases, attrs, *args, **kwargs):
+class WebDataErrorMeta(type):
+    def __init__(cls, name, bases, attrs, *args, title=None, **kwargs):
         assert str(name).endswith("Error")
-        super(WebDataErrorMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
+        super(WebDataErrorMeta, cls).__init__(name, bases, attrs)
+        cls.__logger__ = __logger__
+        cls.__title__ = title
 
-    def __call__(cls, *args, **kwargs):
-        instance = super(WebDataErrorMeta, cls).__call__(*args, **kwargs)
-        __logger__.info(str(instance.name).replace("Error", f": {repr(instance.data)}"))
+    def __call__(cls, data):
+        logger, title, name = cls.__logger__, cls.__title__, cls.__name__
+        instance = super(WebDataErrorMeta, cls).__call__(name, data)
+        logger.info(f"{title}: {repr(instance.data)}")
         return instance
 
 
 class WebDataError(Exception, metaclass=WebDataErrorMeta):
-    def __init_subclass__(cls, *args, **kwargs): pass
     def __str__(self): return f"{self.name}|{repr(self.data)}"
-    def __init__(self, data):
-        self.__name = self.__class__.__name__
+    def __init__(self, name, data):
         self.__data = data
+        self.__name = name
 
     @property
     def data(self): return self.__data
@@ -53,8 +55,8 @@ class WebDataError(Exception, metaclass=WebDataErrorMeta):
     def name(self): return self.__name
 
 
-class WebDataMissingError(WebDataError): pass
-class WebDataMultipleError(WebDataError): pass
+class WebDataMissingError(WebDataError, title="Missing"): pass
+class WebDataMultipleError(WebDataError, title="Multiple"): pass
 
 
 class WebDataMeta(AttributeMeta):
