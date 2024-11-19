@@ -44,6 +44,7 @@ class WebDataErrorMeta(type):
 
 
 class WebDataError(Exception, metaclass=WebDataErrorMeta):
+    def __init_subclass__(cls, *args, **kwargs): pass
     def __str__(self): return f"{self.name}|{repr(self.data)}"
     def __init__(self, name, data):
         self.__data = data

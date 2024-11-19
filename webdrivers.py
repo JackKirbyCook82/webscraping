@@ -36,13 +36,14 @@ class WebDriver(object, metaclass=DelayerMeta):
         cls.__browser__ = browser
 
     def __repr__(self): return f"{self.name}|{self.browser.name}"
-    def __init__(self, *args, timeout=60, **kwargs):
+    def __init__(self, *args, timeout=60, port=None, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
         self.__executable = self.__class__.__executable__
         self.__browser = self.__class__.__browser__
         self.__mutex = multiprocessing.Lock()
         self.__timeout = int(timeout)
         self.__driver = None
+        self.__port = port
 
     def __enter__(self):
         self.start()
@@ -54,7 +55,7 @@ class WebDriver(object, metaclass=DelayerMeta):
     def start(self):
         executable = self.executable
         options = self.browser.options()
-        self.setup(options)
+        self.setup(options, port=self.port)
         service = self.browser.service(executable)
         driver = self.browser.driver(service=service, options=options)
         driver.set_page_load_timeout(int(self.timeout))
@@ -97,7 +98,9 @@ class WebDriver(object, metaclass=DelayerMeta):
         return url
 
     @staticmethod
-    def setup(options, *args, **kwargs):
+    def setup(options, *args, port=None, **kwargs):
+        if port is not None:
+            options.add_experimental_option("debuggerAddress", f"127.0.0.1:{str(port)}")
         options.add_argument("log-level=3")
         options.add_argument("--start-maximized")
         options.add_argument("--disable-notifications")
@@ -133,6 +136,8 @@ class WebDriver(object, metaclass=DelayerMeta):
     def executable(self): return self.__executable
     @property
     def timeout(self): return self.__timeout
+    @property
+    def port(self): return self.__port
     @property
     def name(self): return self.__name
 
