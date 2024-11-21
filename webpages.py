@@ -124,11 +124,6 @@ class WebBrowserPage(WebPage, ABC):
         super().load(*args, **kwargs)
         self.logger.info(f"Loaded: {repr(self)}")
 
-    def run(self, *args, **kwargs):
-        self.logger.info(f"Running: {repr(self)}")
-        self.execute(*args, **kwargs)
-
-    def execute(self, *args, **kwargs): pass
     def forward(self): self.feed.foward()
     def back(self): self.feed.back()
     def refresh(self): self.feed.refresh()

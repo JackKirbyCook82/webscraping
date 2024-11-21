@@ -168,10 +168,9 @@ class WebELMT(WebData, ABC, attribute="Element"):
         yield from iter(elements)
 
 
-class WebELMTCaptcha(WebELMT, ABC, attribute="Captcha"):
-    pass
-
-
+class WebELMTClickable(WebELMT, ABC, attribute="Clickable"): pass
+class WebElMTText(WebELMT, ABC, attribute="Text"): pass
+class WebELMTCaptcha(WebELMT, ABC, attribute="Captcha"): pass
 class WebELMTInput(WebELMT, ABC, attribute="Input"):
     def fill(self, value): self.element.send_keys(value)
     def send(self): self.element.submit()
