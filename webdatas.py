@@ -58,6 +58,7 @@ class WebDataError(Exception, metaclass=WebDataErrorMeta):
 
 class WebDataMissingError(WebDataError, title="Missing"): pass
 class WebDataMultipleError(WebDataError, title="Multiple"): pass
+class WebDataParserError(WebDataError, title="Parser"): pass
 
 
 class WebDataMeta(AttributeMeta):
@@ -80,7 +81,7 @@ class WebDataMeta(AttributeMeta):
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
-        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", lambda value: value))
+        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", None))
         cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
     def __call__(cls, source, *args, **kwargs):
@@ -120,14 +121,15 @@ class WebData(MixedNode, ABC, metaclass=WebDataMeta):
         self.__parser = parser
         self.__key = key
 
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
     def __getattr__(self, attribute):
         if attribute not in self.parameters.keys():
             raise AttributeError(attribute)
         return self.parameters[attribute]
 
-    def execute(self, *args, **kwargs):
-        return self.data
+    @property
+    def data(self):
+        if self.parser is None: return self.raw
+        else: return self.parser(self.raw)
 
     @property
     def parameters(self): return self.__parameters
@@ -143,28 +145,25 @@ class WebData(MixedNode, ABC, metaclass=WebDataMeta):
     def string(self): pass
     @property
     @abstractmethod
-    def data(self): pass
+    def raw(self): pass
 
 
 class WebELMT(WebData, ABC, attribute="Element"):
     def click(self): self.element.click()
 
     @property
-    def html(self): return lxml.html.fromstring(self.element.get_attribute("outerHTML"))
-
-    @property
     def string(self): return self.element.get_attribute("outerHTML")
     @property
-    def data(self): return self.parser(self.element.get_attribute("outerHTML"))
+    def html(self): return lxml.html.fromstring(self.string)
     @property
     def element(self): return self.contents
+    @property
+    def raw(self): return self.string
 
     @staticmethod
     def locate(source, *args, locator, timeout=5, **kwargs):
-        try:
-            elements = WebDriverWait(source, timeout).until(EC.presence_of_all_elements_located((By.XPATH, locator)))
-        except (NoSuchElementException, TimeoutException, WebDriverException):
-            elements = []
+        try: elements = WebDriverWait(source, timeout).until(EC.presence_of_all_elements_located((By.XPATH, locator)))
+        except (NoSuchElementException, TimeoutException, WebDriverException): elements = []
         yield from iter(elements)
 
 
@@ -197,16 +196,15 @@ class WebELMTCheckBox(WebELMT, ABC, attribute="CheckBox"):
 
 class WebHTML(WebData, ABC, attribute="Html"):
     @property
+    def string(self): return lxml.html.tostring(self.html)
+    @property
     def text(self): return self.html.attrib["text"]
     @property
     def link(self): return self.html.attrib["href"]
-
-    @property
-    def string(self): return lxml.html.tostring(self.html)
-    @property
-    def data(self): return self.parser(lxml.html.tostring(self.html))
     @property
     def html(self): return self.contents
+    @property
+    def raw(self): return self.string
 
     @staticmethod
     def locate(source, *args, locator, removal=None, **kwargs):
@@ -216,26 +214,24 @@ class WebHTML(WebData, ABC, attribute="Html"):
 
 class WebHTMLText(WebHTML, ABC, attribute="Text"):
     @property
-    def data(self): return self.parser(str(self.text))
+    def raw(self): return str(self.text)
 
 class WebHTMLLink(WebHTML, ABC, attribute="Link"):
     @property
-    def data(self): return self.parser(str(self.link))
+    def raw(self): return str(self.link)
 
 class WebHTMLTable(WebHTML, ABC, attribute="Table"):
     @property
-    def data(self):
-        table = pd.concat(pd.read_html(self.string, header=0), axis=0)
-        return self.parser(table)
+    def raw(self): return pd.concat(pd.read_html(self.string, header=0), axis=0)
 
 
 class WebJSON(WebData, ABC, attribute="Json"):
     @property
     def string(self): return str(json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str))
     @property
-    def data(self): return self.parser(self.json)
-    @property
     def json(self): return self.contents
+    @property
+    def raw(self): return self.json
 
     @staticmethod
     def locate(source, *args, locator, **kwargs):

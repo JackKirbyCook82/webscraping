@@ -43,8 +43,8 @@ class WebPageError(Exception, metaclass=WebPageErrorMeta):
         self.__name = name
 
     @property
-    @property
     def page(self): return self.__page
+    @property
     def name(self): return self.__name
 
 
