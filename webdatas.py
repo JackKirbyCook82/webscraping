@@ -168,6 +168,7 @@ class WebELMT(WebData, ABC, attribute="Element"):
 
 
 class WebELMTClickable(WebELMT, ABC, attribute="Clickable"): pass
+class WebELMTButton(WebELMT, ABC, attribute="Button"): pass
 class WebElMTText(WebELMT, ABC, attribute="Text"): pass
 class WebELMTCaptcha(WebELMT, ABC, attribute="Captcha"): pass
 class WebELMTInput(WebELMT, ABC, attribute="Input"):

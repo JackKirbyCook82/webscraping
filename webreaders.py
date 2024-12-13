@@ -6,6 +6,7 @@ Created on Sat Mar 23 2019
 
 """
 
+import time
 import logging
 import requests
 import lxml.html
@@ -13,10 +14,12 @@ import webbrowser
 import multiprocessing
 import tkinter as tk
 from rauth import OAuth1Service
+from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 
-from support.meta import DelayerMeta, RegistryMeta
+from support.meta import SingletonMeta, RegistryMeta
+from support.decorators import Wrapper
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -76,13 +79,24 @@ class WebAuthorizer(object):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         cls.__urls__ = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
 
-    def __repr__(self): return self.name
+    def __repr__(self): return f"{self.name}"
     def __call__(self): return self.authorize()
     def __init__(self, *args, apikey, apicode, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
-        self.__urls = self.__class__.__urls__
         self.__apikey = apikey
         self.__apicode = apicode
+
+    def service(self):
+        return OAuth1Service(**self.urls, consumer_key=self.apikey, consumer_secret=self.apicode)
+
+    def authorize(self):
+        service = self.service()
+        token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
+        url = str(service.authorize_url).format(str(self.apikey), str(token))
+        webbrowser.open(str(url))
+        security = self.prompt()
+        session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
+        return session
 
     @staticmethod
     def prompt():
@@ -97,36 +111,57 @@ class WebAuthorizer(object):
         window.mainloop()
         return str(variable.get())
 
-    def service(self):
-        return OAuth1Service(**self.urls, consumer_key=self.apikey, consumer_secret=self.apicode)
-
-    def authorize(self):
-        service = self.service()
-        token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
-        url = str(service.authorize_url).format(str(self.apikey), str(token))
-        webbrowser.open(str(url))
-        security = self.prompt()
-        session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
-        return session
-
+    @property
+    def urls(self): return type(self).__urls__
     @property
     def apicode(self): return self.__apicode
     @property
     def apikey(self): return self.__apikey
     @property
-    def urls(self): return self.__urls
-    @property
     def name(self): return self.__name
 
 
-class WebReader(object, metaclass=DelayerMeta):
+class WebDelayer(Wrapper):
+    def wrapper(self, instance):
+        cls = type(instance)
+        with cls.mutex: cls.wait(instance.delay)
+        return self.function(instance)
+
+
+class WebReaderMeta(SingletonMeta):
+    def __init__(cls, *args, **kwargs):
+        cls.__mutex__ = multiprocessing.RLock()
+        cls.__timer__ = None
+
+    def wait(cls, delay=0):
+        if bool(cls.timer) and bool(delay):
+            seconds = (Datetime.now() - cls.timer).total_seconds()
+            sleep = max(delay - seconds, 0)
+            time.sleep(sleep)
+        cls.timer = Datetime.now()
+
+    @property
+    def timer(cls): return cls.__timer__
+    @timer.setter
+    def timer(cls, timer): cls.__timer__ = timer
+
+    @property
+    def delay(cls): return cls.__delay__
+    @property
+    def mutex(cls): return cls.__mutex__
+
+
+class WebReader(object, metaclass=WebReaderMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
     def __repr__(self): return f"{self.name}|Session"
-    def __init__(self, *args, authorizer=None, **kwargs):
+    def __bool__(self): return self.session is not None
+
+    def __init__(self, *args, delay=10, authorizer=None, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
         self.__mutex = multiprocessing.Lock()
         self.__authorizer = authorizer
+        self.__delay = int(delay)
         self.__session = None
         self.__response = None
         self.__request = None
@@ -139,36 +174,32 @@ class WebReader(object, metaclass=DelayerMeta):
         self.stop()
 
     def start(self):
-        if self.authorizer is not None:
-            self.session = self.authorizer()
-        else:
-            self.session = requests.Session()
+        if self.authorizer is not None: self.session = self.authorizer()
+        else: self.session = requests.Session()
 
     def stop(self):
         self.session.close()
+        self.session = None
+        self.response = None
+        self.request = None
 
-    @DelayerMeta.delayer
+    @WebDelayer
     def load(self, url, *args, params={}, payload=None, headers={}, auth=None, **kwargs):
         assert isinstance(auth, (WebAuthenticator, type(None)))
         url, params = self.urlparse(url, params)
         with self.mutex:
-            if payload is None:
-                response = self.get(url, params=params, headers=headers, auth=auth)
-            else:
-                response = self.post(url, payload, params=params, headers=headers, auth=auth)
+            if payload is None: response = self.get(url, params=params, headers=headers, auth=auth)
+            else: response = self.post(url, payload, params=params, headers=headers, auth=auth)
             self.request = response.request
             self.response = response
-            try:
-                raise WebStatusError[int(self.response.status_code)](self)
-            except KeyError:
-                pass
+            try: raise WebStatusError[int(self.response.status_code)](self)
+            except KeyError: pass
 
     def get(self, url, params={}, headers={}, auth=None):
         assert "?" not in str(url) if bool(params) else True
         authorized = self.authorizer is not None
         parameters = dict(params=params, headers=headers, header_auth=authorized)
-        if auth is not None:
-            parameters.update({"auth": tuple(auth)})
+        if auth is not None: parameters.update({"auth": tuple(auth)})
         response = self.session.get(url, **parameters)
         return response
 
@@ -176,26 +207,28 @@ class WebReader(object, metaclass=DelayerMeta):
         assert "?" not in str(url) if bool(params) else True
         authorized = self.authorizer is not None
         parameters = dict(data=payload, params=params, headers=headers, header_auth=authorized)
-        if auth is not None:
-            parameters.update({"auth": tuple(auth)})
+        if auth is not None: parameters.update({"auth": tuple(auth)})
         response = self.session.post(url, **parameters)
         return response
 
     @staticmethod
     def urlparse(url, params={}):
-        if not bool(params) or "?" not in str(url):
-            return url, params
+        if not bool(params) or "?" not in str(url): return url, params
         url, query = str(url).split("?")
         query = ODict([tuple(str(pair).split("=")) for pair in str(query).split("&")])
         params.update(query)
         return url, params
 
     @property
-    def mutex(self): return self.__mutex
+    def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")
     @property
-    def authorizer(self): return self.__authorizer
+    def html(self): return lxml.html.fromstring(self.response.text)
     @property
-    def name(self): return self.__name
+    def json(self): return self.response.json()
+    @property
+    def text(self): return self.response.text
+    @property
+    def url(self): return self.response.url
 
     @property
     def session(self): return self.__session
@@ -211,14 +244,12 @@ class WebReader(object, metaclass=DelayerMeta):
     def request(self, request): self.__request = request
 
     @property
-    def url(self): return self.response.url
+    def authorizer(self): return self.__authorizer
     @property
-    def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")
+    def delay(self): return self.__delay
     @property
-    def html(self): return lxml.html.fromstring(self.response.text)
+    def mutex(self): return self.__mutex
     @property
-    def text(self): return self.response.text
-    @property
-    def json(self): return self.response.json()
+    def name(self): return self.__name
 
 

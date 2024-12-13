@@ -6,16 +6,19 @@ Created on Mon Dec 30 2019
 
 """
 
+import time
 import lxml.html
 import multiprocessing
 import selenium.webdriver
+from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.firefox.service import Service as FirefoxService
 
-from support.meta import DelayerMeta
+from support.decorators import Wrapper
+from support.meta import SingletonMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -26,22 +29,57 @@ __license__ = "MIT License"
 
 class WebBrowser(object):
     Browser = ntuple("Browser", "name service driver options")
-    CHROME = Browser("Chrome", ChromeService, selenium.webdriver.Chrome, selenium.webdriver.ChromeOptions)
-    FIREFOX = Browser("Firefox", FirefoxService, selenium.webdriver.Firefox, selenium.webdriver.FirefoxOptions)
+    Chrome = Browser("Chrome", ChromeService, selenium.webdriver.Chrome, selenium.webdriver.ChromeOptions)
+    Firefox = Browser("Firefox", FirefoxService, selenium.webdriver.Firefox, selenium.webdriver.FirefoxOptions)
 
 
-class WebDriver(object, metaclass=DelayerMeta):
-    def __init_subclass__(cls, *args, browser, executable, **kwargs):
-        cls.__executable__ = executable
-        cls.__browser__ = browser
+class WebDelayer(Wrapper):
+    def wrapper(self, instance):
+        cls = type(instance)
+        with cls.mutex: cls.wait(instance.delay)
+        return self.function(instance)
+
+
+class WebDriverMeta(SingletonMeta):
+    def __init__(cls, *args, **kwargs):
+        cls.__executable__ = kwargs.get("executable", getattr(cls, "__executable__", None))
+        cls.__browser__ = kwargs.get("browser", getattr(cls, "__browser__", None))
+        cls.__mutex__ = multiprocessing.RLock()
+        cls.__timer__ = None
+
+    def wait(cls, delay=0):
+        if bool(cls.timer) and bool(delay):
+            seconds = (Datetime.now() - cls.timer).total_seconds()
+            sleep = max(delay - seconds, 0)
+            time.sleep(sleep)
+        cls.timer = Datetime.now()
+
+    @property
+    def timer(cls): return cls.__timer__
+    @timer.setter
+    def timer(cls, timer): cls.__timer__ = timer
+
+    @property
+    def executable(cls): return cls.__executable__
+    @property
+    def browser(cls): return cls.__browser__
+    @property
+    def delay(cls): return cls.__delay__
+    @property
+    def mutex(cls): return cls.__mutex__
+
+
+class WebDriver(object, metaclass=WebDriverMeta):
+    def __init_subclass__(cls, *args, **kwargs): pass
 
     def __repr__(self): return f"{self.name}|{self.browser.name}"
-    def __init__(self, *args, timeout=60, port=None, **kwargs):
+    def __bool__(self): return self.driver is not None
+
+    def __init__(self, *args, timeout=60, delay=10, port=None, **kwargs):
         self.__name = kwargs.get("name", self.__class__.__name__)
-        self.__executable = self.__class__.__executable__
-        self.__browser = self.__class__.__browser__
         self.__mutex = multiprocessing.Lock()
         self.__timeout = int(timeout)
+        self.__delay = int(delay)
         self.__driver = None
         self.__port = port
 
@@ -58,37 +96,37 @@ class WebDriver(object, metaclass=DelayerMeta):
         self.setup(options, port=self.port)
         service = self.browser.service(executable)
         driver = self.browser.driver(service=service, options=options)
-        driver.set_page_load_timeout(int(self.timeout))
+        driver.set_page_load_timeout(self.timeout)
         driver.delete_all_cookies()
         self.driver = driver
 
     def stop(self):
         self.driver.quit()
+        self.driver = None
 
-    @DelayerMeta.delayer
+    @WebDelayer
     def load(self, url, *args, params={}, **kwargs):
         url = self.urlparse(url, params)
-        with self.mutex:
-            self.driver.get(url)
+        with self.mutex: self.driver.get(url)
 
-    @DelayerMeta.delayer
-    def forward(self): self.driver.foward()
-    @DelayerMeta.delayer
-    def back(self): self.driver.back()
-    @DelayerMeta.delayer
-    def refresh(self): self.driver.refresh()
-    @DelayerMeta.delayer
-    def maximize(self): self.driver.maximize_window()
-    @DelayerMeta.delayer
-    def minimize(self): self.driver.minimize_window()
-    @DelayerMeta.delayer
+    @WebDelayer
     def pageup(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_UP)
-    @DelayerMeta.delayer
+    @WebDelayer
     def pagedown(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_DOWN)
-    @DelayerMeta.delayer
+    @WebDelayer
     def pagehome(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.HOME)
-    @DelayerMeta.delayer
+    @WebDelayer
     def pageend(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.END)
+    @WebDelayer
+    def maximize(self): self.driver.maximize_window()
+    @WebDelayer
+    def minimize(self): self.driver.minimize_window()
+    @WebDelayer
+    def refresh(self): self.driver.refresh()
+    @WebDelayer
+    def forward(self): self.driver.foward()
+    @WebDelayer
+    def back(self): self.driver.back()
 
     @staticmethod
     def urlparse(url, params={}):
@@ -110,18 +148,17 @@ class WebDriver(object, metaclass=DelayerMeta):
         options.add_argument("--disable-gpu")
 
     @property
+    def response(self): return [request.response for request in self.driver.requests]
+    @property
+    def request(self): return [request for request in self.driver.requests]
+    @property
     def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")
     @property
     def html(self): return lxml.html.fromstring(self.driver.page_source)
     @property
-    def url(self): return self.driver.current_url
-    @property
     def text(self): return self.driver.page_source
-
     @property
-    def response(self): return [request.response for request in self.driver.requests]
-    @property
-    def request(self): return [request for request in self.driver.requests]
+    def url(self): return self.driver.current_url
 
     @property
     def driver(self): return self.__driver
@@ -129,13 +166,15 @@ class WebDriver(object, metaclass=DelayerMeta):
     def driver(self, driver): self.__driver = driver
 
     @property
-    def mutex(self): return self.__mutex
+    def executable(self): return type(self).__executable__
     @property
-    def browser(self): return self.__browser
-    @property
-    def executable(self): return self.__executable
+    def browser(self): return type(self).__browser__
     @property
     def timeout(self): return self.__timeout
+    @property
+    def delay(self): return self.__delay
+    @property
+    def mutex(self): return self.__mutex
     @property
     def port(self): return self.__port
     @property

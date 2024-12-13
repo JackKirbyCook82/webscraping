@@ -61,7 +61,7 @@ class WebPage(Logging, ABC):
     def __init_subclass__(cls, *args, **kwargs): pass
     def __init__(self, *args, feed, **kwargs):
         Logging.__init__(self, *args, **kwargs)
-        self.feed = feed
+        self.__feed = feed
 
     def load(self, url, *args, payload=None, params={}, headers={}, **kwargs):
         string = "&".join(["=".join([str(key), str(value)]) for key, value in params.items()])
@@ -74,6 +74,8 @@ class WebPage(Logging, ABC):
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
 
+    @property
+    def feed(self): return self.__feed
     @property
     @abstractmethod
     def source(self): pass
@@ -88,15 +90,15 @@ class WebJsonPage(WebPage, ABC):
         self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
     @property
-    def source(self): return self.json
-    @property
     def pretty(self): return self.feed.pretty
-    @property
-    def html(self): return self.feed.html
     @property
     def text(self): return self.feed.text
     @property
+    def html(self): return self.feed.html
+    @property
     def json(self): return self.feed.json
+    @property
+    def source(self): return self.json
 
 
 class WebHtmlPage(WebPage, ABC):
@@ -108,13 +110,13 @@ class WebHtmlPage(WebPage, ABC):
         self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
     @property
-    def source(self): return self.html
-    @property
     def pretty(self): return self.feed.pretty
+    @property
+    def text(self): return self.feed.text
     @property
     def html(self): return self.feed.html
     @property
-    def text(self): return self.feed.text
+    def source(self): return self.html
 
 
 class WebBrowserPage(WebPage, ABC):
@@ -135,15 +137,15 @@ class WebBrowserPage(WebPage, ABC):
     def pageend(self): self.feed.pageend()
 
     @property
-    def source(self): return self.feed.html
-    @property
-    def url(self): return self.feed.url
-    @property
     def pretty(self): return self.feed.pretty
+    @property
+    def text(self): return self.feed.text
     @property
     def html(self): return self.feed.html
     @property
-    def text(self): return self.feed.text
+    def url(self): return self.feed.url
+    @property
+    def source(self): return self.html
 
 
 
