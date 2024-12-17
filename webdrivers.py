@@ -80,8 +80,8 @@ class WebDriver(object, metaclass=WebDriverMeta):
         self.__mutex = multiprocessing.Lock()
         self.__timeout = int(timeout)
         self.__delay = int(delay)
-        self.__driver = None
         self.__port = port
+        self.__driver = None
 
     def __enter__(self):
         self.start()
@@ -105,9 +105,23 @@ class WebDriver(object, metaclass=WebDriverMeta):
         self.driver = None
 
     @WebDelayer
-    def load(self, url, *args, params={}, **kwargs):
-        url = self.urlparse(url, params)
+    def load(self, url, *args, parameters={}, **kwargs):
+        parameters = str("&").join([str("=").join(list(pairing)) for pairing in parameters.items()])
+        parameters = ("&" if "?" in str(url) else "?") + str(parameters) if bool(parameters) else ""
+        url = str(url) + str(parameters)
         with self.mutex: self.driver.get(url)
+
+    @staticmethod
+    def setup(options, *args, port=None, **kwargs):
+        if port is not None:
+            options.add_experimental_option("debuggerAddress", f"127.0.0.1:{str(port)}")
+        options.add_argument("log-level=3")
+        options.add_argument("--start-maximized")
+        options.add_argument("--disable-notifications")
+        options.add_argument("--ignore-ssl-errors")
+        options.add_argument("--ignore-certificate-errors-spki-list")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
 
     @WebDelayer
     def pageup(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_UP)
@@ -127,25 +141,6 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def forward(self): self.driver.foward()
     @WebDelayer
     def back(self): self.driver.back()
-
-    @staticmethod
-    def urlparse(url, params={}):
-        params = "&".join(["=".join([str(key), str(value)]) for key, value in params.items()])
-        string = ("?" + params) if "?" not in str(url) else ("&" + params)
-        url = str(url) + (str(string) if bool(params) else "")
-        return url
-
-    @staticmethod
-    def setup(options, *args, port=None, **kwargs):
-        if port is not None:
-            options.add_experimental_option("debuggerAddress", f"127.0.0.1:{str(port)}")
-        options.add_argument("log-level=3")
-        options.add_argument("--start-maximized")
-        options.add_argument("--disable-notifications")
-        options.add_argument("--ignore-ssl-errors")
-        options.add_argument("--ignore-certificate-errors-spki-list")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
 
     @property
     def response(self): return [request.response for request in self.driver.requests]
@@ -169,6 +164,8 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def executable(self): return type(self).__executable__
     @property
     def browser(self): return type(self).__browser__
+    @property
+    def element(self): return self.__driver
     @property
     def timeout(self): return self.__timeout
     @property

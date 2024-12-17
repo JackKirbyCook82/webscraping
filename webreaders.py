@@ -184,40 +184,35 @@ class WebReader(object, metaclass=WebReaderMeta):
         self.request = None
 
     @WebDelayer
-    def load(self, url, *args, params={}, payload=None, headers={}, auth=None, **kwargs):
-        assert isinstance(auth, (WebAuthenticator, type(None)))
-        url, params = self.urlparse(url, params)
+    def load(self, url, *args, parameters={}, headers={}, payload=None, authenticate=None, **kwargs):
+        assert isinstance(authenticate, (WebAuthenticator, type(None)))
+        try: address, query = str(url).split("?")
+        except ValueError: address, query = str(url), str("")
+        query = ODict([tuple(str(pairing).split("=")) for pairing in str(query).split("&")])
+        parameters = parameters | query
         with self.mutex:
-            if payload is None: response = self.get(url, params=params, headers=headers, auth=auth)
-            else: response = self.post(url, payload, params=params, headers=headers, auth=auth)
+            if payload is None: response = self.get(url, parameters=parameters, headers=headers, authenticate=authenticate)
+            else: response = self.post(url, payload, parameters=parameters, headers=headers, authenticate=authenticate)
             self.request = response.request
             self.response = response
             try: raise WebStatusError[int(self.response.status_code)](self)
             except KeyError: pass
 
-    def get(self, url, params={}, headers={}, auth=None):
-        assert "?" not in str(url) if bool(params) else True
+    def get(self, url, parameters={}, headers={}, authenticate=None):
+        assert "?" not in str(url) if bool(parameters) else True
         authorized = self.authorizer is not None
-        parameters = dict(params=params, headers=headers, header_auth=authorized)
-        if auth is not None: parameters.update({"auth": tuple(auth)})
+        parameters = dict(params=parameters, headers=headers, header_auth=authorized)
+        if authenticate is not None: parameters.update({"auth": tuple(authenticate)})
         response = self.session.get(url, **parameters)
         return response
 
-    def post(self, url, payload, params={}, headers={}, auth=None):
-        assert "?" not in str(url) if bool(params) else True
+    def post(self, url, payload, parameters={}, headers={}, authenticate=None):
+        assert "?" not in str(url) if bool(parameters) else True
         authorized = self.authorizer is not None
-        parameters = dict(data=payload, params=params, headers=headers, header_auth=authorized)
-        if auth is not None: parameters.update({"auth": tuple(auth)})
+        parameters = dict(data=payload, params=parameters, headers=headers, header_auth=authorized)
+        if authenticate is not None: parameters.update({"auth": tuple(authenticate)})
         response = self.session.post(url, **parameters)
         return response
-
-    @staticmethod
-    def urlparse(url, params={}):
-        if not bool(params) or "?" not in str(url): return url, params
-        url, query = str(url).split("?")
-        query = ODict([tuple(str(pair).split("=")) for pair in str(query).split("&")])
-        params.update(query)
-        return url, params
 
     @property
     def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")

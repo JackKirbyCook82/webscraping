@@ -8,9 +8,9 @@ Created on Mon Dec 30 2019
 
 import time
 import logging
-from abc import ABC, abstractmethod
-from support.meta import RegistryMeta
+from abc import ABC, ABCMeta, abstractmethod
 
+from support.meta import RegistryMeta
 from support.mixins import Logging
 
 __version__ = "1.0.0"
@@ -57,28 +57,51 @@ class PaginationError(WebPageError, title="Pagination", register="pagination"): 
 class CrawlingError(WebPageError, title="Crawling", register="crawling"): pass
 
 
+class WebPageMeta(ABCMeta):
+    def __init__(cls, *args, **kwargs):
+        existing = list(getattr(cls, "__data__", []))
+        update = kwargs.get("data", [])
+        if isinstance(update, list): existing.extend(update)
+        else: existing.append(update)
+        cls.__data__ = existing + update
+
+    def __call__(cls, *args, source, **kwargs):
+        contents = {str(data): data(*args, source=source, **kwargs) for data in cls.data}
+        parameters = dict(source=source, contents=contents)
+        instance = super(WebPageMeta, cls).__call__(*args, **parameters, **kwargs)
+        return instance
+
+    @property
+    def data(cls): return cls.__data__
+
+
 class WebPage(Logging, ABC):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __init__(self, *args, feed, **kwargs):
-        Logging.__init__(self, *args, **kwargs)
-        self.__feed = feed
+    def __init__(self, *args, source, contents, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__contents = contents
+        self.__source = source
 
-    def load(self, url, *args, payload=None, params={}, headers={}, **kwargs):
-        string = "&".join(["=".join([str(key), str(value)]) for key, value in params.items()])
-        string = ("?" + string) if "?" not in str(url) else ("&" + string)
-        string = str(url) + (string if bool(params) else "")
+    def __getitem__(self, key): return self.contents[key]
+    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
+
+    def load(self, url, *args, payload=None, parameters={}, headers={}, **kwargs):
+        string = str("&").join([str("=").join(list(pairing)) for pairing in parameters.items()])
+        string = ("&" if "?" in str(url) else "?") + str(string) if bool(string) else ""
+        string = str(url) + str(string)
         self.logger.info(f"Loading: {repr(self)}")
-        self.logger.info(str(string))
-        self.feed.load(url, payload=payload, params=params, headers=headers)
+        self.logger.info(string)
+        self.source.load(url, payload=payload, parameters=parameters, headers=headers)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass
 
     @property
-    def feed(self): return self.__feed
+    def contents(self): return self.__contents
     @property
-    @abstractmethod
-    def source(self): pass
+    def source(self): return self.__source
 
 
 class WebJsonPage(WebPage, ABC):
@@ -89,17 +112,6 @@ class WebJsonPage(WebPage, ABC):
         status_code = self.feed.response.status_code
         self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
-    @property
-    def pretty(self): return self.feed.pretty
-    @property
-    def text(self): return self.feed.text
-    @property
-    def html(self): return self.feed.html
-    @property
-    def json(self): return self.feed.json
-    @property
-    def source(self): return self.json
-
 
 class WebHtmlPage(WebPage, ABC):
     def __repr__(self): return f"{self.name}|Session|Html"
@@ -109,15 +121,6 @@ class WebHtmlPage(WebPage, ABC):
         status_code = self.feed.response.status_code
         self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
-    @property
-    def pretty(self): return self.feed.pretty
-    @property
-    def text(self): return self.feed.text
-    @property
-    def html(self): return self.feed.html
-    @property
-    def source(self): return self.html
-
 
 class WebBrowserPage(WebPage, ABC):
     def __repr__(self): return f"{self.name}|Browser|{str(self.feed.browser.name).title()}"
@@ -126,26 +129,6 @@ class WebBrowserPage(WebPage, ABC):
         super().load(*args, **kwargs)
         self.logger.info(f"Loaded: {repr(self)}")
 
-    def forward(self): self.feed.foward()
-    def back(self): self.feed.back()
-    def refresh(self): self.feed.refresh()
-    def maximize(self): self.feed.maximize()
-    def minimize(self): self.feed.minimize()
-    def pageup(self): self.feed.pageup()
-    def pagedown(self): self.feed.pagedown()
-    def pagehome(self): self.feed.pagehome()
-    def pageend(self): self.feed.pageend()
-
-    @property
-    def pretty(self): return self.feed.pretty
-    @property
-    def text(self): return self.feed.text
-    @property
-    def html(self): return self.feed.html
-    @property
-    def url(self): return self.feed.url
-    @property
-    def source(self): return self.html
 
 
 
