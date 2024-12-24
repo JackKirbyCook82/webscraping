@@ -18,8 +18,8 @@ from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 
+from support.decorators import Wrapper, TypeDispatcher
 from support.meta import SingletonMeta, RegistryMeta
-from support.decorators import Wrapper
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -122,10 +122,10 @@ class WebAuthorizer(object):
 
 
 class WebDelayer(Wrapper):
-    def wrapper(self, instance):
+    def wrapper(self, instance, *args, **kwargs):
         cls = type(instance)
         with cls.mutex: cls.wait(instance.delay)
-        return self.function(instance)
+        return self.function(instance, *args, **kwargs)
 
 
 class WebReaderMeta(SingletonMeta):
@@ -183,35 +183,55 @@ class WebReader(object, metaclass=WebReaderMeta):
         self.response = None
         self.request = None
 
-    @WebDelayer
-    def load(self, url, *args, parameters={}, headers={}, payload=None, authenticate=None, **kwargs):
+    @TypeDispatcher(locator=0)
+    def load(self, url, *args, **kwargs): pass
+
+    @load.register(tuple)
+    def load(self, url, *args, payload=None, headers={}, authenticate=None, **kwargs):
+        address, parameters = url
+        parameters = parameters.items()
+        parameters = ODict(parameters) | kwargs.get("parameters", {})
+        keywords = dict(payload=payload, headers=headers, authenticate=authenticate)
+        self.method(address, parameters=parameters, **keywords)
+
+    @load.register(str)
+    def load(self, url, *args, payload=None, headers={}, authenticate=None, **kwargs):
+        try: address, parameters = str(url).split("?")
+        except ValueError: address, parameters = str(url), str("")
+        parameters = [str(parameter).split("=") for parameter in str(parameters).split("&") if bool(parameter)]
+        parameters = ODict(parameters) | kwargs.get("parameters", {})
+        keywords = dict(payload=payload, headers=headers, authenticate=authenticate)
+        self.method(address, parameters=parameters, **keywords)
+
+    def method(self, address, payload=None, parameters={}, headers={}, authenticate=None):
         assert isinstance(authenticate, (WebAuthenticator, type(None)))
-        try: address, query = str(url).split("?")
-        except ValueError: address, query = str(url), str("")
-        query = ODict([tuple(str(pairing).split("=")) for pairing in str(query).split("&")])
-        parameters = parameters | query
+        keywords = dict(parameters=parameters, headers=headers, authenticate=authenticate)
         with self.mutex:
-            if payload is None: response = self.get(url, parameters=parameters, headers=headers, authenticate=authenticate)
-            else: response = self.post(url, payload, parameters=parameters, headers=headers, authenticate=authenticate)
+            if payload is None: response = self.get(address, **keywords)
+            else: response = self.post(address, payload, **keywords)
             self.request = response.request
             self.response = response
-            try: raise WebStatusError[int(self.response.status_code)](self)
-            except KeyError: pass
+        try: raise WebStatusError[int(self.response.status_code)](self)
+        except KeyError: pass
 
-    def get(self, url, parameters={}, headers={}, authenticate=None):
-        assert "?" not in str(url) if bool(parameters) else True
+    @WebDelayer
+    def get(self, address, parameters={}, headers={}, authenticate=None):
+        assert isinstance(address, str) and isinstance(parameters, dict)
+        assert "?" not in str(address) if bool(parameters) else True
         authorized = self.authorizer is not None
-        parameters = dict(params=parameters, headers=headers, header_auth=authorized)
-        if authenticate is not None: parameters.update({"auth": tuple(authenticate)})
-        response = self.session.get(url, **parameters)
+        keywords = dict(params=parameters, headers=headers, header_auth=authorized)
+        if authenticate is not None: keywords.update({"auth": tuple(authenticate)})
+        response = self.session.get(address, **keywords)
         return response
 
-    def post(self, url, payload, parameters={}, headers={}, authenticate=None):
-        assert "?" not in str(url) if bool(parameters) else True
+    @WebDelayer
+    def post(self, address, payload, parameters={}, headers={}, authenticate=None):
+        assert isinstance(address, str) and isinstance(parameters, dict)
+        assert "?" not in str(address) if bool(parameters) else True
         authorized = self.authorizer is not None
-        parameters = dict(data=payload, params=parameters, headers=headers, header_auth=authorized)
-        if authenticate is not None: parameters.update({"auth": tuple(authenticate)})
-        response = self.session.post(url, **parameters)
+        keywords = dict(data=payload, params=parameters, headers=headers, header_auth=authorized)
+        if authenticate is not None: keywords.update({"auth": tuple(authenticate)})
+        response = self.session.post(address, **keywords)
         return response
 
     @property

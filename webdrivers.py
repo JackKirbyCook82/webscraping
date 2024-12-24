@@ -12,12 +12,13 @@ import multiprocessing
 import selenium.webdriver
 from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
+from collections import OrderedDict as ODict
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.firefox.service import Service as FirefoxService
 
-from support.decorators import Wrapper
+from support.decorators import Wrapper, TypeDispatcher
 from support.meta import SingletonMeta
 
 __version__ = "1.0.0"
@@ -34,10 +35,10 @@ class WebBrowser(object):
 
 
 class WebDelayer(Wrapper):
-    def wrapper(self, instance):
+    def wrapper(self, instance, *args, **kwargs):
         cls = type(instance)
         with cls.mutex: cls.wait(instance.delay)
-        return self.function(instance)
+        return self.function(instance, *args, **kwargs)
 
 
 class WebDriverMeta(SingletonMeta):
@@ -104,11 +105,30 @@ class WebDriver(object, metaclass=WebDriverMeta):
         self.driver.quit()
         self.driver = None
 
+    @TypeDispatcher(locator=0)
+    def load(self, url, *args, **kwargs): pass
+
+    @load.register(tuple)
+    def load(self, url, *args, **kwargs):
+        address, parameters = url
+        parameters = parameters.items()
+        parameters = ODict(parameters) | kwargs.get("parameters", {})
+        self.get(address, parameters=parameters)
+
+    @load.register(str)
+    def load(self, url, *args, **kwargs):
+        try: address, parameters = str(url).split("?")
+        except ValueError: address, parameters = str(url), str("")
+        parameters = [str(parameter).split("=") for parameter in str(parameters).split("&") if bool(parameter)]
+        parameters = ODict(parameters) | kwargs.get("parameters", {})
+        self.get(address, parameters=parameters)
+
     @WebDelayer
-    def load(self, url, *args, parameters={}, **kwargs):
-        parameters = str("&").join([str("=").join(list(pairing)) for pairing in parameters.items()])
-        parameters = ("&" if "?" in str(url) else "?") + str(parameters) if bool(parameters) else ""
-        url = str(url) + str(parameters)
+    def get(self, address, parameters={}):
+        assert isinstance(address, str) and "?" not in str(address) and isinstance(parameters, dict)
+        parameters = str("&").join([str("=").join(list(map(str, parameter))) for parameter in parameters.items()])
+        parameters = str("?") + str(parameters) if bool(parameters) else ""
+        url = str(address) + str(parameters)
         with self.mutex: self.driver.get(url)
 
     @staticmethod

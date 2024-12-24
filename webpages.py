@@ -8,7 +8,7 @@ Created on Mon Dec 30 2019
 
 import time
 import logging
-from abc import ABC, ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 
 from support.meta import RegistryMeta
 from support.mixins import Logging
@@ -57,49 +57,27 @@ class PaginationError(WebPageError, title="Pagination", register="pagination"): 
 class CrawlingError(WebPageError, title="Crawling", register="crawling"): pass
 
 
-class WebPageMeta(ABCMeta):
-    def __init__(cls, *args, **kwargs):
-        existing = list(getattr(cls, "__data__", []))
-        update = kwargs.get("data", [])
-        if isinstance(update, list): existing.extend(update)
-        else: existing.append(update)
-        cls.__data__ = existing + update
-
-    def __call__(cls, *args, source, **kwargs):
-        contents = {str(data): data(*args, source=source, **kwargs) for data in cls.data}
-        parameters = dict(source=source, contents=contents)
-        instance = super(WebPageMeta, cls).__call__(*args, **parameters, **kwargs)
-        return instance
-
-    @property
-    def data(cls): return cls.__data__
-
-
 class WebPage(Logging, ABC):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __init__(self, *args, source, contents, **kwargs):
+    def __init__(self, *args, source, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__contents = contents
         self.__source = source
 
-    def __getitem__(self, key): return self.contents[key]
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
+    def __call__(self, *args, **kwargs):
+        return self.execute(*args, **kwargs)
 
-    def load(self, url, *args, payload=None, parameters={}, headers={}, **kwargs):
-        string = str("&").join([str("=").join(list(pairing)) for pairing in parameters.items()])
-        string = ("&" if "?" in str(url) else "?") + str(string) if bool(string) else ""
-        string = str(url) + str(string)
+    def load(self, url, *args, payload=None, headers={}, **kwargs):
+        assert isinstance(url, tuple) and len(url) == 2
+        assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
         self.logger.info(f"Loading: {repr(self)}")
-        self.logger.info(string)
-        self.source.load(url, payload=payload, parameters=parameters, headers=headers)
+        self.logger.info(str(url))
+        self.source.load(url, payload=payload, headers=headers)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
     @abstractmethod
     def execute(self, *args, **kwargs): pass
 
-    @property
-    def contents(self): return self.__contents
     @property
     def source(self): return self.__source
 
@@ -109,7 +87,7 @@ class WebJsonPage(WebPage, ABC):
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        status_code = self.feed.response.status_code
+        status_code = self.source.response.status_code
         self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
 
@@ -118,12 +96,12 @@ class WebHtmlPage(WebPage, ABC):
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        status_code = self.feed.response.status_code
+        status_code = self.source.response.status_code
         self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
 
 class WebBrowserPage(WebPage, ABC):
-    def __repr__(self): return f"{self.name}|Browser|{str(self.feed.browser.name).title()}"
+    def __repr__(self): return f"{self.name}|Browser|{str(self.source.browser.name).title()}"
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
