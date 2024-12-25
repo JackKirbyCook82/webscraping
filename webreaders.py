@@ -40,31 +40,28 @@ class WebStatusErrorMeta(RegistryMeta):
         cls.__logger__ = __logger__
         cls.__title__ = title
 
-    def __call__(cls, feed):
-        logger, statuscode, title, name = cls.__logger__, cls.__statuscode__, cls.__title__, cls.__name__
-        instance = super(WebStatusErrorMeta, cls).__call__(name, feed, statuscode)
-        logger.info(f"{title}: {repr(instance.feed)}")
-        logger.info(str(instance.url))
+    def __call__(cls, source):
+        instance = super(WebStatusErrorMeta, cls).__call__(source)
+        cls.logger.info(f"{cls.title}: {repr(source)}")
         return instance
+
+    @property
+    def statuscode(cls): return cls.__statuscode__
+    @property
+    def logger(cls): return cls.__logger__
+    @property
+    def title(cls): return cls.__title__
+    @property
+    def name(cls): return cls.__name__
 
 
 class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{self.name}|{repr(self.feed)}[{str(self.statuscode)}]\n{str(self.url)}"
-    def __init__(self, name, feed, statuscode):
-        self.__statuscode = statuscode
-        self.__url = feed.url
-        self.__feed = feed
-        self.__name = name
+    def __str__(self): return f"{type(self).name}|{repr(self.source)}[{str(self.statuscode)}]"
+    def __init__(self, source): self.__source = source
 
     @property
-    def statuscode(self): return self.__statuscode
-    @property
-    def feed(self): return self.__feed
-    @property
-    def name(self): return self.__name
-    @property
-    def url(self): return self.__url
+    def source(self): return self.__source
 
 
 class AuthenticationError(WebStatusError, statuscode=401, title="Authentication"): pass
@@ -183,56 +180,22 @@ class WebReader(object, metaclass=WebReaderMeta):
         self.response = None
         self.request = None
 
-    @TypeDispatcher(locator=0)
-    def load(self, url, *args, **kwargs): pass
-
-    @load.register(tuple)
-    def load(self, url, *args, payload=None, headers={}, authenticate=None, **kwargs):
-        address, parameters = url
-        parameters = parameters.items()
-        parameters = ODict(parameters) | kwargs.get("parameters", {})
-        keywords = dict(payload=payload, headers=headers, authenticate=authenticate)
-        self.method(address, parameters=parameters, **keywords)
-
-    @load.register(str)
-    def load(self, url, *args, payload=None, headers={}, authenticate=None, **kwargs):
-        try: address, parameters = str(url).split("?")
-        except ValueError: address, parameters = str(url), str("")
-        parameters = [str(parameter).split("=") for parameter in str(parameters).split("&") if bool(parameter)]
-        parameters = ODict(parameters) | kwargs.get("parameters", {})
-        keywords = dict(payload=payload, headers=headers, authenticate=authenticate)
-        self.method(address, parameters=parameters, **keywords)
-
-    def method(self, address, payload=None, parameters={}, headers={}, authenticate=None):
-        assert isinstance(authenticate, (WebAuthenticator, type(None)))
-        keywords = dict(parameters=parameters, headers=headers, authenticate=authenticate)
+    def load(self, url, *args, payload=None, parameters={}, headers={}, authenticate=None, **kwargs):
+        assert isinstance(url, str) and isinstance(parameters, dict) and isinstance(authenticate, (WebAuthenticator, type(None)))
+        parameters = [str("=").join(list(map(str, parameter))) for parameter in parameters.items()]
+        parameters = str("&").join(list(parameters))
+        delimiter = ("&" if "?" in str(url) else "?")
+        url = str(delimiter).join([str(url), str(parameters)]) if bool(parameters) else str(url)
         with self.mutex:
-            if payload is None: response = self.get(address, **keywords)
-            else: response = self.post(address, payload, **keywords)
+            authorized = self.authorizer is not None
+            keywords = dict(params={}, headers=headers, header_auth=authorized)
+            if authenticate is not None: keywords.update({"auth": tuple(authenticate)})
+            if payload is None: response = self.session.get(str(url), **keywords)
+            else: response = self.session.post(str(url), **keywords)
             self.request = response.request
             self.response = response
         try: raise WebStatusError[int(self.response.status_code)](self)
         except KeyError: pass
-
-    @WebDelayer
-    def get(self, address, parameters={}, headers={}, authenticate=None):
-        assert isinstance(address, str) and isinstance(parameters, dict)
-        assert "?" not in str(address) if bool(parameters) else True
-        authorized = self.authorizer is not None
-        keywords = dict(params=parameters, headers=headers, header_auth=authorized)
-        if authenticate is not None: keywords.update({"auth": tuple(authenticate)})
-        response = self.session.get(address, **keywords)
-        return response
-
-    @WebDelayer
-    def post(self, address, payload, parameters={}, headers={}, authenticate=None):
-        assert isinstance(address, str) and isinstance(parameters, dict)
-        assert "?" not in str(address) if bool(parameters) else True
-        authorized = self.authorizer is not None
-        keywords = dict(data=payload, params=parameters, headers=headers, header_auth=authorized)
-        if authenticate is not None: keywords.update({"auth": tuple(authenticate)})
-        response = self.session.post(address, **keywords)
-        return response
 
     @property
     def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")

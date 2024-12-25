@@ -35,27 +35,25 @@ class WebSourcingErrorMeta(type):
         cls.__title__ = title
 
     def __call__(cls, source):
-        instance = super(WebSourcingErrorMeta, cls).__call__(cls.__name__, source)
-        cls.logger.info(f"{cls.title}: {repr(instance.data)}")
+        instance = super(WebSourcingErrorMeta, cls).__call__(source)
+        cls.logger.info(f"{cls.title}: {repr(source)}")
         return instance
 
     @property
     def logger(cls): return cls.__logger__
     @property
     def title(cls): return cls.__title__
+    @property
+    def name(cls): return cls.__name__
 
 
 class WebSourcingError(Exception, metaclass=WebSourcingErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{self.name}|{repr(self.source)}"
-    def __init__(self, name, source):
-        self.__source = source
-        self.__name = name
+    def __str__(self): return f"{type(self).name}|{repr(self.source)}"
+    def __init__(self, source): self.__source = source
 
     @property
     def source(self): return self.__source
-    @property
-    def name(self): return self.__name
 
 
 class WebSourcingMissingError(WebSourcingError, title="Missing"): pass
@@ -63,6 +61,9 @@ class WebSourcingMultipleError(WebSourcingError, title="Multiple"): pass
 
 
 class WebSourcingMeta(ParametersMeta, ABCMeta):
+    def __repr__(cls): return str(cls.__name__)
+    def __str__(cls): return str(cls.__key__)
+
     def __init__(cls, name, bases, attrs, *args, **kwargs):
         super(WebSourcingMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
         dependents = {str(dependent): dependent for dependent in attrs.values() if type(dependent) is WebSourcingMeta}
@@ -70,6 +71,7 @@ class WebSourcingMeta(ParametersMeta, ABCMeta):
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
+        cls.__key__ = kwargs.get("key", getattr(cls, "__key__", None))
 
     def __call__(cls, sources, *args, **kwargs):
         sources = [source for source in cls.locate(sources, *args, **kwargs)]
@@ -93,7 +95,9 @@ class WebSourcingMeta(ParametersMeta, ABCMeta):
 
 class WebSourcing(MixedNode, ABC, metaclass=WebSourcingMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __init__(self, source, *args, **kwargs): self.__source = source
+    def __init__(self, source, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__source = source
 
     def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
     def __str__(self): return str(self.string)
@@ -175,9 +179,9 @@ class WebJSON(WebData, ABC):
         locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
         contents = source[str(locators.pop(0))]
         for locator in locators: contents = contents[str(locator)]
-        if isinstance(contents, dict()): yield from iter(contents.items())
+        if isinstance(contents, dict): yield from iter(contents.items())
         elif isinstance(contents, (tuple, list)): yield from iter(contents)
-        elif isinstance(contents, str): yield contents
+        elif isinstance(contents, (str, int, float)): yield contents
         else: raise TypeError(type(contents))
 
     @property

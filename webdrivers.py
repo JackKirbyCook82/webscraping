@@ -12,13 +12,12 @@ import multiprocessing
 import selenium.webdriver
 from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
-from collections import OrderedDict as ODict
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.firefox.service import Service as FirefoxService
 
-from support.decorators import Wrapper, TypeDispatcher
+from support.decorators import Wrapper
 from support.meta import SingletonMeta
 
 __version__ = "1.0.0"
@@ -105,31 +104,13 @@ class WebDriver(object, metaclass=WebDriverMeta):
         self.driver.quit()
         self.driver = None
 
-    @TypeDispatcher(locator=0)
-    def load(self, url, *args, **kwargs): pass
-
-    @load.register(tuple)
-    def load(self, url, *args, **kwargs):
-        address, parameters = url
-        parameters = parameters.items()
-        parameters = ODict(parameters) | kwargs.get("parameters", {})
-        self.get(address, parameters=parameters)
-
-    @load.register(str)
-    def load(self, url, *args, **kwargs):
-        try: address, parameters = str(url).split("?")
-        except ValueError: address, parameters = str(url), str("")
-        parameters = [str(parameter).split("=") for parameter in str(parameters).split("&") if bool(parameter)]
-        parameters = ODict(parameters) | kwargs.get("parameters", {})
-        self.get(address, parameters=parameters)
-
-    @WebDelayer
-    def get(self, address, parameters={}):
-        assert isinstance(address, str) and "?" not in str(address) and isinstance(parameters, dict)
-        parameters = str("&").join([str("=").join(list(map(str, parameter))) for parameter in parameters.items()])
-        parameters = str("?") + str(parameters) if bool(parameters) else ""
-        url = str(address) + str(parameters)
-        with self.mutex: self.driver.get(url)
+    def load(self, url, *args, parameters={}, **kwargs):
+        assert isinstance(url, str) and isinstance(parameters, dict)
+        parameters = [str("=").join(list(map(str, parameter))) for parameter in parameters.items()]
+        parameters = str("&").join(list(parameters))
+        delimiter = ("&" if "?" in str(url) else "?")
+        url = str(delimiter).join([str(url), str(parameters)]) if bool(parameters) else str(url)
+        with self.mutex: self.driver.get(str(url))
 
     @staticmethod
     def setup(options, *args, port=None, **kwargs):

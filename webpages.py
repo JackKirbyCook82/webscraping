@@ -29,23 +29,25 @@ class WebPageErrorMeta(RegistryMeta):
         cls.__title__ = title
 
     def __call__(cls, page):
-        logger, title, name = cls.__logger__, cls.__title__, cls.__name__
-        instance = super(WebPageErrorMeta, cls).__call__(name, page)
-        logger.info(f"{title}: {repr(instance.page)}")
+        instance = super(WebPageErrorMeta, cls).__call__(page)
+        cls.logger.info(f"{cls.title}: {repr(page)}")
         return instance
+
+    @property
+    def logger(cls): return cls.__logger__
+    @property
+    def title(cls): return cls.__title__
+    @property
+    def name(cls): return cls.__name__
 
 
 class WebPageError(Exception, metaclass=WebPageErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{self.name}|{repr(self.page)}"
-    def __init__(self, name, page):
-        self.__page = page
-        self.__name = name
+    def __str__(self): return f"{type(self).name}|{repr(self.page)}"
+    def __init__(self, page): self.__page = page
 
     @property
     def page(self): return self.__page
-    @property
-    def name(self): return self.__name
 
 
 class BadRequestError(WebPageError, title="BadRequest", register="badrequest"): pass
@@ -66,12 +68,12 @@ class WebPage(Logging, ABC):
     def __call__(self, *args, **kwargs):
         return self.execute(*args, **kwargs)
 
-    def load(self, url, *args, payload=None, headers={}, **kwargs):
+    def load(self, url, *args, payload=None, parameters={}, headers={}, **kwargs):
         assert isinstance(url, tuple) and len(url) == 2
         assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
         self.logger.info(f"Loading: {repr(self)}")
         self.logger.info(str(url))
-        self.source.load(url, payload=payload, headers=headers)
+        self.source.load(str(url), payload=payload, parameters=parameters, headers=headers)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
