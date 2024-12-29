@@ -104,12 +104,8 @@ class WebDriver(object, metaclass=WebDriverMeta):
         self.driver.quit()
         self.driver = None
 
-    def load(self, url, *args, parameters={}, **kwargs):
-        assert isinstance(url, str) and isinstance(parameters, dict)
-        parameters = [str("=").join(list(map(str, parameter))) for parameter in parameters.items()]
-        parameters = str("&").join(list(parameters))
-        delimiter = ("&" if "?" in str(url) else "?")
-        url = str(delimiter).join([str(url), str(parameters)]) if bool(parameters) else str(url)
+    def load(self, url, *args, **kwargs):
+        assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
         with self.mutex: self.driver.get(str(url))
 
     @staticmethod

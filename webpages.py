@@ -68,12 +68,11 @@ class WebPage(Logging, ABC):
     def __call__(self, *args, **kwargs):
         return self.execute(*args, **kwargs)
 
-    def load(self, url, *args, payload=None, parameters={}, headers={}, **kwargs):
-        assert isinstance(url, tuple) and len(url) == 2
+    def load(self, url, *args, payload=None, headers={}, **kwargs):
         assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
         self.logger.info(f"Loading: {repr(self)}")
         self.logger.info(str(url))
-        self.source.load(str(url), payload=payload, parameters=parameters, headers=headers)
+        self.source.load(url, payload=payload, headers=headers)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)

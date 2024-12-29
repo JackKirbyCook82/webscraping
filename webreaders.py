@@ -18,8 +18,8 @@ from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 
-from support.decorators import Wrapper, TypeDispatcher
 from support.meta import SingletonMeta, RegistryMeta
+from support.decorators import Wrapper
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -57,7 +57,7 @@ class WebStatusErrorMeta(RegistryMeta):
 
 class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{type(self).name}|{repr(self.source)}[{str(self.statuscode)}]"
+    def __str__(self): return f"{type(self).name}|{repr(self.source)}[{str(type(self).statuscode)}]"
     def __init__(self, source): self.__source = source
 
     @property
@@ -180,18 +180,16 @@ class WebReader(object, metaclass=WebReaderMeta):
         self.response = None
         self.request = None
 
-    def load(self, url, *args, payload=None, parameters={}, headers={}, authenticate=None, **kwargs):
-        assert isinstance(url, str) and isinstance(parameters, dict) and isinstance(authenticate, (WebAuthenticator, type(None)))
-        parameters = [str("=").join(list(map(str, parameter))) for parameter in parameters.items()]
-        parameters = str("&").join(list(parameters))
-        delimiter = ("&" if "?" in str(url) else "?")
-        url = str(delimiter).join([str(url), str(parameters)]) if bool(parameters) else str(url)
+    def load(self, url, *args, payload=None, headers={}, authenticate=None, **kwargs):
+        assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
+        assert isinstance(authenticate, (WebAuthenticator, type(None)))
+        address, parameters = url
         with self.mutex:
             authorized = self.authorizer is not None
-            keywords = dict(params={}, headers=headers, header_auth=authorized)
+            keywords = dict(params=parameters, headers=headers, header_auth=authorized)
             if authenticate is not None: keywords.update({"auth": tuple(authenticate)})
-            if payload is None: response = self.session.get(str(url), **keywords)
-            else: response = self.session.post(str(url), **keywords)
+            if payload is None: response = self.session.get(str(address), **keywords)
+            else: response = self.session.post(str(address), **keywords)
             self.request = response.request
             self.response = response
         try: raise WebStatusError[int(self.response.status_code)](self)
