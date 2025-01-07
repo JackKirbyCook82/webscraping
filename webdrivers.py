@@ -19,6 +19,7 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 
 from support.decorators import Wrapper
 from support.meta import SingletonMeta
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -69,14 +70,14 @@ class WebDriverMeta(SingletonMeta):
     def mutex(cls): return cls.__mutex__
 
 
-class WebDriver(object, metaclass=WebDriverMeta):
+class WebDriver(Logging, metaclass=WebDriverMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
     def __repr__(self): return f"{self.name}|{self.browser.name}"
     def __bool__(self): return self.driver is not None
 
     def __init__(self, *args, timeout=60, delay=10, port=None, **kwargs):
-        self.__name = kwargs.get("name", self.__class__.__name__)
+        super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
         self.__timeout = int(timeout)
         self.__delay = int(delay)
@@ -171,8 +172,6 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def mutex(self): return self.__mutex
     @property
     def port(self): return self.__port
-    @property
-    def name(self): return self.__name
 
 
 

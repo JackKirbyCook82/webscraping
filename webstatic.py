@@ -7,183 +7,115 @@ Created on Sat Dec 28 2024
 """
 
 import json
-import logging
+import types
+
 import lxml.html
 import pandas as pd
-from abc import ABC, ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 
-from support.meta import ParametersMeta, AttributeMeta, TreeMeta
-from support.trees import MixedNode
+from webscraping.websourcing import WebContents, WebSourcing, SourcingType
+from support.meta import AttributeMeta, TreeMeta
+from support.trees import ParentalNode
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebHTML", "WebJSON"]
 __copyright__ = "Copyright 2024, Jack Kirby Cook"
 __license__ = "MIT License"
-__logger__ = logging.getLogger(__name__)
 
 
-class WebStaticErrorMeta(type):
-    def __init__(cls, name, bases, attrs, *args, title=None, **kwargs):
-        assert str(name).endswith("Error")
-        super(WebStaticErrorMeta, cls).__init__(name, bases, attrs)
-        cls.__logger__ = __logger__
-        cls.__title__ = title
-
-    def __call__(cls, source):
-        instance = super(WebStaticErrorMeta, cls).__call__(source)
-        cls.logger.info(f"{cls.title}: {repr(source)}")
-        return instance
-
-    @property
-    def logger(cls): return cls.__logger__
-    @property
-    def title(cls): return cls.__title__
-    @property
-    def name(cls): return cls.__name__
-
-
-class WebStaticError(Exception, metaclass=WebStaticErrorMeta):
-    def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{type(self).name}|{repr(self.source)}"
-    def __init__(self, source): self.__source = source
-
-    @property
-    def source(self): return self.__source
-
-
-class WebStaticMissingError(WebStaticError, title="Missing"): pass
-class WebStaticMultipleError(WebStaticError, title="Multiple"): pass
-
-
-class WebStaticMeta(ParametersMeta, AttributeMeta, TreeMeta, ABCMeta):
+class WebStaticMeta(AttributeMeta, TreeMeta):
     def __init__(cls, name, bases, attrs, *args, **kwargs):
         super(WebStaticMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
-        cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
-        cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
-        cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
+        if ABC in bases: cls.__sourcing__ = cls.customize(*args, **kwargs)
+        else: cls.__sourcing__ = cls.finalized(*args, **kwargs)
 
-    def __call__(cls, sources, *args, **kwargs):
-        sources = [source for source in cls.locate(sources, *args, **kwargs)]
-        if not bool(sources) and not cls.optional: raise WebStaticMissingError(cls)
-        if len(sources) > 1 and not cls.multiple: raise WebStaticMultipleError(cls)
-        instances = [super(WebStaticMeta, cls).__call__(source, *args, **kwargs) for source in sources]
-        for source, instance in zip(sources, instances):
-            for key, dependent in cls.dependents.items():
-                instance[key] = dependent(source, *args, **kwargs)
+    def __call__(cls, source, *args, **kwargs):
+        sources = [value for value in cls.sourcing(source, *args, **kwargs)]
+        instances = [super(WebStaticMeta, cls).__call__(value, *args, **kwargs) for value in sources]
+        for value, instance in zip(sources, instances):
+            children = {key: dependent(value, *args, **kwargs) for key, dependent in cls.dependents.items()}
+            for key, child in children.items(): instance[key] = child
         if bool(cls.multiple): return list(instances)
         else: return instances[0] if bool(instances) else None
 
+    def customize(cls, *args, sourcingtype=None, **kwargs):
+        assert isinstance(sourcingtype, (SourcingType, types.NoneType))
+        if isinstance(sourcingtype, SourcingType): return WebSourcing[sourcingtype]
+        else: return getattr(cls, "__sourcing__", None)
+
+    def finalize(cls, *args, **kwargs):
+        assert not isinstance(cls.sourcing, types.NoneType)
+        return cls.sourcing(*args, **kwargs)
+
     @property
-    def optional(cls): return cls.__optional__
-    @property
-    def multiple(cls): return cls.__multiple__
-    @property
-    def locator(cls): return cls.__locator__
+    def sourcing(cls): return cls.__sourcing__
 
 
-class WebStatic(MixedNode, ABC, metaclass=WebStaticMeta):
+class WebStatic(ParentalNode, Logging, ABC, metaclass=WebStaticMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
+    def __str__(self): return self.string
     def __init__(self, source, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__source = source
 
-    @abstractmethod
-    def execute(self, *args, **kwargs): pass
-    @classmethod
-    @abstractmethod
-    def locate(cls, source, *args, **kwargs): pass
     @property
     @abstractmethod
     def string(self): pass
-
     @property
     def source(self): return self.__source
 
 
-class WebContents(WebStatic, ABC):
-    def execute(self, *args, **kwargs): return {key: value(*args, **kwargs) for key, value in iter(self)}
-
-
-class WebHTML(WebContents, ABC, root=True):
-    @classmethod
-    def locate(cls, source, *args, **kwargs):
-        contents = list(source.xpath(cls.locator))
-        yield from iter(contents)
-
+class WebHTML(WebContents.Multiple, WebStatic, ABC, sourcingtype=SourcingType.HTML, root=True):
     @property
     def string(self): return lxml.html.tostring(self.html)
     @property
     def html(self): return self.source
 
-
-class WebJSON(WebContents, ABC, root=True):
-    @classmethod
-    def locate(cls, source, *args, **kwargs):
-        locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
-        contents = source[str(locators.pop(0))]
-        for locator in locators: contents = contents[str(locator)]
-        if isinstance(contents, (tuple, list)): yield from iter(contents)
-        elif isinstance(contents, (str, int, float)): yield contents
-        elif isinstance(contents, dict): yield contents
-        else: raise TypeError(type(contents))
-
+class WebJSON(WebContents.Multiple, WebStatic, ABC, sourcingtype=SourcingType.JSON, root=True):
     @property
     def string(self): return json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str)
     @property
     def json(self): return self.source
 
 
-class WebContent(WebStatic, ABC, parameters=["parser"]):
-    def __init__(self, *args, parser, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__parser = parser
-
-    def parse(self, content, *args, **kwargs): return self.parser(content)
-    def execute(self, *args, **kwargs):
-        arguments = tuple([self.content] + list(args))
-        parameters = dict(kwargs)
-        return self.parse(*arguments, **parameters)
-
-    @property
-    @abstractmethod
-    def content(self): pass
-    @property
-    def parser(self): return self.__parser
-
-
-class WebHTMLText(WebContent, WebHTML, ABC, attribute="Text"):
+class WebHTMLText(WebContents.Single, WebHTML, ABC, attribute="Text"):
     @property
     def text(self): return str(self.html.attrib["text"])
     @property
     def content(self): return self.text
 
-class WebHTMLLink(WebContent, WebHTML, ABC, attribute="Link"):
+class WebHTMLLink(WebContents.Single, WebHTML, ABC, attribute="Link"):
     @property
     def link(self): return str(self.html.attrib["href"])
     @property
     def content(self): return self.link
 
-class WebHTMLTable(WebContent, WebHTML, ABC, attribute="Table"):
+class WebHTMLTable(WebContents.Single, WebHTML, ABC, attribute="Table"):
     @property
     def table(self): return pd.concat(pd.read_html(self.string, header=0, index_col=None), axis=0)
     @property
     def content(self): return self.table
 
-class WebJsonMapping(WebContent, WebJSON, attribute="Mapping"):
+
+class WebJsonCollection(WebContents.Single, WebJSON, ABC, attribute="Collection"):
+    @property
+    def collection(self): return list(self.json)
+    @property
+    def content(self): return self.collection
+
+class WebJsonMapping(WebContents.Single, WebJSON, ABC, attribute="Mapping"):
     @property
     def mapping(self): return dict(self.json)
     @property
     def content(self): return self.mapping
 
-class WebJsonText(WebContent, WebJSON, ABC, attribute="Text"):
+class WebJsonText(WebContents.Single, WebJSON, ABC, attribute="Text"):
     @property
     def text(self): return str(self.json)
     @property
     def content(self): return self.text
-
-
 
 
 

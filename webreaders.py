@@ -7,7 +7,6 @@ Created on Sat Mar 23 2019
 """
 
 import time
-import logging
 import requests
 import lxml.html
 import webbrowser
@@ -16,17 +15,16 @@ import tkinter as tk
 from rauth import OAuth1Service
 from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
-from collections import OrderedDict as ODict
 
 from support.meta import SingletonMeta, RegistryMeta
 from support.decorators import Wrapper
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebAuthorizer", "WebReader", "WebStatusError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
-__logger__ = logging.getLogger(__name__)
 
 
 class WebStatusErrorMeta(RegistryMeta):
@@ -37,18 +35,15 @@ class WebStatusErrorMeta(RegistryMeta):
         if not any([type(base) is WebStatusErrorMeta for base in bases]):
             return
         cls.__statuscode__ = statuscode
-        cls.__logger__ = __logger__
         cls.__title__ = title
 
     def __call__(cls, source):
         instance = super(WebStatusErrorMeta, cls).__call__(source)
-        cls.logger.info(f"{cls.title}: {repr(source)}")
+        source.logger.info(f"{cls.title}: {repr(source)}")
         return instance
 
     @property
     def statuscode(cls): return cls.__statuscode__
-    @property
-    def logger(cls): return cls.__logger__
     @property
     def title(cls): return cls.__title__
     @property
@@ -72,14 +67,13 @@ class UnavailableError(WebStatusError, statuscode=503, title="Unavailable"): pas
 
 
 class WebAuthenticator(ntuple("Authenticator", "username password")): pass
-class WebAuthorizer(object):
+class WebAuthorizer(Logging):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         cls.__urls__ = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
 
-    def __repr__(self): return f"{self.name}"
     def __call__(self): return self.authorize()
     def __init__(self, *args, apikey, apicode, **kwargs):
-        self.__name = kwargs.get("name", self.__class__.__name__)
+        super().__init__(*args, **kwargs)
         self.__apikey = apikey
         self.__apicode = apicode
 
@@ -114,8 +108,6 @@ class WebAuthorizer(object):
     def apicode(self): return self.__apicode
     @property
     def apikey(self): return self.__apikey
-    @property
-    def name(self): return self.__name
 
 
 class WebDelayer(Wrapper):
@@ -148,14 +140,14 @@ class WebReaderMeta(SingletonMeta):
     def mutex(cls): return cls.__mutex__
 
 
-class WebReader(object, metaclass=WebReaderMeta):
+class WebReader(Logging, metaclass=WebReaderMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
     def __repr__(self): return f"{self.name}|Session"
     def __bool__(self): return self.session is not None
 
     def __init__(self, *args, delay=10, authorizer=None, **kwargs):
-        self.__name = kwargs.get("name", self.__class__.__name__)
+        super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
         self.__authorizer = authorizer
         self.__delay = int(delay)
@@ -225,7 +217,6 @@ class WebReader(object, metaclass=WebReaderMeta):
     def delay(self): return self.__delay
     @property
     def mutex(self): return self.__mutex
-    @property
-    def name(self): return self.__name
+
 
 

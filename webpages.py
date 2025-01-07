@@ -7,7 +7,6 @@ Created on Mon Dec 30 2019
 """
 
 import time
-import logging
 from abc import ABC, abstractmethod
 
 from support.meta import RegistryMeta
@@ -18,23 +17,19 @@ __author__ = "Jack Kirby Cook"
 __all__ = ["WebBrowserPage", "WebJsonPage", "WebHtmlPage", "WebPageError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
-__logger__ = logging.getLogger(__name__)
 
 
 class WebPageErrorMeta(RegistryMeta):
     def __init__(cls, name, bases, attrs, *args, title=None, **kwargs):
         assert str(name).endswith("Error")
         super(WebPageErrorMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
-        cls.__logger__ = __logger__
         cls.__title__ = title
 
     def __call__(cls, page):
         instance = super(WebPageErrorMeta, cls).__call__(page)
-        cls.logger.info(f"{cls.title}: {repr(page)}")
+        page.logger.info(f"{cls.title}: {repr(page)}")
         return instance
 
-    @property
-    def logger(cls): return cls.__logger__
     @property
     def title(cls): return cls.__title__
     @property
