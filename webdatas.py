@@ -22,7 +22,7 @@ from support.meta import AttributeMeta, TreeMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = []
+__all__ = ["WebHTML", "WebJSON", "WebELMT"]
 __copyright__ = "Copyright 2024, Jack Kirby Cook"
 __license__ = "MIT License"
 __logger__ = logging.getLogger(__name__)
@@ -99,7 +99,6 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 class WebData(ABC, metaclass=WebDataMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
     def __init__(self, source, *arguments, children, parser, **parameters):
-        super().__init__(*arguments, **parameters)
         self.__parameters = parameters
         self.__arguments = arguments
         self.__children = children
