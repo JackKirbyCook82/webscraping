@@ -19,7 +19,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 
 from support.meta import AttributeMeta, TreeMeta
-from support.trees import ParentalNode
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -62,10 +61,13 @@ class WebDataMultipleError(WebDataError, title="Multiple"): pass
 
 
 class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
-    def __init__(cls, *args, **kwargs):
-        function = lambda key, locator, dependent: type(f"{repr(dependent)}{str(key).title()}", tuple([dependent]), {}, locator=locator)
-        dependents = {key: function(key, locator, cls.dependents[key]) for key, locator in kwargs.get("locators", {}).items()}
+    def __init__(cls, *args, dependents=[], **kwargs):
+        function = lambda name, base, locator: type(repr(cls) + str(name).title(), tuple([base]), dict(), locator=locator)
+        modified = [function(key, cls.dependents[key], locator) for key, locator in kwargs.get("locators", {}).items()]
+        dependents = list(dependents) + list(modified)
         super(WebDataMeta, cls).__init__(*args, dependents=dependents, **kwargs)
+        parser = kwargs.get("parser", getattr(cls, "__attributes__", {}).get("parser", lambda content: content))
+        cls.__attributes__ = getattr(cls, "__attributes__", {}) | dict(parser=parser)
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
@@ -75,13 +77,17 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         sources = [source for source in cls.locate(source, *args, **kwargs)]
         if not bool(sources) and not cls.optional: raise WebDataMissingError(cls)
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError(cls)
-        instances = [super(WebDataMeta, cls).__call__(value, *args, **kwargs) for value in sources]
+        attributes = dict(cls.attributes) | dict(children=cls.dependents)
+        initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, **attributes, **kwargs)
+        instances = [initialize(value) for value in sources]
         if bool(cls.multiple): return list(instances)
         else: return instances[0] if bool(instances) else None
 
     @abstractmethod
     def locate(cls, source, *args, **kwargs): pass
 
+    @property
+    def attributes(cls): return cls.__attributes__
     @property
     def optional(cls): return cls.__optional__
     @property
@@ -90,34 +96,51 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
     def locator(cls): return cls.__locator__
 
 
-class WebData(ParentalNode, ABC, metaclass=WebDataMeta):
+class WebData(ABC, metaclass=WebDataMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __init__(self, source, *arguments, **parameters):
+    def __init__(self, source, *arguments, children, parser, **parameters):
         super().__init__(*arguments, **parameters)
         self.__parameters = parameters
         self.__arguments = arguments
+        self.__children = children
         self.__source = source
+        self.__parser = parser
 
     def __str__(self): return self.string
+    def __iter__(self):
+        for key, child in self.children.items():
+            instance = child(self.source, *self.arguments, **self.parameters)
+            yield key, instance
+
     def __getitem__(self, key):
-        dependent = type(self).dependents[key]
-        child = dependent(self.source, *self.arguments, **self.parameters)
-        self[key] = child
-        return child
+        child = self.children[key]
+        instance = child(self.source, *self.arguments, **self.parameters)
+        return instance
+
+    def __call__(self, *args, **kwargs):
+        return self.execute(*args, **kwargs)
 
     @property
     @abstractmethod
     def string(self): pass
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass
+    @abstractmethod
+    def parse(self, *args, **kwargs): pass
 
     @property
     def parameters(self): return self.__parameters
     @property
     def arguments(self): return self.__arguments
     @property
+    def children(self): return self.__children
+    @property
     def source(self): return self.__source
+    @property
+    def parser(self): return self.__parser
 
 
-class WebHTMLData(WebData):
+class WebHTMLData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
         contents = list(source.xpath(cls.locator))
@@ -128,7 +151,7 @@ class WebHTMLData(WebData):
     @property
     def html(self): return self.source
 
-class WebJSONData(WebData):
+class WebJSONData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
         locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
@@ -144,7 +167,7 @@ class WebJSONData(WebData):
     @property
     def json(self): return self.source
 
-class WebELMTData(WebData):
+class WebELMTData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, timeout, **kwargs):
         locator = tuple([By.XPATH, cls.locator])
@@ -167,32 +190,25 @@ class WebELMTData(WebData):
     def element(self): return self.source
 
 
-class WebParsing(ParentalNode, ABC):
-    def __init_subclass__(cls, *args, **kwargs):
-        super().__init_subclass__(*args, **kwargs)
-        cls.parser = kwargs.get("parser", getattr(cls, "parser", lambda content: content))
+class WebContents(WebData, ABC):
+    def parse(self, contents, *args, **kwargs): return self.parser(contents)
+    def execute(self, *args, **kwargs):
+        contents = {key: value(*args, **kwargs) for key, value in iter(self)}
+        return self.parse(contents, *args, **kwargs)
 
-    def __call__(self, *args, **kwargs):
-        data = self.execute(*args, **kwargs)
-        return self.parser(data)
-
-    @abstractmethod
-    def execute(self, *args, **kwargs): pass
-
-class WebMapping(WebParsing):
-    def execute(self, *args, **kwargs): return {key: value(*args, **kwargs) for key, value in iter(self)}
-
-class WebContent(WebParsing):
-    def execute(self, *args, **kwargs): return self.content
+class WebContent(WebData, ABC):
+    def parse(self, content, *args, **kwargs): return self.parser(content)
+    def execute(self, *args, **kwargs):
+        return self.parse(self.content, *args, **kwargs)
 
     @property
     @abstractmethod
     def content(self): pass
 
 
-class WebHTML(WebMapping, WebHTMLData, ABC, root=True): pass
-class WebJSON(WebMapping, WebJSONData, ABC, root=True): pass
-class WebELMT(WebMapping, WebELMTData, ABC, root=True): pass
+class WebHTML(WebContents, WebHTMLData, ABC, root=True): pass
+class WebJSON(WebContents, WebJSONData, ABC, root=True): pass
+class WebELMT(WebContents, WebELMTData, ABC, root=True): pass
 
 
 class WebHTMLText(WebContent, WebHTML, ABC, attribute="Text"):
