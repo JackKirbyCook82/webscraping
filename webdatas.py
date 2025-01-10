@@ -112,13 +112,11 @@ class WebData(ABC, metaclass=WebDataMeta):
             instance = child(self.source, *self.arguments, **self.parameters)
             yield key, instance
 
+    def __call__(self, *args, **kwargs): return self.execute(*args, **kwargs)
     def __getitem__(self, key):
         child = self.children[key]
         instance = child(self.source, *self.arguments, **self.parameters)
         return instance
-
-    def __call__(self, *args, **kwargs):
-        return self.execute(*args, **kwargs)
 
     @property
     @abstractmethod
