@@ -38,7 +38,8 @@ class WebDelayer(Wrapper):
     def wrapper(self, instance, *args, **kwargs):
         cls = type(instance)
         with cls.mutex: cls.wait(instance.delay)
-        return self.function(instance, *args, **kwargs)
+        self.function(instance, *args, **kwargs)
+        return self
 
 
 class WebDriverMeta(SingletonMeta):
@@ -91,6 +92,13 @@ class WebDriver(Logging, metaclass=WebDriverMeta):
     def __exit__(self, error_type, error_value, error_traceback):
         self.stop()
 
+    def __iter__(self):
+        current = self.driver.current_window_handle
+        for handle in list(self.driver.window_handles):
+            self.driver.switch_to.window(handle)
+            yield self.driver.title, handle
+        self.driver.switch_to.window(current)
+
     def start(self):
         executable = self.executable
         options = self.browser.options()
@@ -122,6 +130,13 @@ class WebDriver(Logging, metaclass=WebDriverMeta):
         options.add_argument("--disable-gpu")
 
     @WebDelayer
+    def navigate(self, value):
+        if isinstance(value, int): handle = list(self.driver.window_handles)[value]
+        elif isinstance(value, str): handle = dict(self)[value]
+        else: raise TypeError(type(value))
+        self.driver.switch_to.window(handle)
+
+    @WebDelayer
     def pageup(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_UP)
     @WebDelayer
     def pagedown(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_DOWN)
@@ -144,8 +159,6 @@ class WebDriver(Logging, metaclass=WebDriverMeta):
     def response(self): return [request.response for request in self.driver.requests]
     @property
     def request(self): return [request for request in self.driver.requests]
-    @property
-    def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")
     @property
     def html(self): return lxml.html.fromstring(self.driver.page_source)
     @property

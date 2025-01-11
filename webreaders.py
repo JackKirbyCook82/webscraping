@@ -188,8 +188,6 @@ class WebReader(Logging, metaclass=WebReaderMeta):
         except KeyError: pass
 
     @property
-    def pretty(self): return lxml.etree.tostring(self.html, pretty_print=True, encoding="unicode")
-    @property
     def html(self): return lxml.html.fromstring(self.response.text)
     @property
     def json(self): return self.response.json()

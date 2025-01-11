@@ -86,6 +86,9 @@ class WebJsonPage(WebPage, ABC):
         status_code = self.source.response.status_code
         self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
+    @property
+    def json(self): return self.source.json
+
 
 class WebHtmlPage(WebPage, ABC):
     def __repr__(self): return f"{self.name}|Session|Html"
@@ -95,15 +98,25 @@ class WebHtmlPage(WebPage, ABC):
         status_code = self.source.response.status_code
         self.logger.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
 
+    @property
+    def html(self): return self.source.html
+
 
 class WebBrowserPage(WebPage, ABC):
     def __repr__(self): return f"{self.name}|Browser|{str(self.source.browser.name).title()}"
+    def __getattr__(self, attribute):
+        attributes = ("navigate", "pageup", "pagedown", "pagehome", "pageend", "maximize", "minimize", "refresh", "forward", "back")
+        if attribute in attributes: return getattr(self.source, attribute)
+        else: raise AttributeError(attribute)
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
         self.logger.info(f"Loaded: {repr(self)}")
 
-
+    @property
+    def elmt(self): return self.source.element
+    @property
+    def html(self): return self.source.html
 
 
 
