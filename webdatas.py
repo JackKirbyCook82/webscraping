@@ -250,7 +250,7 @@ class WebELMTText(WebContent, WebELMT, ABC, attribute="Text"):
     @property
     def text(self): return self.element.get_attribute("text")
     @property
-    def content(self): return self.content
+    def content(self): return self.text
 
 class WebELMTClickable(WebELMTText, ABC, attribute="Clickable"):
     def click(self): self.element.click()

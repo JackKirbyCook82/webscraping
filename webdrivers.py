@@ -49,10 +49,11 @@ class WebDriverMeta(SingletonMeta):
         cls.__mutex__ = multiprocessing.RLock()
         cls.__timer__ = None
 
-    def wait(cls, delay=0):
+    def wait(cls, delay):
+        assert isinstance(delay, int)
         if bool(cls.timer) and bool(delay):
-            seconds = (Datetime.now() - cls.timer).total_seconds()
-            sleep = max(delay - seconds, 0)
+            elapsed = (Datetime.now() - cls.timer).total_seconds()
+            sleep = max(delay - elapsed, 0)
             time.sleep(sleep)
         cls.timer = Datetime.now()
 
