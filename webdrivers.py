@@ -7,6 +7,7 @@ Created on Mon Dec 30 2019
 """
 
 import time
+import logging
 import lxml.html
 import multiprocessing
 import selenium.webdriver
@@ -19,13 +20,13 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 
 from support.decorators import Wrapper
 from support.meta import SingletonMeta
-from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebDriver", "WebBrowser"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
+__logger__ = logging.getLogger(__name__)
 
 
 class WebBrowser(object):
@@ -72,7 +73,7 @@ class WebDriverMeta(SingletonMeta):
     def mutex(cls): return cls.__mutex__
 
 
-class WebDriver(Logging, metaclass=WebDriverMeta):
+class WebDriver(object, metaclass=WebDriverMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
     def __repr__(self): return f"{self.name}|{self.browser.name}"

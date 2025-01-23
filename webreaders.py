@@ -7,6 +7,7 @@ Created on Sat Mar 23 2019
 """
 
 import time
+import logging
 import requests
 import lxml.html
 import webbrowser
@@ -18,13 +19,13 @@ from collections import namedtuple as ntuple
 
 from support.meta import SingletonMeta, RegistryMeta
 from support.decorators import Wrapper
-from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebAuthorizer", "WebReader", "WebStatusError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
+__logger__ = logging.getLogger(__name__)
 
 
 class WebStatusErrorMeta(RegistryMeta):
@@ -39,7 +40,7 @@ class WebStatusErrorMeta(RegistryMeta):
 
     def __call__(cls, source):
         instance = super(WebStatusErrorMeta, cls).__call__(source)
-        source.logger.info(f"{cls.title}: {repr(source)}")
+        __logger__.info(f"{cls.title}: {repr(source)}")
         return instance
 
     @property
@@ -67,7 +68,7 @@ class UnavailableError(WebStatusError, statuscode=503, title="Unavailable"): pas
 
 
 class WebAuthenticator(ntuple("Authenticator", "username password")): pass
-class WebAuthorizer(Logging):
+class WebAuthorizer(object):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         cls.__urls__ = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
 
@@ -141,7 +142,7 @@ class WebReaderMeta(SingletonMeta):
     def mutex(cls): return cls.__mutex__
 
 
-class WebReader(Logging, metaclass=WebReaderMeta):
+class WebReader(object, metaclass=WebReaderMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
     def __repr__(self): return f"{self.name}|Session"

@@ -32,12 +32,11 @@ class WebDataErrorMeta(type):
     def __init__(cls, name, bases, attrs, *args, title=None, **kwargs):
         assert str(name).endswith("Error")
         super(WebDataErrorMeta, cls).__init__(name, bases, attrs)
-        cls.__logger__ = __logger__
         cls.__title__ = title
 
     def __call__(cls, data):
         instance = super(WebDataErrorMeta, cls).__call__(data)
-        cls.logger.info(f"{cls.title}: {repr(data)}")
+        __logger__.info(f"{cls.title}: {repr(data)}")
         return instance
 
     @property
@@ -66,8 +65,6 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         modified = [function(key, cls.dependents[key], locator) for key, locator in kwargs.get("locators", {}).items()]
         dependents = list(dependents) + list(modified)
         super(WebDataMeta, cls).__init__(*args, dependents=dependents, **kwargs)
-        parser = kwargs.get("parser", getattr(cls, "__attributes__", {}).get("parser", lambda content: content))
-        cls.__attributes__ = getattr(cls, "__attributes__", {}) | dict(parser=parser)
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
@@ -77,7 +74,7 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         sources = [source for source in cls.locate(source, *args, **kwargs)]
         if not bool(sources) and not cls.optional: raise WebDataMissingError(cls)
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError(cls)
-        attributes = dict(cls.attributes) | dict(children=cls.dependents)
+        attributes = dict(children=cls.dependents)
         initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, **attributes, **kwargs)
         instances = [initialize(value) for value in sources]
         if bool(cls.multiple): return list(instances)
@@ -86,8 +83,6 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
     @abstractmethod
     def locate(cls, source, *args, **kwargs): pass
 
-    @property
-    def attributes(cls): return cls.__attributes__
     @property
     def optional(cls): return cls.__optional__
     @property
@@ -98,12 +93,11 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 
 class WebData(ABC, metaclass=WebDataMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __init__(self, source, *arguments, children, parser, **parameters):
+    def __init__(self, source, *arguments, children, **parameters):
         self.__parameters = parameters
         self.__arguments = arguments
         self.__children = children
         self.__source = source
-        self.__parser = parser
 
     def __str__(self): return self.string
     def __iter__(self):
@@ -122,8 +116,6 @@ class WebData(ABC, metaclass=WebDataMeta):
     def string(self): pass
     @abstractmethod
     def execute(self, *args, **kwargs): pass
-    @abstractmethod
-    def parse(self, *args, **kwargs): pass
 
     @property
     def parameters(self): return self.__parameters
@@ -133,8 +125,6 @@ class WebData(ABC, metaclass=WebDataMeta):
     def children(self): return self.__children
     @property
     def source(self): return self.__source
-    @property
-    def parser(self): return self.__parser
 
 
 class WebHTMLData(WebData, ABC):
@@ -187,66 +177,92 @@ class WebELMTData(WebData, ABC):
     def element(self): return self.source
 
 
-class WebContents(WebData, ABC):
-    def parse(self, contents, *args, **kwargs): return self.parser(contents)
-    def execute(self, *args, **kwargs):
-        contents = {key: value(*args, **kwargs) for key, value in iter(self)}
-        return self.parse(contents, *args, **kwargs)
+class WebParent(WebData, ABC):
+    def execute(self, *args, **kwargs): return {key: value(*args, **kwargs) for key, value in iter(self)}
 
-class WebContent(WebData, ABC):
+class WebChild(WebData, ABC):
+    def __init_subclass__(cls, *args, **kwargs):
+        super().__init_subclass__(*args, **kwargs)
+        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", lambda content: content))
+
+    def execute(self, *args, **kwargs): return self.parse(self.content, *args, **kwargs)
     def parse(self, content, *args, **kwargs): return self.parser(content)
-    def execute(self, *args, **kwargs):
-        return self.parse(self.content, *args, **kwargs)
 
     @property
     @abstractmethod
     def content(self): pass
+    @property
+    def parser(self): return type(self).__parser__
+
+class WebChildren(WebData, ABC):
+    def __init_subclass__(cls, *args, **kwargs):
+        super().__init_subclass__(*args, **kwargs)
+        cls.__parsers__ = kwargs.get("parsers", getattr(cls, "__parsers__", {}))
+
+    def execute(self, *args, **kwargs): return self.parse(self.contents, *args, **kwargs)
+    def parse(self, contents, *args, **kwargs): return {key: self.parsers.get(key, lambda content: content) for key, value in contents.items()}
+
+    @property
+    @abstractmethod
+    def contents(self): pass
+    @property
+    def parsers(self): return type(self).__parsers__
 
 
-class WebHTML(WebContents, WebHTMLData, ABC, root=True): pass
-class WebJSON(WebContents, WebJSONData, ABC, root=True): pass
-class WebELMT(WebContents, WebELMTData, ABC, root=True): pass
+class WebHTML(WebParent, WebHTMLData, ABC, root=True): pass
+class WebJSON(WebParent, WebJSONData, ABC, root=True): pass
+class WebELMT(WebParent, WebELMTData, ABC, root=True): pass
 
 
-class WebHTMLText(WebContent, WebHTML, ABC, attribute="Text"):
+class WebHTMLText(WebChild, WebHTML, ABC, attribute="Text"):
     @property
     def text(self): return str(self.html.attrib["text"])
     @property
     def content(self): return self.text
 
-class WebHTMLLink(WebContent, WebHTML, ABC, attribute="Link"):
+class WebHTMLLink(WebChild, WebHTML, ABC, attribute="Link"):
     @property
     def link(self): return str(self.html.attrib["href"])
     @property
     def content(self): return self.link
 
-class WebHTMLTable(WebContent, WebHTML, ABC, attribute="Table"):
+class WebHTMLTable(WebChild, WebHTML, ABC, attribute="Table"):
+    def __init_subclass__(cls, *args, **kwargs):
+        super().__init_subclass__(*args, **kwargs)
+        cls.__header__ = kwargs.get("header", getattr(cls, "__header__", {}))
+
     @property
-    def table(self): return pd.concat(pd.read_html(self.string, header=0, index_col=None), axis=0)
+    def table(self):
+        table = pd.concat(pd.read_html(self.string, header=0, index_col=None), axis=0)
+        for column, function in self.header: table[column] = table[column].apply(function)
+        return table
+
+    @property
+    def header(self): return type(self).__header__
     @property
     def content(self): return self.table
 
 
-class WebJsonCollection(WebContent, WebJSON, ABC, attribute="Collection"):
+class WebJsonCollection(WebChildren, WebJSON, ABC, attribute="Collection"):
     @property
     def collection(self): return list(self.json)
     @property
-    def content(self): return self.collection
+    def contents(self): return self.collection
 
-class WebJsonMapping(WebContent, WebJSON, ABC, attribute="Mapping"):
+class WebJsonMapping(WebChildren, WebJSON, ABC, attribute="Mapping"):
     @property
     def mapping(self): return dict(self.json)
     @property
-    def content(self): return self.mapping
+    def contents(self): return self.mapping
 
-class WebJsonText(WebContent, WebJSON, ABC, attribute="Text"):
+class WebJsonText(WebChild, WebJSON, ABC, attribute="Text"):
     @property
     def text(self): return str(self.json)
     @property
     def content(self): return self.text
 
 
-class WebELMTText(WebContent, WebELMT, ABC, attribute="Text"):
+class WebELMTText(WebChild, WebELMT, ABC, attribute="Text"):
     @property
     def text(self): return self.element.get_attribute("text")
     @property

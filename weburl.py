@@ -19,7 +19,10 @@ __license__ = "MIT License"
 class WebURLMeta(ABCMeta):
     def __init__(cls, *args, **kwargs):
         super(WebURLMeta, cls).__init__(*args, **kwargs)
+        path = getattr(cls, "attributes", {}).get("path", []) + kwargs.get("path", [])
+        parms = getattr(cls, "attributes", {}).get("parms", {}) | kwargs.get("parms", {})
         cls.__domain__ = kwargs.get("domain", getattr(cls, "__domain__", None))
+        cls.__attributes__ = dict(path=path, parms=parms)
 
     def __call__(cls, *args, **kwargs):
         path = cls.path(*args, **kwargs)
@@ -30,12 +33,17 @@ class WebURLMeta(ABCMeta):
         instance = super(WebURLMeta, cls).__call__(address, parameters)
         return instance
 
-    @property
-    def domain(cls): return cls.__domain__
     @abstractmethod
     def path(cls, *args, **kwargs): return []
     @abstractmethod
     def parms(cls, *args, **kwargs): return {}
+
+    @property
+    def attributes(cls): return cls.__attributes__
+    @property
+    def domain(cls): return cls.__domain__
+    @property
+    def name(cls): return cls.__name__
 
 
 class WebURL(ntuple("URL", "address parameters"), ABC, metaclass=WebURLMeta):
