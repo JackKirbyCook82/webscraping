@@ -194,20 +194,6 @@ class WebChild(WebData, ABC):
     @property
     def parser(self): return type(self).__parser__
 
-class WebChildren(WebData, ABC):
-    def __init_subclass__(cls, *args, **kwargs):
-        super().__init_subclass__(*args, **kwargs)
-        cls.__parsers__ = kwargs.get("parsers", getattr(cls, "__parsers__", {}))
-
-    def execute(self, *args, **kwargs): return self.parse(self.contents, *args, **kwargs)
-    def parse(self, contents, *args, **kwargs): return {key: self.parsers.get(key, lambda content: content) for key, value in contents.items()}
-
-    @property
-    @abstractmethod
-    def contents(self): pass
-    @property
-    def parsers(self): return type(self).__parsers__
-
 
 class WebHTML(WebParent, WebHTMLData, ABC, root=True): pass
 class WebJSON(WebParent, WebJSONData, ABC, root=True): pass
@@ -227,29 +213,21 @@ class WebHTMLLink(WebChild, WebHTML, ABC, attribute="Link"):
     def content(self): return self.link
 
 class WebHTMLTable(WebChild, WebHTML, ABC, attribute="Table"):
-    def __init_subclass__(cls, *args, **kwargs):
-        super().__init_subclass__(*args, **kwargs)
-        cls.__header__ = kwargs.get("header", getattr(cls, "__header__", {}))
-
     @property
-    def table(self):
-        table = pd.concat(pd.read_html(self.string, header=0, index_col=None), axis=0)
-        for column, function in self.header: table[column] = table[column].apply(function)
-        return table
-
+    def table(self): return pd.concat(pd.read_html(self.string, header=0, index_col=None), axis=0)
     @property
     def header(self): return type(self).__header__
     @property
     def content(self): return self.table
 
 
-class WebJsonCollection(WebChildren, WebJSON, ABC, attribute="Collection"):
+class WebJsonCollection(WebChild, WebJSON, ABC, attribute="Collection"):
     @property
     def collection(self): return list(self.json)
     @property
     def contents(self): return self.collection
 
-class WebJsonMapping(WebChildren, WebJSON, ABC, attribute="Mapping"):
+class WebJsonMapping(WebChild, WebJSON, ABC, attribute="Mapping"):
     @property
     def mapping(self): return dict(self.json)
     @property
