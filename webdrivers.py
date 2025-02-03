@@ -7,7 +7,6 @@ Created on Mon Dec 30 2019
 """
 
 import time
-import logging
 import lxml.html
 import multiprocessing
 import selenium.webdriver
@@ -26,7 +25,6 @@ __author__ = "Jack Kirby Cook"
 __all__ = ["WebDriver", "WebBrowser"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
-__logger__ = logging.getLogger(__name__)
 
 
 class WebBrowser(object):
@@ -76,14 +74,12 @@ class WebDriverMeta(SingletonMeta):
 class WebDriver(object, metaclass=WebDriverMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
-    def __repr__(self): return f"{self.name}|{self.browser.name}"
     def __bool__(self): return self.driver is not None
-
-    def __init__(self, *args, timeout=60, delay=10, port=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, timeout=60, delay=10, port=None, name, **kwargs):
         self.__mutex = multiprocessing.Lock()
         self.__timeout = int(timeout)
         self.__delay = int(delay)
+        self.__name = str(name)
         self.__port = port
         self.__driver = None
 
@@ -187,6 +183,8 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def mutex(self): return self.__mutex
     @property
     def port(self): return self.__port
+    @property
+    def name(self): return self.__name
 
 
 

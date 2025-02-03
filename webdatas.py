@@ -8,7 +8,6 @@ Created on Sat Jan 4 2025
 
 import json
 import types
-import logging
 import lxml.html
 import pandas as pd
 from abc import ABC, ABCMeta, abstractmethod
@@ -25,35 +24,20 @@ __author__ = "Jack Kirby Cook"
 __all__ = ["WebHTML", "WebJSON", "WebELMT"]
 __copyright__ = "Copyright 2024, Jack Kirby Cook"
 __license__ = "MIT License"
-__logger__ = logging.getLogger(__name__)
 
 
 class WebDataErrorMeta(type):
-    def __init__(cls, name, bases, attrs, *args, title=None, **kwargs):
-        assert str(name).endswith("Error")
-        super(WebDataErrorMeta, cls).__init__(name, bases, attrs)
-        cls.__title__ = title
+    def __init__(cls, *args, **kwargs):
+        super(WebDataErrorMeta, cls).__init__(*args, **kwargs)
+        cls.__title__ = kwargs.get("title", getattr(cls, "__title__", None))
 
-    def __call__(cls, data):
-        instance = super(WebDataErrorMeta, cls).__call__(data)
-        __logger__.info(f"{cls.title}: {repr(data)}")
-        return instance
-
-    @property
-    def logger(cls): return cls.__logger__
     @property
     def title(cls): return cls.__title__
     @property
     def name(cls): return cls.__name__
 
-
 class WebDataError(Exception, metaclass=WebDataErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{type(self).name}|{repr(self.data)}"
-    def __init__(self, data): self.__data = data
-
-    @property
-    def data(self): return self.__data
 
 class WebDataMissingError(WebDataError, title="Missing"): pass
 class WebDataMultipleError(WebDataError, title="Multiple"): pass
@@ -72,8 +56,8 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
     def __call__(cls, source, *args, **kwargs):
         assert not isinstance(cls.locator, types.NoneType)
         sources = [source for source in cls.locate(source, *args, **kwargs)]
-        if not bool(sources) and not cls.optional: raise WebDataMissingError(cls)
-        if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError(cls)
+        if not bool(sources) and not cls.optional: raise WebDataMissingError()
+        if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
         attributes = dict(children=cls.dependents)
         initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, **attributes, **kwargs)
         instances = [initialize(value) for value in sources]

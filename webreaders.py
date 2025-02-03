@@ -7,7 +7,6 @@ Created on Sat Mar 23 2019
 """
 
 import time
-import logging
 import requests
 import lxml.html
 import webbrowser
@@ -25,40 +24,24 @@ __author__ = "Jack Kirby Cook"
 __all__ = ["WebAuthorizer", "WebReader", "WebStatusError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
-__logger__ = logging.getLogger(__name__)
 
 
 class WebStatusErrorMeta(RegistryMeta):
-    def __init__(cls, name, bases, attrs, *args, statuscode=None, title=None, **kwargs):
-        assert str(name).endswith("Error") and isinstance(statuscode, (int, type(None)))
-        parameters = dict(register=statuscode) if bool(statuscode) else {}
-        super(WebStatusErrorMeta, cls).__init__(name, bases, attrs, *args, **parameters, **kwargs)
-        if not any([type(base) is WebStatusErrorMeta for base in bases]):
-            return
-        cls.__statuscode__ = statuscode
-        cls.__title__ = title
+    def __init__(cls, *args, statuscode=None, **kwargs):
+        super(WebStatusErrorMeta, cls).__init__(*args, register=statuscode, **kwargs)
+        cls.__title__ = kwargs.get("title", getattr(cls, "__title__", None))
 
-    def __call__(cls, source):
-        instance = super(WebStatusErrorMeta, cls).__call__(source)
-        __logger__.info(f"{cls.title}: {repr(source)}")
-        return instance
+    def __call__(cls, statuscode, *args, **kwargs):
+        error = super(WebStatusErrorMeta, cls[statuscode]).__call__(*args, **kwargs)
+        return error
 
-    @property
-    def statuscode(cls): return cls.__statuscode__
     @property
     def title(cls): return cls.__title__
     @property
     def name(cls): return cls.__name__
 
-
 class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{type(self).name}|{repr(self.source)}[{str(type(self).statuscode)}]"
-    def __init__(self, source): self.__source = source
-
-    @property
-    def source(self): return self.__source
-
 
 class AuthenticationError(WebStatusError, statuscode=401, title="Authentication"): pass
 class ForbiddenRequestError(WebStatusError, statuscode=403, title="ForbiddenRequest"): pass
@@ -145,14 +128,12 @@ class WebReaderMeta(SingletonMeta):
 class WebReader(object, metaclass=WebReaderMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
-    def __repr__(self): return f"{self.name}|Session"
     def __bool__(self): return self.session is not None
-
-    def __init__(self, *args, delay=10, authorizer=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, delay=10, authorizer=None, name, **kwargs):
         self.__mutex = multiprocessing.Lock()
         self.__authorizer = authorizer
         self.__delay = int(delay)
+        self.__name = str(name)
         self.__session = None
         self.__response = None
         self.__request = None
@@ -186,8 +167,9 @@ class WebReader(object, metaclass=WebReaderMeta):
             else: response = self.session.post(str(address), **keywords)
             self.request = response.request
             self.response = response
-        try: raise WebStatusError[int(self.response.status_code)](self)
-        except KeyError: pass
+        if not self.response.status_code == requests.codes.ok:
+            statuscode = self.response.status_code
+            raise WebStatusError(int(statuscode))
 
     @property
     def html(self): return lxml.html.fromstring(self.response.text)
@@ -217,6 +199,8 @@ class WebReader(object, metaclass=WebReaderMeta):
     def delay(self): return self.__delay
     @property
     def mutex(self): return self.__mutex
+    @property
+    def name(self): return self.__name
 
 
 

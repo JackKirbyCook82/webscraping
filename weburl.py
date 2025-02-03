@@ -25,8 +25,8 @@ class WebURLMeta(ABCMeta):
         cls.__attributes__ = dict(path=path, parms=parms)
 
     def __call__(cls, *args, **kwargs):
-        path = cls.path(*args, **kwargs)
-        parms = cls.parms(*args, **kwargs)
+        path = cls.attributes["path"] + cls.path(*args, **kwargs)
+        parms = cls.attributes["parms"] | cls.parms(*args, **kwargs)
         assert isinstance(path, list) and isinstance(parms, dict)
         address = "/".join([cls.domain, "/".join(path)])
         parameters = dict(parms)

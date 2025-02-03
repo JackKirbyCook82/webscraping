@@ -7,52 +7,15 @@ Created on Mon Dec 30 2019
 """
 
 import time
-import logging
 from abc import ABC, ABCMeta, abstractmethod
 
-from support.meta import RegistryMeta
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage", "WebPageError"]
+__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
-__logger__ = logging.getLogger(__name__)
-
-
-class WebPageErrorMeta(RegistryMeta):
-    def __init__(cls, name, bases, attrs, *args, title=None, **kwargs):
-        assert str(name).endswith("Error")
-        super(WebPageErrorMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
-        cls.__title__ = title
-
-    def __call__(cls, page):
-        instance = super(WebPageErrorMeta, cls).__call__(page)
-        __logger__.info(f"{cls.title}: {repr(page)}")
-        return instance
-
-    @property
-    def title(cls): return cls.__title__
-    @property
-    def name(cls): return cls.__name__
-
-
-class WebPageError(Exception, metaclass=WebPageErrorMeta):
-    def __init_subclass__(cls, *args, **kwargs): pass
-    def __str__(self): return f"{type(self).name}|{repr(self.page)}"
-    def __init__(self, page): self.__page = page
-
-    @property
-    def page(self): return self.__page
-
-
-class BadRequestError(WebPageError, title="BadRequest", register="badrequest"): pass
-class CaptchaError(WebPageError, title="Captcha", register="captcha"): pass
-class ServerFailureError(WebPageError, title="ServerFailure", register="serverfailure"): pass
-class ResponseFailureError(WebPageError, title="ResponseFailure", register="responsefailure"): pass
-class RefusalError(WebPageError, title="Refusal", register="refusal"): pass
-class PaginationError(WebPageError, title="Pagination", register="pagination"): pass
-class CrawlingError(WebPageError, title="Crawling", register="crawling"): pass
 
 
 class WebPageMeta(ABCMeta):
@@ -69,7 +32,7 @@ class WebPageMeta(ABCMeta):
     def attributes(cls): return cls.__attributes__
 
 
-class WebPage(object, ABC):
+class WebPage(Logging, ABC, metaclass=WebPageMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
     def __init__(self, *args, source, url=None, data=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -82,8 +45,7 @@ class WebPage(object, ABC):
 
     def load(self, url, *args, payload=None, headers={}, **kwargs):
         assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
-        __logger__.info(f"Loading: {repr(self)}")
-        __logger__.info(str(url))
+        self.console(str(url), title="Loading")
         self.source.load(url, payload=payload, headers=headers)
 
     def execute(self, *args, **kwargs):
@@ -110,12 +72,10 @@ class WebPage(object, ABC):
 
 
 class WebJSONPage(WebPage, ABC):
-    def __repr__(self): return f"{self.name}|Session|Json"
-
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
         status_code = self.source.response.status_code
-        __logger__.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
+        self.console(f"JSON|StatusCode|{str(status_code)}", title="Loaded")
 
     @property
     def json(self): return self.source.json
@@ -124,12 +84,10 @@ class WebJSONPage(WebPage, ABC):
 
 
 class WebHTMLPage(WebPage, ABC):
-    def __repr__(self): return f"{self.name}|Session|Html"
-
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
         status_code = self.source.response.status_code
-        __logger__.info(f"Loaded: {repr(self)}: StatusCode|{str(status_code)}")
+        self.console(f"HTML|StatusCode|{str(status_code)}", title="Loaded")
 
     @property
     def html(self): return self.source.html
@@ -138,7 +96,6 @@ class WebHTMLPage(WebPage, ABC):
 
 
 class WebELMTPage(WebPage, ABC):
-    def __repr__(self): return f"{self.name}|Browser|{str(self.source.browser.name).title()}"
     def __getattr__(self, attribute):
         attributes = ("navigate", "pageup", "pagedown", "pagehome", "pageend", "maximize", "minimize", "refresh", "forward", "back")
         if attribute in attributes: return getattr(self.source, attribute)
@@ -146,7 +103,8 @@ class WebELMTPage(WebPage, ABC):
 
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        __logger__.info(f"Loaded: {repr(self)}")
+        browser = self.source.browser.name
+        self.console(f"ELMT|{str(browser)}", title="Loaded")
 
     @property
     def html(self): return self.source.html
