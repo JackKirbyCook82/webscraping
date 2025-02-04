@@ -111,21 +111,10 @@ class WebDriver(object, metaclass=WebDriverMeta):
         self.driver.quit()
         self.driver = None
 
+    @WebDelayer
     def load(self, url, *args, **kwargs):
         assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
         with self.mutex: self.driver.get(str(url))
-
-    @staticmethod
-    def setup(options, *args, port=None, **kwargs):
-        if port is not None:
-            options.add_experimental_option("debuggerAddress", f"127.0.0.1:{str(port)}")
-        options.add_argument("log-level=3")
-        options.add_argument("--start-maximized")
-        options.add_argument("--disable-notifications")
-        options.add_argument("--ignore-ssl-errors")
-        options.add_argument("--ignore-certificate-errors-spki-list")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
 
     @WebDelayer
     def navigate(self, value):
@@ -153,6 +142,18 @@ class WebDriver(object, metaclass=WebDriverMeta):
     @WebDelayer
     def back(self): self.driver.back()
 
+    @staticmethod
+    def setup(options, *args, port=None, **kwargs):
+        if port is not None:
+            options.add_experimental_option("debuggerAddress", f"127.0.0.1:{str(port)}")
+        options.add_argument("log-level=3")
+        options.add_argument("--start-maximized")
+        options.add_argument("--disable-notifications")
+        options.add_argument("--ignore-ssl-errors")
+        options.add_argument("--ignore-certificate-errors-spki-list")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+
     @property
     def response(self): return [request.response for request in self.driver.requests]
     @property
@@ -163,6 +164,8 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def text(self): return self.driver.page_source
     @property
     def url(self): return self.driver.current_url
+    @property
+    def elmt(self): return self.driver
 
     @property
     def driver(self): return self.__driver

@@ -51,14 +51,12 @@ class WebPage(Logging, ABC, metaclass=WebPageMeta):
     def execute(self, *args, **kwargs):
         url = self.url(*args, **kwargs)
         self.load(url, *args, **kwargs)
-        function = lambda data: data(self.content, *args, **kwargs)
-        if isinstance(self.data, dict): return {dataset: function(data) for dataset, data in self.data.items()}
-        elif isinstance(self.data, list): return [function(data) for data in self.data]
-        else: return function(self.data)
+        if isinstance(self.data, dict): return {dataset: data(self.content, *args, **kwargs) for dataset, data in self.data.items()}
+        elif isinstance(self.data, list): return [data(self.content, *args, **kwargs) for data in self.data]
+        else: return self.data(self.content, *args, **kwargs)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
-
     @property
     @abstractmethod
     def content(self): pass
@@ -74,25 +72,25 @@ class WebPage(Logging, ABC, metaclass=WebPageMeta):
 class WebJSONPage(WebPage, ABC):
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        status_code = self.source.response.status_code
-        self.console(f"JSON|StatusCode|{str(status_code)}", title="Loaded")
+        status = str(self.source.status)
+        self.console(f"JSON|StatusCode|{status}", title="Loaded")
 
     @property
     def json(self): return self.source.json
     @property
-    def content(self): return self.source.json
+    def content(self): return self.json
 
 
 class WebHTMLPage(WebPage, ABC):
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        status_code = self.source.response.status_code
-        self.console(f"HTML|StatusCode|{str(status_code)}", title="Loaded")
+        status = str(self.source.status)
+        self.console(f"HTML|StatusCode|{status}", title="Loaded")
 
     @property
     def html(self): return self.source.html
     @property
-    def content(self): return self.source.html
+    def content(self): return self.html
 
 
 class WebELMTPage(WebPage, ABC):
@@ -101,18 +99,12 @@ class WebELMTPage(WebPage, ABC):
         if attribute in attributes: return getattr(self.source, attribute)
         else: raise AttributeError(attribute)
 
-    def load(self, *args, **kwargs):
-        super().load(*args, **kwargs)
-        browser = self.source.browser.name
-        self.console(f"ELMT|{str(browser)}", title="Loaded")
-
-    @property
-    def html(self): return self.source.html
     @property
     def elmt(self): return self.source.element
     @property
-    def content(self): return self.source.element
-
+    def html(self): return self.source.html
+    @property
+    def content(self): return self.elmt
 
 
 

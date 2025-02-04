@@ -155,6 +155,7 @@ class WebReader(object, metaclass=WebReaderMeta):
         self.response = None
         self.request = None
 
+    @WebDelayer
     def load(self, url, *args, payload=None, headers={}, authenticate=None, **kwargs):
         assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
         assert isinstance(authenticate, (WebAuthenticator, type(None)))
@@ -175,6 +176,8 @@ class WebReader(object, metaclass=WebReaderMeta):
     def html(self): return lxml.html.fromstring(self.response.text)
     @property
     def json(self): return self.response.json()
+    @property
+    def status(self): return self.response.status_code
     @property
     def text(self): return self.response.text
     @property

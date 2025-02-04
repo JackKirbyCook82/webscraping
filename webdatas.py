@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sat Jan 4 2025
-@name:   WebSourcing Objects
+Created on Mon Dec 30 2019
+@name:   WebData Objects
 @author: Jack Kirby Cook
 
 """
@@ -9,11 +9,15 @@ Created on Sat Jan 4 2025
 import json
 import types
 import lxml.html
+import lxml.etree
 import pandas as pd
+from numbers import Number
 from abc import ABC, ABCMeta, abstractmethod
 from collections import OrderedDict as ODict
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException, StaleElementReferenceException
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 
@@ -21,8 +25,8 @@ from support.meta import AttributeMeta, TreeMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebHTML", "WebJSON", "WebELMT"]
-__copyright__ = "Copyright 2024, Jack Kirby Cook"
+__all__ = ["WebELMT", "WebJSON", "WebHTML"]
+__copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
@@ -55,12 +59,12 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 
     def __call__(cls, source, *args, **kwargs):
         assert not isinstance(cls.locator, types.NoneType)
-        sources = [source for source in cls.locate(source, *args, **kwargs)]
+        sources = list(cls.locate(source, *args, **kwargs))
         if not bool(sources) and not cls.optional: raise WebDataMissingError()
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
         attributes = dict(children=cls.dependents)
         initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, **attributes, **kwargs)
-        instances = [initialize(value) for value in sources]
+        instances = list(map(initialize, source))
         if bool(cls.multiple): return list(instances)
         else: return instances[0] if bool(instances) else None
 
@@ -114,6 +118,8 @@ class WebData(ABC, metaclass=WebDataMeta):
 class WebHTMLData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
+        if isinstance(source, WebDriver): source = lxml.html.fromstring(source.page_source)
+        elif isinstance(source, WebElement): source = lxml.html.fromstring(source.get_attribute("innerHTML"))
         contents = list(source.xpath(cls.locator))
         yield from iter(contents)
 
@@ -125,11 +131,12 @@ class WebHTMLData(WebData, ABC):
 class WebJSONData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
+        assert isinstance(source, (dict, list, str, Number))
         locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
         contents = source[str(locators.pop(0))]
         for locator in locators: contents = contents[str(locator)]
         if isinstance(contents, (tuple, list)): yield from iter(contents)
-        elif isinstance(contents, (str, int, float)): yield contents
+        elif isinstance(contents, (str, Number)): yield contents
         elif isinstance(contents, dict): yield contents
         else: raise TypeError(type(contents))
 
@@ -141,6 +148,7 @@ class WebJSONData(WebData, ABC):
 class WebELMTData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, timeout, **kwargs):
+        assert isinstance(source, (WebElement, WebDriver))
         locator = tuple([By.XPATH, cls.locator])
         located = EC.presence_of_all_elements_located(locator)
         try: contents = WebDriverWait(source, timeout).until(located)
