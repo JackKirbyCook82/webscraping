@@ -156,7 +156,7 @@ class WebReader(object, metaclass=WebReaderMeta):
         self.request = None
 
     @WebDelayer
-    def load(self, url, *args, payload=None, headers={}, authenticate=None, **kwargs):
+    def load(self, url, *args, payload=None, authenticate=None, headers={}, **kwargs):
         assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
         assert isinstance(authenticate, (WebAuthenticator, type(None)))
         address, parameters = url

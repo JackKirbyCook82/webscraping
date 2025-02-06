@@ -64,7 +64,7 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
         attributes = dict(children=cls.dependents)
         initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, **attributes, **kwargs)
-        instances = list(map(initialize, source))
+        instances = list(map(initialize, sources))
         if bool(cls.multiple): return list(instances)
         else: return instances[0] if bool(instances) else None
 
@@ -162,7 +162,7 @@ class WebELMTData(WebData, ABC):
         else: return False
 
     @property
-    def string(self): return self.element.get_attribute("outerHTML")
+    def string(self): return self.element.get_attribute("innerHTML")
     @property
     def html(self): return lxml.html.fromstring(self.string)
     @property
@@ -194,21 +194,19 @@ class WebELMT(WebParent, WebELMTData, ABC, root=True): pass
 
 class WebHTMLText(WebChild, WebHTML, ABC, attribute="Text"):
     @property
-    def text(self): return str(self.html.attrib["text"])
+    def text(self): return str(self.html.text)
     @property
     def content(self): return self.text
 
 class WebHTMLLink(WebChild, WebHTML, ABC, attribute="Link"):
     @property
-    def link(self): return str(self.html.attrib["href"])
+    def link(self): return str(self.html.href)
     @property
     def content(self): return self.link
 
 class WebHTMLTable(WebChild, WebHTML, ABC, attribute="Table"):
     @property
     def table(self): return pd.concat(pd.read_html(self.string, header=0, index_col=None), axis=0)
-    @property
-    def header(self): return type(self).__header__
     @property
     def content(self): return self.table
 
@@ -217,13 +215,13 @@ class WebJsonCollection(WebChild, WebJSON, ABC, attribute="Collection"):
     @property
     def collection(self): return list(self.json)
     @property
-    def contents(self): return self.collection
+    def content(self): return self.collection
 
 class WebJsonMapping(WebChild, WebJSON, ABC, attribute="Mapping"):
     @property
     def mapping(self): return dict(self.json)
     @property
-    def contents(self): return self.mapping
+    def content(self): return self.mapping
 
 class WebJsonText(WebChild, WebJSON, ABC, attribute="Text"):
     @property
@@ -237,6 +235,12 @@ class WebELMTText(WebChild, WebELMT, ABC, attribute="Text"):
     def text(self): return self.element.get_attribute("text")
     @property
     def content(self): return self.text
+
+class WebELMTLink(WebChild, WebELMT, ABC, attribute="Link"):
+    @property
+    def link(self): return self.element.get_attribute("href")
+    @property
+    def content(self): return self.link
 
 class WebELMTClickable(WebELMTText, ABC, attribute="Clickable"):
     def click(self): self.element.click()
