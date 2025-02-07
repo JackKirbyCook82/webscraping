@@ -27,8 +27,8 @@ __license__ = "MIT License"
 
 
 class WebStatusErrorMeta(RegistryMeta):
-    def __init__(cls, *args, statuscode=None, **kwargs):
-        super(WebStatusErrorMeta, cls).__init__(*args, register=statuscode, **kwargs)
+    def __init__(cls, *args, **kwargs):
+        super(WebStatusErrorMeta, cls).__init__(*args, **kwargs)
         cls.__title__ = kwargs.get("title", getattr(cls, "__title__", None))
 
     def __call__(cls, statuscode, *args, **kwargs):
@@ -43,11 +43,11 @@ class WebStatusErrorMeta(RegistryMeta):
 class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
-class AuthenticationError(WebStatusError, statuscode=401, title="Authentication"): pass
-class ForbiddenRequestError(WebStatusError, statuscode=403, title="ForbiddenRequest"): pass
-class IncorrectRequestError(WebStatusError, statuscode=404, title="IncorrectRequest"): pass
-class GatewayError(WebStatusError, statuscode=502, title="Gateway"): pass
-class UnavailableError(WebStatusError, statuscode=503, title="Unavailable"): pass
+class AuthenticationError(WebStatusError, register=401, title="Authentication"): pass
+class ForbiddenRequestError(WebStatusError, register=403, title="ForbiddenRequest"): pass
+class IncorrectRequestError(WebStatusError, register=404, title="IncorrectRequest"): pass
+class GatewayError(WebStatusError, register=502, title="Gateway"): pass
+class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
 
 
 class WebAuthenticator(ntuple("Authenticator", "username password")): pass
@@ -57,13 +57,10 @@ class WebAuthorizer(object):
 
     def __call__(self): return self.authorize()
     def __init__(self, *args, apikey, apicode, **kwargs):
-        super().__init__(*args, **kwargs)
         self.__apikey = apikey
         self.__apicode = apicode
 
-    def service(self):
-        return OAuth1Service(**self.urls, consumer_key=self.apikey, consumer_secret=self.apicode)
-
+    def service(self): return OAuth1Service(**self.urls, consumer_key=self.apikey, consumer_secret=self.apicode)
     def authorize(self):
         service = self.service()
         token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
