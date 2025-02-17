@@ -26,16 +26,15 @@ class WebPage(Logging, ABC):
         super().__init__(*args, **kwargs)
         self.__source = source
 
-    def __call__(self, *args, payload=None, headers={}, **kwargs):
+    def __call__(self, *args, payload=None, **kwargs):
         if type(self).url is not None:
             url = type(self).url(*args, **kwargs)
-            self.load(url, *args, payload=payload, headers=headers, **kwargs)
+            self.load(url, *args, payload=payload, **kwargs)
         return self.execute(*args, **kwargs)
 
-    def load(self, url, *args, payload=None, headers={}, **kwargs):
-        assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
+    def load(self, url, *args, payload=None, **kwargs):
         self.console(str(url), title="Loading")
-        self.source.load(url, payload=payload, headers=headers)
+        self.source.load(url, payload=payload)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)

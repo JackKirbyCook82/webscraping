@@ -19,34 +19,35 @@ __license__ = "MIT License"
 class WebURLMeta(ABCMeta):
     def __init__(cls, *args, **kwargs):
         super(WebURLMeta, cls).__init__(*args, **kwargs)
+        domain = kwargs.get("authenticate", getattr(cls, "domain", {}).get("domain", None))
         path = getattr(cls, "attributes", {}).get("path", []) + kwargs.get("path", [])
-        parms = getattr(cls, "attributes", {}).get("parms", {}) | kwargs.get("parms", {})
-        cls.__domain__ = kwargs.get("domain", getattr(cls, "__domain__", None))
-        cls.__attributes__ = dict(path=path, parms=parms)
+        parameters = getattr(cls, "attributes", {}).get("parameters", {}) | kwargs.get("parameters", {})
+        headers = getattr(cls, "attributes", {}).get("headers", {}) | kwargs.get("headers", {})
+        cls.__attributes__ = dict(domain=domain, path=path, parameters=parameters, headers=headers)
 
-    def __call__(cls, *args, **kwargs):
+    def __call__(cls, *args, authenticate=None, **kwargs):
         path = cls.attributes["path"] + cls.path(*args, **kwargs)
-        parms = cls.attributes["parms"] | cls.parms(*args, **kwargs)
-        assert isinstance(path, list) and isinstance(parms, dict)
-        address = "/".join([cls.domain, "/".join(path)])
-        parameters = dict(parms)
-        instance = super(WebURLMeta, cls).__call__(address, parameters)
+        parameters = cls.attributes["parameters"] | cls.parameters(*args, **kwargs)
+        headers = cls.attributes["headers"] | cls.headers(*args, **kwargs)
+        assert isinstance(path, list) and isinstance(parameters, dict)
+        address = "/".join([cls.attributes["domain"], "/".join(path)])
+        instance = super(WebURLMeta, cls).__call__(address, parameters, headers, authenticate)
         return instance
 
-    @abstractmethod
-    def path(cls, *args, **kwargs): return []
-    @abstractmethod
-    def parms(cls, *args, **kwargs): return {}
+    @staticmethod
+    def path(*args, **kwargs): return []
+    @staticmethod
+    def parameters(*args, **kwargs): return {}
+    @staticmethod
+    def headers(*args, **kwargs): return {}
 
     @property
     def attributes(cls): return cls.__attributes__
     @property
-    def domain(cls): return cls.__domain__
-    @property
     def name(cls): return cls.__name__
 
 
-class WebURL(ntuple("URL", "address parameters"), ABC, metaclass=WebURLMeta):
+class WebURL(ntuple("URL", "address parameters headers authenticate"), ABC, metaclass=WebURLMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
     def __str__(self):
         parameters = [list(map(str, parameter)) for parameter in self.parameters.items()]

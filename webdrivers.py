@@ -112,9 +112,8 @@ class WebDriver(object, metaclass=WebDriverMeta):
         self.driver = None
 
     @WebDelayer
-    def load(self, url, *args, **kwargs):
-        assert all([hasattr(url, attribute) for attribute in ("address", "parameters")])
-        with self.mutex: self.driver.get(str(url))
+    def load(self, curl, *args, **kwargs):
+        with self.mutex: self.driver.get(str(curl))
 
     @WebDelayer
     def navigate(self, value):
