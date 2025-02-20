@@ -11,30 +11,23 @@ import lxml.html
 import multiprocessing
 import selenium.webdriver
 from datetime import datetime as Datetime
-from collections import namedtuple as ntuple
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.firefox.service import Service as FirefoxService
 
 from support.decorators import Wrapper
 from support.meta import SingletonMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebDriver", "WebBrowser"]
+__all__ = ["WebDriver"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebBrowser(object):
-    Browser = ntuple("Browser", "name service driver options")
-    Chrome = Browser("Chrome", ChromeService, selenium.webdriver.Chrome, selenium.webdriver.ChromeOptions)
-    Firefox = Browser("Firefox", FirefoxService, selenium.webdriver.Firefox, selenium.webdriver.FirefoxOptions)
-
-
 class WebDelayer(Wrapper):
     def wrapper(self, instance, *args, **kwargs):
+        assert hasattr(instance, "delay")
         cls = type(instance)
         with cls.mutex: cls.wait(instance.delay)
         self.function(instance, *args, **kwargs)
@@ -43,8 +36,7 @@ class WebDelayer(Wrapper):
 
 class WebDriverMeta(SingletonMeta):
     def __init__(cls, *args, **kwargs):
-        cls.__executable__ = kwargs.get("executable", getattr(cls, "__executable__", None))
-        cls.__browser__ = kwargs.get("browser", getattr(cls, "__browser__", None))
+        super().__init__(*args, **kwargs)
         cls.__mutex__ = multiprocessing.RLock()
         cls.__timer__ = None
 
@@ -62,10 +54,6 @@ class WebDriverMeta(SingletonMeta):
     def timer(cls, timer): cls.__timer__ = timer
 
     @property
-    def executable(cls): return cls.__executable__
-    @property
-    def browser(cls): return cls.__browser__
-    @property
     def delay(cls): return cls.__delay__
     @property
     def mutex(cls): return cls.__mutex__
@@ -75,11 +63,11 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
     def __bool__(self): return self.driver is not None
-    def __init__(self, *args, timeout=60, delay=10, port=None, name, **kwargs):
+    def __init__(self, *args, executable, timeout=60, delay=10, port=None, **kwargs):
+        self.__executable = executable
         self.__mutex = multiprocessing.Lock()
         self.__timeout = int(timeout)
         self.__delay = int(delay)
-        self.__name = str(name)
         self.__port = port
         self.__driver = None
 
@@ -99,10 +87,10 @@ class WebDriver(object, metaclass=WebDriverMeta):
 
     def start(self):
         executable = self.executable
-        options = self.browser.options()
+        options = selenium.webdriver.ChromeOptions()
         self.setup(options, port=self.port)
-        service = self.browser.service(executable)
-        driver = self.browser.driver(service=service, options=options)
+        service = ChromeService(executable)
+        driver = selenium.webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(self.timeout)
         driver.delete_all_cookies()
         self.driver = driver
@@ -172,9 +160,7 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def driver(self, driver): self.__driver = driver
 
     @property
-    def executable(self): return type(self).__executable__
-    @property
-    def browser(self): return type(self).__browser__
+    def executable(self): return self.__executable
     @property
     def element(self): return self.__driver
     @property
@@ -185,8 +171,7 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def mutex(self): return self.__mutex
     @property
     def port(self): return self.__port
-    @property
-    def name(self): return self.__name
+
 
 
 

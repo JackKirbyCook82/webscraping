@@ -21,7 +21,7 @@ from support.decorators import Wrapper
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebAuthorizer", "WebAuthenticator", "WebAPI", "WebReader", "WebStatusError"]
+__all__ = ["WebAuthorizer", "WebAuthorizerAPI", "WebReader", "WebStatusError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -50,13 +50,12 @@ class GatewayError(WebStatusError, register=502, title="Gateway"): pass
 class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
 
 
-class WebAPI(ntuple("API", "identity code")): pass
-class WebAuthenticator(ntuple("Authenticator", "username password")): pass
+class WebAuthorizerAPI(ntuple("AuthorizerAPI", "identity code")): pass
 class WebAuthorizer(object):
-    def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
-        cls.__urls__ = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
+    def __init__(self, *args, api, base, access, request, authorize, **kwargs):
+        self.__urls = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
+        self.__api = api
 
-    def __init__(self, *args, api, **kwargs): self.__api = api
     def __call__(self):
         service = OAuth1Service(**self.urls, consumer_key=self.api.identity, consumer_secret=self.api.code)
         token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
@@ -80,13 +79,14 @@ class WebAuthorizer(object):
         return str(variable.get())
 
     @property
-    def urls(self): return type(self).__urls__
+    def urls(self): return self.__urls
     @property
     def api(self): return self.__api
 
 
 class WebDelayer(Wrapper):
     def wrapper(self, instance, *args, **kwargs):
+        assert hash(instance, "delay")
         cls = type(instance)
         with cls.mutex: cls.wait(instance.delay)
         return self.function(instance, *args, **kwargs)
@@ -94,6 +94,7 @@ class WebDelayer(Wrapper):
 
 class WebReaderMeta(SingletonMeta):
     def __init__(cls, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         cls.__mutex__ = multiprocessing.RLock()
         cls.__timer__ = None
 
@@ -120,11 +121,10 @@ class WebReader(object, metaclass=WebReaderMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
     def __bool__(self): return self.session is not None
-    def __init__(self, *args, delay=10, authorizer=None, name, **kwargs):
+    def __init__(self, *args, delay=10, authorizer=None, **kwargs):
         self.__mutex = multiprocessing.Lock()
         self.__authorizer = authorizer
         self.__delay = int(delay)
-        self.__name = str(name)
         self.__session = None
         self.__response = None
         self.__request = None
@@ -148,10 +148,10 @@ class WebReader(object, metaclass=WebReaderMeta):
 
     @WebDelayer
     def load(self, curl, *args, payload=None, **kwargs):
-        address, parameters, headers, authenticate = curl
-        authorized = self.authorizer is not None
-        keywords = dict(params=parameters, headers=headers, header_auth=authorized)
-        if authenticate is not None: keywords.update({"auth": tuple(authenticate)})
+        address, parameters, headers = curl
+        authorized = bool(self.authorizer is not None)
+        keywords = dict(params=parameters, headers=headers)
+        if authorized: keywords["header_auth"] = authorized
         with self.mutex:
             if payload is None: response = self.session.get(str(address), **keywords)
             else: response = self.session.post(str(address), **keywords)
@@ -191,8 +191,7 @@ class WebReader(object, metaclass=WebReaderMeta):
     def delay(self): return self.__delay
     @property
     def mutex(self): return self.__mutex
-    @property
-    def name(self): return self.__name
+
 
 
 
