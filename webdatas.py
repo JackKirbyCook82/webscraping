@@ -58,8 +58,8 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
 
     def __call__(cls, source, *args, **kwargs):
-        assert not isinstance(cls.locator, types.NoneType)
-        sources = list(cls.locate(source, *args, **kwargs))
+        if not bool(cls.locator): sources = [source]
+        else: sources = list(cls.locate(source, *args, **kwargs))
         if not bool(sources) and not cls.optional: raise WebDataMissingError()
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
         attributes = dict(children=cls.dependents)

@@ -43,6 +43,7 @@ class WebStatusErrorMeta(RegistryMeta):
 class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
+class BadRequestError(WebStatusError, register=400, title="BadRequest"): pass
 class AuthenticationError(WebStatusError, register=401, title="Authentication"): pass
 class ForbiddenRequestError(WebStatusError, register=403, title="ForbiddenRequest"): pass
 class IncorrectRequestError(WebStatusError, register=404, title="IncorrectRequest"): pass
@@ -86,7 +87,7 @@ class WebAuthorizer(object):
 
 class WebDelayer(Wrapper):
     def wrapper(self, instance, *args, **kwargs):
-        assert hash(instance, "delay")
+        assert hasattr(instance, "delay")
         cls = type(instance)
         with cls.mutex: cls.wait(instance.delay)
         return self.function(instance, *args, **kwargs)
