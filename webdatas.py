@@ -64,6 +64,8 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
         attributes = dict(children=cls.dependents)
         initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, **attributes, **kwargs)
+        if bool(cls.multiple) and not bool(sources): return list()
+        elif not bool(sources): return lambda *arguments, **parameters: None
         instances = list(map(initialize, sources))
         if bool(cls.multiple): return list(instances)
         else: return instances[0] if bool(instances) else None
@@ -138,7 +140,7 @@ class WebJSONData(WebData, ABC):
         if isinstance(contents, (tuple, list)): yield from iter(contents)
         elif isinstance(contents, (str, Number)): yield contents
         elif isinstance(contents, dict): yield contents
-        else: raise TypeError(type(contents))
+        else: return
 
     @property
     def string(self): return json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str)
