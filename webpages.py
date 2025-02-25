@@ -19,17 +19,11 @@ __license__ = "MIT License"
 
 
 class WebPage(Logging, ABC):
-    def __init_subclass__(cls, *args, **kwargs):
-        cls.url = kwargs.get("url", getattr(cls, "url", None))
-
     def __init__(self, *args, source, **kwargs):
         super().__init__(*args, **kwargs)
         self.__source = source
 
-    def __call__(self, *args, payload=None, **kwargs):
-        if type(self).url is not None:
-            url = type(self).url(*args, **kwargs)
-            self.load(url, *args, payload=payload, **kwargs)
+    def __call__(self, *args, **kwargs):
         return self.execute(*args, **kwargs)
 
     def load(self, url, *args, payload=None, **kwargs):
