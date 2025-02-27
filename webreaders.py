@@ -16,8 +16,8 @@ from rauth import OAuth1Service
 from datetime import datetime as Datetime
 from collections import namedtuple as ntuple
 
-from support.meta import SingletonMeta, RegistryMeta
-from support.decorators import Wrapper
+from support.meta import RegistryMeta
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -85,47 +85,14 @@ class WebAuthorizer(object):
     def api(self): return self.__api
 
 
-class WebDelayer(Wrapper):
-    def wrapper(self, instance, *args, **kwargs):
-        assert hasattr(instance, "delay")
-        cls = type(instance)
-        with cls.mutex: cls.wait(instance.delay)
-        return self.function(instance, *args, **kwargs)
-
-
-class WebReaderMeta(SingletonMeta):
-    def __init__(cls, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        cls.__mutex__ = multiprocessing.RLock()
-        cls.__timer__ = None
-
-    def wait(cls, delay):
-        assert isinstance(delay, int)
-        if bool(cls.timer) and bool(delay):
-            elapsed = (Datetime.now() - cls.timer).total_seconds()
-            sleep = max(delay - elapsed, 0)
-            time.sleep(sleep)
-        cls.timer = Datetime.now()
-
-    @property
-    def timer(cls): return cls.__timer__
-    @timer.setter
-    def timer(cls, timer): cls.__timer__ = timer
-
-    @property
-    def delay(cls): return cls.__delay__
-    @property
-    def mutex(cls): return cls.__mutex__
-
-
-class WebReader(object, metaclass=WebReaderMeta):
-    def __init_subclass__(cls, *args, **kwargs): pass
-
+class WebReader(Logging):
     def __bool__(self): return self.session is not None
-    def __init__(self, *args, delay=10, authorizer=None, **kwargs):
+    def __init__(self, *args, delay=2, authorizer=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
         self.__authorizer = authorizer
         self.__delay = int(delay)
+        self.__timer = None
         self.__session = None
         self.__response = None
         self.__request = None
@@ -147,15 +114,20 @@ class WebReader(object, metaclass=WebReaderMeta):
         self.response = None
         self.request = None
 
-    @WebDelayer
     def load(self, curl, *args, payload=None, **kwargs):
         address, parameters, headers = curl
         authorized = bool(self.authorizer is not None)
         keywords = dict(params=parameters, headers=headers)
         if authorized: keywords["header_auth"] = authorized
         with self.mutex:
+            elapsed = (Datetime.now() - self.timer).total_seconds() if bool(self.timer) else self.delay
+            wait = max(self.delay - elapsed, 0) if bool(self.delay) else 0
+            if bool(wait):
+                self.console(f"{elapsed:.02f} sec", title="Waiting")
+                time.sleep(wait)
             if payload is None: response = self.session.get(str(address), **keywords)
             else: response = self.session.post(str(address), **keywords)
+            self.timer = Datetime.now()
             self.request = response.request
             self.response = response
         if not self.response.status_code == requests.codes.ok:
@@ -192,6 +164,11 @@ class WebReader(object, metaclass=WebReaderMeta):
     def delay(self): return self.__delay
     @property
     def mutex(self): return self.__mutex
+
+    @property
+    def timer(self): return self.__timer
+    @timer.setter
+    def timer(self, timer): self.__timer = timer
 
 
 

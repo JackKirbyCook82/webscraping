@@ -7,6 +7,7 @@ Created on Mon Dec 30 2019
 """
 
 import time
+import types
 import lxml.html
 import multiprocessing
 import selenium.webdriver
@@ -15,8 +16,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 
-from support.decorators import Wrapper
-from support.meta import SingletonMeta
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -25,49 +25,15 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebDelayer(Wrapper):
-    def wrapper(self, instance, *args, **kwargs):
-        assert hasattr(instance, "delay")
-        cls = type(instance)
-        with cls.mutex: cls.wait(instance.delay)
-        self.function(instance, *args, **kwargs)
-        return self
-
-
-class WebDriverMeta(SingletonMeta):
-    def __init__(cls, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        cls.__mutex__ = multiprocessing.RLock()
-        cls.__timer__ = None
-
-    def wait(cls, delay):
-        assert isinstance(delay, int)
-        if bool(cls.timer) and bool(delay):
-            elapsed = (Datetime.now() - cls.timer).total_seconds()
-            sleep = max(delay - elapsed, 0)
-            time.sleep(sleep)
-        cls.timer = Datetime.now()
-
-    @property
-    def timer(cls): return cls.__timer__
-    @timer.setter
-    def timer(cls, timer): cls.__timer__ = timer
-
-    @property
-    def delay(cls): return cls.__delay__
-    @property
-    def mutex(cls): return cls.__mutex__
-
-
-class WebDriver(object, metaclass=WebDriverMeta):
-    def __init_subclass__(cls, *args, **kwargs): pass
-
+class WebDriver(Logging):
     def __bool__(self): return self.driver is not None
-    def __init__(self, *args, executable, timeout=60, delay=10, port=None, **kwargs):
+    def __init__(self, *args, executable, delay=2, timeout=60, port=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self.__executable = executable
         self.__mutex = multiprocessing.Lock()
         self.__timeout = int(timeout)
         self.__delay = int(delay)
+        self.__timer = None
         self.__port = port
         self.__driver = None
 
@@ -99,35 +65,45 @@ class WebDriver(object, metaclass=WebDriverMeta):
         self.driver.quit()
         self.driver = None
 
-    @WebDelayer
     def load(self, curl, *args, **kwargs):
-        with self.mutex: self.driver.get(str(curl))
+        function = lambda: self.driver.get(str(curl))
+        self.execute(function)
 
-    @WebDelayer
     def navigate(self, value):
         if isinstance(value, int): handle = list(self.driver.window_handles)[value]
         elif isinstance(value, str): handle = dict(self)[value]
         else: raise TypeError(type(value))
         self.driver.switch_to.window(handle)
 
-    @WebDelayer
     def pageup(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_UP)
-    @WebDelayer
     def pagedown(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_DOWN)
-    @WebDelayer
     def pagehome(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.HOME)
-    @WebDelayer
     def pageend(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.END)
-    @WebDelayer
     def maximize(self): self.driver.maximize_window()
-    @WebDelayer
     def minimize(self): self.driver.minimize_window()
-    @WebDelayer
-    def refresh(self): self.driver.refresh()
-    @WebDelayer
-    def forward(self): self.driver.foward()
-    @WebDelayer
-    def back(self): self.driver.back()
+
+    def refresh(self):
+        function = lambda: self.driver.refresh()
+        self.execute(function)
+
+    def forward(self):
+        function = lambda: self.driver.foward()
+        self.execute(function)
+
+    def back(self):
+        function = lambda: self.driver.back()
+        self.execute(function)
+
+    def execute(self, function, *args, **kwargs):
+        assert isinstance(function, types.LambdaType)
+        with self.mutex:
+            elapsed = (Datetime.now() - self.timer).total_seconds() if bool(self.timer) else self.delay
+            wait = max(self.delay - elapsed, 0)
+            if bool(wait):
+                self.console(f"{elapsed:.02f} sec", title="Waiting")
+                time.sleep(wait)
+            function(*args, **kwargs)
+            self.timer = Datetime.now()
 
     @staticmethod
     def setup(options, *args, port=None, **kwargs):
@@ -171,6 +147,11 @@ class WebDriver(object, metaclass=WebDriverMeta):
     def mutex(self): return self.__mutex
     @property
     def port(self): return self.__port
+
+    @property
+    def timer(self): return self.__timer
+    @timer.setter
+    def timer(self, timer): self.__timer = timer
 
 
 

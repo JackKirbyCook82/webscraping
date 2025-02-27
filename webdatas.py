@@ -82,7 +82,10 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 
 
 class WebData(ABC, metaclass=WebDataMeta):
-    def __init_subclass__(cls, *args, **kwargs): pass
+    def __init_subclass__(cls, *args, **kwargs):
+        parser = getattr(cls, "__parser__", lambda content: content)
+        cls.__parser__ = kwargs.get("parser", parser)
+
     def __init__(self, source, *arguments, children, **parameters):
         self.__parameters = parameters
         self.__arguments = arguments
@@ -106,7 +109,10 @@ class WebData(ABC, metaclass=WebDataMeta):
     def string(self): pass
     @abstractmethod
     def execute(self, *args, **kwargs): pass
+    def parse(self, content, *args, **kwargs): return self.parser(content)
 
+    @property
+    def parser(self): return type(self).__parser__
     @property
     def parameters(self): return self.__parameters
     @property
@@ -172,21 +178,18 @@ class WebELMTData(WebData, ABC):
 
 
 class WebParent(WebData, ABC):
-    def execute(self, *args, **kwargs): return {key: value(*args, **kwargs) for key, value in iter(self)}
+    def execute(self, *args, **kwargs):
+        content = {key: value(*args, **kwargs) for key, value in iter(self)}
+        return self.parse(content, *args, **kwargs)
 
 class WebChild(WebData, ABC):
-    def __init_subclass__(cls, *args, **kwargs):
-        super().__init_subclass__(*args, **kwargs)
-        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", lambda content: content))
-
-    def execute(self, *args, **kwargs): return self.parse(self.content, *args, **kwargs)
-    def parse(self, content, *args, **kwargs): return self.parser(content)
+    def execute(self, *args, **kwargs):
+        content = self.content
+        return self.parse(content, *args, **kwargs)
 
     @property
     @abstractmethod
     def content(self): pass
-    @property
-    def parser(self): return type(self).__parser__
 
 
 class WebHTML(WebParent, WebHTMLData, ABC, root=True): pass
