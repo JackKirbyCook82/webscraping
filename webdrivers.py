@@ -65,8 +65,8 @@ class WebDriver(Logging):
         self.driver.quit()
         self.driver = None
 
-    def load(self, curl, *args, **kwargs):
-        function = lambda: self.driver.get(str(curl))
+    def load(self, url, *args, **kwargs):
+        function = lambda: self.driver.get(str(url))
         self.execute(function)
 
     def navigate(self, value):

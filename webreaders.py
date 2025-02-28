@@ -114,8 +114,8 @@ class WebReader(Logging):
         self.response = None
         self.request = None
 
-    def load(self, curl, *args, payload=None, **kwargs):
-        address, parameters, headers = curl
+    def load(self, url, *args, payload=None, **kwargs):
+        address, parameters, headers = url
         authorized = bool(self.authorizer is not None)
         keywords = dict(params=parameters, headers=headers)
         if authorized: keywords["header_auth"] = authorized
@@ -125,7 +125,7 @@ class WebReader(Logging):
             if bool(wait):
                 self.console(f"{elapsed:.02f} sec", title="Waiting")
                 time.sleep(wait)
-            if payload is None: response = self.session.get(str(address), **keywords)
+            if payload is None: response = self.session.get(str(address), json=payload.json, **keywords)
             else: response = self.session.post(str(address), **keywords)
             self.timer = Datetime.now()
             self.request = response.request
