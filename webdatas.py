@@ -7,7 +7,6 @@ Created on Mon Dec 30 2019
 """
 
 import json
-import types
 import lxml.html
 import lxml.etree
 import pandas as pd
@@ -62,8 +61,7 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         else: sources = list(cls.locate(source, *args, **kwargs))
         if not bool(sources) and not cls.optional: raise WebDataMissingError()
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
-        attributes = dict(children=cls.dependents)
-        initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, **attributes, **kwargs)
+        initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, children=cls.dependents, **kwargs)
         if bool(cls.multiple) and not bool(sources): return list()
         elif not bool(sources): return lambda *arguments, **parameters: None
         instances = list(map(initialize, sources))
@@ -104,12 +102,14 @@ class WebData(ABC, metaclass=WebDataMeta):
         instance = child(self.source, *self.arguments, **self.parameters)
         return instance
 
+    def parse(self, content, *args, **kwargs):
+        return self.parser(content)
+
     @property
     @abstractmethod
     def string(self): pass
     @abstractmethod
     def execute(self, *args, **kwargs): pass
-    def parse(self, content, *args, **kwargs): return self.parser(content)
 
     @property
     def parser(self): return type(self).__parser__

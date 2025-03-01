@@ -6,8 +6,8 @@ Created on Weds Jul 29 2020
 
 """
 
-from functools import reduce
-from operator import
+import json
+from abc import ABC, ABCMeta, abstractmethod
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 
@@ -78,18 +78,9 @@ class WebPayloadMissingError(WebPayloadError, title="Missing"): pass
 class WebPayloadMultipleError(WebPayloadError, title="Multiple"): pass
 
 
-class WebPayloadBase(Node):
-    def __init__(self, contents, *args, **kwargs):
-        assert isinstance(contents, dict)
-        super().__init__(*args, **kwargs)
-        self.__contents = contents
-
-
-class WebPayload(TreeMeta):
-    def __init__(cls, *args, **kwargs):
-        super(WebPayload, cls).__init__(*args, **kwargs)
-        cls.__parameters__ = getattr(cls, "__parameters__", {}) | kwargs.get("parameters", {})
-        cls.__arguments__ = getattr(cls, "__arguments__", []) | kwargs.get("arguments", [])
+class WebPayloadMeta(TreeMeta, ABCMeta):
+    def __init__(cls, *args, dependents=[], **kwargs):
+        super(WebPayloadMeta, cls).__init__(*args, dependents=dependents, **kwargs)
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
@@ -99,16 +90,15 @@ class WebPayload(TreeMeta):
         sources = [dict(sources)] if isinstance(sources, dict) else list(sources)
         if not bool(sources) and not cls.optional: raise WebPayloadMissingError()
         if len(sources) > 1 and not cls.multiple: raise WebPayloadMultipleError()
-        arguments = lambda source: reduce(lambda lead, lag: lead | lag, [getattr(cls, argument)(*args, **source, **kwargs) for argument in cls.arguments])
-        initialize = lambda source: super(WebPayload, cls).__call__(arguments(source) | cls.parameters, *args, **kwargs)
-        instances = list(map(initialize, sources))
+        instances = [super(WebPayloadMeta, cls).__call__(source, *args, **kwargs) for source in sources]
+        for key, child in cls.dependents.items():
+            locator = child.locator
+            for instance, source in zip(instances, sources):
+                source = source.get(key, {})
+                instance[locator] = child(source, *args, **kwargs)
         if bool(cls.multiple): return list(instances)
         else: return instances[0] if bool(instances) else None
 
-    @property
-    def parameters(cls): return cls.__parameters__
-    @property
-    def arguments(cls): return cls.__arguments__
     @property
     def optional(cls): return cls.__optional__
     @property
@@ -117,8 +107,35 @@ class WebPayload(TreeMeta):
     def locator(cls): return cls.__locator__
 
 
+class WebPayload(Node, ABC, metaclass=WebPayloadMeta):
+    def __str__(self): return self.string
+    def __init__(self, source, *args, **kwargs):
+        assert isinstance(source, dict)
+        super().__init__(*args, **kwargs)
+        contents = self.execute(**source)
+        self.__contents = contents
 
+    @abstractmethod
+    def execute(self, *args, **kwargs): pass
 
+    @property
+    def json(self):
+        parameters = {type(self).locator: self.parameters} if bool(type(self).locator) else self.parameters
+        return json.dumps(parameters)
+
+    @property
+    def string(self):
+        parameters = {type(self).locator: self.parameters} if bool(type(self).locator) else self.parameters
+        return json.dumps(parameters, sort_keys=False, indent=3, separators=(',', ' : '))
+
+    @property
+    def parameters(self):
+        function = lambda child: dict(child.parameters) if isinstance(child, Node) else [dict(value.parameters) for value in list(child)]
+        parameters = {locator: function(child) for locator, child in self.children.items()}
+        return dict(self.contents) | dict(parameters)
+
+    @property
+    def contents(self): return self.__contents
 
 
 
