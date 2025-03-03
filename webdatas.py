@@ -52,16 +52,20 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         modified = [function(key, cls.dependents[key], locator) for key, locator in kwargs.get("locators", {}).items()]
         dependents = list(dependents) + list(modified)
         super(WebDataMeta, cls).__init__(*args, dependents=dependents, **kwargs)
+        attributes = dict(getattr(cls, "__attributes__", {}))
+        attributes["parser"] = kwargs.get("parser", attributes.get("parser", lambda content: content))
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
+        cls.__attributes__ = attributes
 
-    def __call__(cls, source, *args, **kwargs):
-        if not bool(cls.locator): sources = [source]
-        else: sources = list(cls.locate(source, *args, **kwargs))
+    def __call__(cls, sources, *args, **kwargs):
+        if not bool(cls.locator): sources = [sources]
+        else: sources = list(cls.locate(sources, *args, **kwargs))
         if not bool(sources) and not cls.optional: raise WebDataMissingError()
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
-        initialize = lambda value: super(WebDataMeta, cls).__call__(value, *args, children=cls.dependents, **kwargs)
+        attributes = dict(children=cls.dependents) | dict(cls.attributes)
+        initialize = lambda source: super(WebDataMeta, cls).__call__(source, *args, **attributes, **kwargs)
         if bool(cls.multiple) and not bool(sources): return list()
         elif not bool(sources): return lambda *arguments, **parameters: None
         instances = list(map(initialize, sources))
@@ -72,6 +76,8 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
     def locate(cls, source, *args, **kwargs): pass
 
     @property
+    def attributes(cls): return cls.__attributes__
+    @property
     def optional(cls): return cls.__optional__
     @property
     def multiple(cls): return cls.__multiple__
@@ -80,14 +86,11 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 
 
 class WebData(ABC, metaclass=WebDataMeta):
-    def __init_subclass__(cls, *args, **kwargs):
-        parser = getattr(cls, "__parser__", lambda content: content)
-        cls.__parser__ = kwargs.get("parser", parser)
-
-    def __init__(self, source, *arguments, children, **parameters):
+    def __init__(self, source, *arguments, children, parser, **parameters):
         self.__parameters = parameters
         self.__arguments = arguments
         self.__children = children
+        self.__parser = parser
         self.__source = source
 
     def __str__(self): return self.string
@@ -112,13 +115,13 @@ class WebData(ABC, metaclass=WebDataMeta):
     def execute(self, *args, **kwargs): pass
 
     @property
-    def parser(self): return type(self).__parser__
-    @property
     def parameters(self): return self.__parameters
     @property
     def arguments(self): return self.__arguments
     @property
     def children(self): return self.__children
+    @property
+    def parser(self): return self.__parser
     @property
     def source(self): return self.__source
 
