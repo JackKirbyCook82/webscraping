@@ -7,8 +7,9 @@ Created on Weds Jul 29 2020
 """
 
 import json
+import types
 from functools import reduce
-from collections import Mapping
+from abc import ABC, ABCMeta
 from collections import namedtuple as ntuple
 from collections import OrderedDict as ODict
 
@@ -16,7 +17,7 @@ from support.meta import TreeMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebURL", "WebPayload", "WebField"]
+__all__ = ["WebURL", "WebPayload"]
 __copyright__ = "Copyright 2020, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -78,70 +79,71 @@ class WebURL(object):
     def headers(*args, **kwargs): return {}
 
 
-class WebField(ntuple("Field", "locator formatter")):
-    def __call__(self, source, *args, **kwargs):
-        return {self.locator: self.formatter(source)}
-
-
 class WebPayloadMeta(TreeMeta, ABCMeta):
     def __new__(mcs, name, bases, attrs, *args, **kwargs):
-        exclude = [key for key, value in attrs.items() if isinstance(value, WebField)]
+        exclude = [key for key, value in attrs.items() if isinstance(value, types.LambdaType) and value.__name__ == "<lambda>"]
         attrs = {key: value for key, value in attrs.items() if key not in exclude}
         cls = super(WebPayloadMeta, mcs).__new__(mcs, name, bases, attrs, *args, **kwargs)
         return cls
 
     def __init__(cls, name, bases, attrs, *args, dependents=[], **kwargs):
         super(WebPayloadMeta, cls).__init__(name, bases, attrs, *args, dependents=dependents, **kwargs)
-        fields = {key: field for key, field in attrs.items() if isinstance(field, WebField)}
-        cls.__invariant__ = getattr(cls, "__invariant__", {}) | kwargs.get("fields", {})
-        cls.__variant__ = getattr(cls, "__variant__", {}) | dict(fields)
+        functions = {key: value for key, value in attrs.items() if isinstance(value, types.LambdaType) and value.__name__ == "<lambda>"}
+        cls.__functions__ = getattr(cls, "__functions__", {}) | dict(functions)
+        cls.__fields__ = getattr(cls, "__fields__", {}) | kwargs.get("fields", {})
         cls.__optional__ = kwargs.get("optional", getattr(cls, "__optional__", False))
         cls.__multiple__ = kwargs.get("multiple", getattr(cls, "__multiple__", False))
-        cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__"), None)
+        cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
 
     def __call__(cls, sources, *args, **kwargs):
         sources = list(sources) if isinstance(sources, list) else [sources]
         if not bool(sources) and not cls.optional: raise WebPayloadMissingError()
         if len(sources) > 1 and not cls.multiple: raise WebPayloadMultipleError()
-        function = lambda attribute, dependent, source: dependent(getattr(source, attribute), *args, **kwargs)
-        childrens = [[function(key, dependent, source) for key, dependent in cls.dependents.items()] for source in sources]
-        childrens = [reduce(lambda lead, lag: lead | lag, children) for children in childrens]
-        fields = [[field(source, *args, **kwargs) for field in cls.variant.values()] for source in sources]
-        fields = [reduce(lambda lead, lag: lead | lag, contents) for contents in fields]
-        fields = [dict(contents) | dict(cls.invariant) for contents in fields]
-        initialize = lambda contents, children: super(WebPayloadMeta, cls).__call__(contents | children, *args, **kwargs)
+        initialize = lambda key, dependent, source: dependent(getattr(source, key), *args, **kwargs)
+        childrens = [{dependent.locator: initialize(key, dependent, source) for key, dependent in cls.dependents.items()} for source in sources]
+        fields = [[function(source) for function in cls.functions.values()] for source in sources]
+        fields = [reduce(lambda lead, lag: lead | lag, contents, {}) for contents in fields]
+        fields = [dict(contents) | dict(cls.fields) for contents in fields]
+        initialize = lambda contents, children: super(WebPayloadMeta, cls).__call__(contents, *args, children=children, **kwargs)
         instances = [initialize(contents, children) for contents, children in zip(fields, childrens)]
-        if bool(cls.multiple): return {cls.locator: list(instances)}
-        else: return {cls.locator: instances[0]} if bool(instances) else {}
+        if bool(cls.multiple): return list(instances)
+        else: return instances[0] if bool(instances) else None
 
+    @property
+    def functions(cls): return cls.__functions__
+    @property
+    def fields(cls): return cls.__fields__
     @property
     def optional(cls): return cls.__optional__
     @property
     def multiple(cls): return cls.__multiple__
     @property
     def locator(cls): return cls.__locator__
-    @property
-    def invariant(cls): return cls.__invariant__
-    @property
-    def variant(cls): return cls.__variant__
 
 
-class WebPayload(Mapping, metaclass=WebPayloadMeta):
-    def __init__(self, contents, *args, **kwargs):
-        assert isinstance(contents, dict)
+class WebPayload(ABC, metaclass=WebPayloadMeta):
+    def __init__(self, contents, *args, children={}, **kwargs):
+        assert isinstance(contents, dict) and isinstance(children, dict)
+        assert all([isinstance(child, (list, WebPayload)) for child in children.values()])
+        assert all([all([isinstance(child, WebPayload) for child in children]) for children in children.values() if isinstance(children, list)])
+        self.__children = children
         self.__contents = contents
 
-    def __getitem__(self, key): return self.contents[key]
-    def __hash__(self): return hash(self.contents.iteritems())
-    def __iter__(self): return iter(self.contents.items())
-    def __len__(self): return len(self.contents)
+    def __getitem__(self, locator): return self.children[locator]
     def __str__(self): return str(self.string)
+    def __iter__(self):
+        yield from iter(self.contents.items())
+        for locator, children in self.children.items():
+            if isinstance(children, WebPayload): yield locator, dict(children)
+            else: yield locator, list(map(dict, children))
 
     @property
-    def string(self): return json.dumps(self.contents, sort_keys=False, indent=3, separators=(',', ' : '))
+    def string(self): return json.dumps(dict(self), sort_keys=False, indent=3, separators=(',', ' : '))
     @property
-    def json(self): return json.dumps(self.contents)
+    def json(self): return json.dumps(dict(self))
 
+    @property
+    def children(self): return self.__children
     @property
     def contents(self): return self.__contents
 

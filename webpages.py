@@ -41,7 +41,7 @@ class WebPage(Logging, ABC):
 class WebJSONPage(WebPage, ABC):
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        self.console(f"JSON|StatusCode|{str(self.source.status)}", title="Loaded")
+        self.console(f"JSON|statuscode|{str(self.source.status)}", title="Loaded")
 
     @property
     def json(self): return self.source.json
@@ -50,7 +50,7 @@ class WebJSONPage(WebPage, ABC):
 class WebHTMLPage(WebPage, ABC):
     def load(self, *args, **kwargs):
         super().load(*args, **kwargs)
-        self.console(f"HTML|StatusCode|{str(self.source.status)}", title="Loaded")
+        self.console(f"HTML|statuscode|{str(self.source.status)}", title="Loaded")
 
     @property
     def html(self): return self.source.html
