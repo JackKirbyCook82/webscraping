@@ -100,7 +100,7 @@ class WebDriver(Logging):
             elapsed = (Datetime.now() - self.timer).total_seconds() if bool(self.timer) else self.delay
             wait = max(self.delay - elapsed, 0)
             if bool(wait):
-                self.console(f"{elapsed:.02f} sec", title="Waiting")
+                self.console(f"{elapsed:.02f} seconds", title="Waiting")
                 time.sleep(wait)
             function(*args, **kwargs)
             self.timer = Datetime.now()

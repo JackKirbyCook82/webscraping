@@ -123,7 +123,7 @@ class WebReader(Logging):
             elapsed = (Datetime.now() - self.timer).total_seconds() if bool(self.timer) else self.delay
             wait = max(self.delay - elapsed, 0) if bool(self.delay) else 0
             if bool(wait):
-                self.console(f"{elapsed:.02f} sec", title="Waiting")
+                self.console(f"{elapsed:.02f} seconds", title="Waiting")
                 time.sleep(wait)
             if payload is None: response = self.session.get(str(address), data=payload, **keywords)
             else: response = self.session.post(str(address), **keywords)
