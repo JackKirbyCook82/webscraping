@@ -125,8 +125,8 @@ class WebReader(Logging):
             if bool(wait):
                 self.console(f"{elapsed:.02f} seconds", title="Waiting")
                 time.sleep(wait)
-            if payload is None: response = self.session.get(str(address), data=payload, **keywords)
-            else: response = self.session.post(str(address), **keywords)
+            if payload is None: response = self.session.get(str(address), **keywords)
+            else: response = self.session.post(str(address), json=payload, **keywords)
             self.timer = Datetime.now()
             self.request = response.request
             self.response = response

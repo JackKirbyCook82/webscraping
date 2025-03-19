@@ -60,8 +60,7 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         cls.__attributes__ = attributes
 
     def __call__(cls, sources, *args, **kwargs):
-        if not bool(cls.locator): sources = [sources]
-        else: sources = list(cls.locate(sources, *args, **kwargs))
+        sources = list(cls.locate(sources, *args, **kwargs))
         if not bool(sources) and not cls.optional: raise WebDataMissingError()
         if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
         attributes = dict(children=cls.dependents) | dict(cls.attributes)
@@ -143,9 +142,11 @@ class WebJSONData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
         assert isinstance(source, (dict, list, str, Number))
-        locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
-        contents = source[str(locators.pop(0))]
-        for locator in locators: contents = contents[str(locator)]
+        if not bool(cls.locator): contents = source
+        else:
+            locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
+            contents = source[str(locators.pop(0))]
+            for locator in locators: contents = contents[str(locator)]
         if isinstance(contents, (tuple, list)): yield from iter(contents)
         elif isinstance(contents, (str, Number)): yield contents
         elif isinstance(contents, dict): yield contents
