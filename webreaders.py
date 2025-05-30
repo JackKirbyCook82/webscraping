@@ -9,19 +9,15 @@ Created on Sat Mar 23 2019
 import time
 import requests
 import lxml.html
-import webbrowser
 import multiprocessing
-import tkinter as tk
-from rauth import OAuth1Service
 from datetime import datetime as Datetime
-from collections import namedtuple as ntuple
 
 from support.meta import RegistryMeta
 from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebAuthorizer", "WebAuthorizerAPI", "WebReader", "WebStatusError"]
+__all__ = ["WebReader", "WebStatusError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -51,51 +47,16 @@ class GatewayError(WebStatusError, register=502, title="Gateway"): pass
 class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
 
 
-class WebAuthorizerAPI(ntuple("AuthorizerAPI", "identity code")): pass
-class WebAuthorizer(object):
-    def __init__(self, *args, api, base, access, request, authorize, **kwargs):
-        self.__urls = {"base_url": base, "access_token_url": access, "request_token_url": request, "authorize_url": authorize}
-        self.__api = api
-
-    def __call__(self):
-        service = OAuth1Service(**self.urls, consumer_key=self.api.identity, consumer_secret=self.api.code)
-        token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
-        url = str(service.authorize_url).format(str(self.api.identity), str(token))
-        webbrowser.open(str(url))
-        security = self.prompt()
-        session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
-        return session
-
-    @staticmethod
-    def prompt():
-        window = tk.Tk()
-        window.title("Enter Security Code:")
-        variable = tk.StringVar()
-        entry = tk.Entry(window, width=50, justify=tk.CENTER, textvariable=variable)
-        entry.focus_set()
-        entry.grid(padx=10, pady=10)
-        button = tk.Button(window, text="Submit", command=window.destroy)
-        button.grid(row=0, column=1, padx=10, pady=10)
-        window.mainloop()
-        return str(variable.get())
-
-    @property
-    def urls(self): return self.__urls
-    @property
-    def api(self): return self.__api
-
-
 class WebReader(Logging):
     def __bool__(self): return self.session is not None
-    def __init__(self, *args, delay=2, authorizer=None, **kwargs):
+    def __init__(self, *args, delay=2, **kwargs):
         super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
-        self.__authorizer = authorizer
         self.__delay = int(delay)
-        self.__timer = None
         self.__session = None
         self.__response = None
         self.__request = None
+        self.__timer = None
 
     def __enter__(self):
         self.start()
@@ -104,21 +65,16 @@ class WebReader(Logging):
     def __exit__(self, error_type, error_value, error_traceback):
         self.stop()
 
-    def start(self):
-        if self.authorizer is not None: self.session = self.authorizer()
-        else: self.session = requests.Session()
-
+    def start(self): self.session = requests.Session()
     def stop(self):
         self.session.close()
         self.session = None
         self.response = None
         self.request = None
 
-    def load(self, url, *args, payload=None, **kwargs):
-        address, parameters, headers = url
-        authorized = bool(self.authorizer is not None)
-        keywords = dict(params=parameters, headers=headers)
-        if authorized: keywords["header_auth"] = authorized
+    def load(self, url, *args, payload=None, parameters={}, **kwargs):
+        address, params, headers = url
+        keywords = dict(params=parameters, headers=headers) | parameters
         with self.mutex:
             elapsed = (Datetime.now() - self.timer).total_seconds() if bool(self.timer) else self.delay
             wait = max(self.delay - elapsed, 0) if bool(self.delay) else 0
@@ -158,8 +114,6 @@ class WebReader(Logging):
     @request.setter
     def request(self, request): self.__request = request
 
-    @property
-    def authorizer(self): return self.__authorizer
     @property
     def delay(self): return self.__delay
     @property
