@@ -245,6 +245,12 @@ class WebELMTText(WebChild, WebELMT, ABC, attribute="Text"):
     @property
     def content(self): return self.text
 
+class WebELMTValue(WebChild, WebELMT, ABC, attribute="Value"):
+    @property
+    def value(self): return self.element.get_attribute("value")
+    @property
+    def content(self): return self.value
+
 class WebELMTLink(WebChild, WebELMT, ABC, attribute="Link"):
     @property
     def link(self): return self.element.get_attribute("href")

@@ -27,7 +27,7 @@ __license__ = "MIT License"
 
 class WebDriver(Logging):
     def __bool__(self): return self.driver is not None
-    def __init__(self, *args, executable, delay=2, timeout=60, port=None, **kwargs):
+    def __init__(self, *args, executable, delay=5, timeout=60, port=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.__executable = executable
         self.__mutex = multiprocessing.Lock()

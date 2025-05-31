@@ -21,7 +21,7 @@ __license__ = "MIT License"
 class WebService(Logging, ABC):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         super().__init_subclass__(*args, **kwargs)
-        cls.__weburl__ = dict(authorize=authorize, request=request, access=access, base=base)
+        cls.__weburl__ = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
 
     def __init__(self, *args, webapi, **kwargs):
         super().__init__(*args, **kwargs)

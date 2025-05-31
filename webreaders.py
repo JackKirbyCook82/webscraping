@@ -49,7 +49,7 @@ class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
 
 class WebReader(Logging):
     def __bool__(self): return self.session is not None
-    def __init__(self, *args, delay=2, **kwargs):
+    def __init__(self, *args, delay=5, **kwargs):
         super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
         self.__delay = int(delay)
@@ -74,7 +74,7 @@ class WebReader(Logging):
 
     def load(self, url, *args, payload=None, parameters={}, **kwargs):
         address, params, headers = url
-        keywords = dict(params=parameters, headers=headers) | parameters
+        keywords = dict(params=params, headers=headers) | parameters
         with self.mutex:
             elapsed = (Datetime.now() - self.timer).total_seconds() if bool(self.timer) else self.delay
             wait = max(self.delay - elapsed, 0) if bool(self.delay) else 0
