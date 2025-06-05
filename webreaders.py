@@ -130,11 +130,11 @@ class WebReader(Logging):
 class WebService(WebReader, ABC):
     def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
         super().__init_subclass__(*args, **kwargs)
-        cls.__weburl__ = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
+        cls.urls = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
 
-    def __init__(self, *args, webapi, **kwargs):
+    def __init__(self, *args, api, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__webapi = webapi
+        self.api = api
 
     def start(self): self.session = self.service()
     def load(self, url, *args, **kwargs):
@@ -142,9 +142,9 @@ class WebService(WebReader, ABC):
         super().load(url, *args, parameters={"header_auth": True}, **kwargs)
 
     def service(self, *args, **kwargs):
-        service = OAuth1Service(consumer_key=self.webapi.identity, consumer_secret=self.webapi.code, **self.weburl)
+        service = OAuth1Service(consumer_key=self.api.identity, consumer_secret=self.api.code, **self.urls)
         token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
-        url = str(service.authorize_url).format(str(self.webapi.identity), str(token))
+        url = str(service.authorize_url).format(str(self.api.identity), str(token))
         security = self.security(url, *args, **kwargs)
         session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
         return session
@@ -152,8 +152,4 @@ class WebService(WebReader, ABC):
     @abstractmethod
     def security(self, url, *args, **kwargs): pass
 
-    @property
-    def weburl(self): return type(self).__weburl__
-    @property
-    def webapi(self): return self.__webapi
 
