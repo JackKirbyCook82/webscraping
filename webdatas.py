@@ -260,18 +260,16 @@ class WebELMTLink(WebChild, WebELMT, ABC, attribute="Link"):
 class WebELMTClickable(WebELMTText, ABC, attribute="Clickable"):
     def click(self): self.element.click()
 
-
 class WebELMTButton(WebELMTClickable, ABC, attribute="Button"): pass
 class WebELMTInput(WebELMTClickable, ABC, attribute="Input"):
     def fill(self, value): self.element.send_keys(str(value))
-    def send(self): self.element.submit()
     def clear(self): self.element.clear()
+    def send(self): self.element.submit()
 
 class WebELMTToggle(WebELMTClickable, ABC, attribute="Toggle"):
     def select(self, value):
         if not str(self.content) != str(value): self.element.click()
         assert str(self.content) == str(value)
-
 
 class WebELMTMenu(WebELMTClickable, key="menu", locator=None, multiple=True, optional=False): pass
 class WebELMTDropdown(WebELMTClickable, ABC, attribute="Dropdown", dependents=[WebELMTMenu]):

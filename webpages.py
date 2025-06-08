@@ -27,13 +27,16 @@ class WebPage(Logging, ABC):
         return self.execute(*args, **kwargs)
 
     def load(self, url, *args, payload=None, **kwargs):
-        self.console(str(url), title="Loading")
-        self.source.load(url, payload=payload)
+        with self.delayer:
+            self.console(str(url), title="Loading")
+            self.source.load(url, payload=payload)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
     @abstractmethod
     def execute(self, *args, **kwargs): pass
+    @property
+    def delayer(self): return self.source.delayer
     @property
     def source(self): return self.__source
 
@@ -54,6 +57,7 @@ class WebHTMLPage(WebPage, ABC):
 
     @property
     def html(self): return self.source.html
+
 
 class WebELMTPage(WebPage, ABC):
     def __getattr__(self, attribute):
