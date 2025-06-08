@@ -138,9 +138,16 @@ class WebPayload(ABC, metaclass=WebPayloadMeta):
             else: yield locator, list(map(dict, children))
 
     @property
-    def string(self): return json.dumps(dict(self), sort_keys=False, indent=3, separators=(',', ' : '))
+    def string(self):
+        if type(self).locator is None: mapping = dict(self)
+        else: mapping = {type(self).locator: dict(self)}
+        return json.dumps(mapping, sort_keys=False, indent=3, separators=(',', ' : '))
+
     @property
-    def json(self): return json.dumps(dict(self))
+    def json(self):
+        if type(self).locator is None: mapping = dict(self)
+        else: mapping = {type(self).locator: dict(self)}
+        return json.dumps(mapping)
 
     @property
     def children(self): return self.__children
