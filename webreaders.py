@@ -12,8 +12,8 @@ import multiprocessing
 from rauth import OAuth1Service
 from abc import ABC, abstractmethod
 
-from support.mixins import Logging, Delayer
 from support.meta import RegistryMeta
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -47,12 +47,43 @@ class GatewayError(WebStatusError, register=502, title="Gateway"): pass
 class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
 
 
-class WebReader(Logging):
+class WebService(ABC):
+    def __init_subclass__(cls, *args, **kwargs):
+        base = kwargs.get("base", getattr(cls, "__urls__", {}).get("base_url", None))
+        access = kwargs.get("access", getattr(cls, "__urls__", {}).get("access_token_url", None))
+        request = kwargs.get("request", getattr(cls, "__urls__", {}).get("request_token_url", None))
+        authorize = kwargs.get("authorize", getattr(cls, "__urls__", {}).get("authorize_url", None))
+        cls.__urls__ = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
+
+    def __init__(self, *args, api, **kwargs):
+        assert hasattr(api, "identity") and hasattr(api, "code")
+        self.__api = api
+
+    def __call__(self, *args, **kwargs):
+        service = OAuth1Service(consumer_key=self.api.identity, consumer_secret=self.api.code, **self.urls)
+        token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
+        url = str(service.authorize_url).format(str(self.api.identity), str(token))
+        security = self.security(url, *args, **kwargs)
+        session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
+        session.headers.update({"header_auth": "True"})
+        return session
+
+    @abstractmethod
+    def security(self, url, *args, **kwargs): pass
+
+    @property
+    def urls(self): return type(self).__urls__
+    @property
+    def api(self): return self.__api
+
+
+class WebReader(Logging, ABC):
     def __bool__(self): return self.session is not None
-    def __init__(self, *args, delay, **kwargs):
+    def __init__(self, *args, delayer, service=requests.Session, **kwargs):
         super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
-        self.__delayer = Delayer(delay)
+        self.__service = service
+        self.__delayer = delayer
         self.__session = None
         self.__response = None
         self.__request = None
@@ -64,19 +95,19 @@ class WebReader(Logging):
     def __exit__(self, error_type, error_value, error_traceback):
         self.stop()
 
-    def start(self): self.session = requests.Session()
+    def start(self): self.session = self.service()
     def stop(self):
         self.session.close()
         self.session = None
         self.response = None
         self.request = None
 
-    def load(self, url, *args, payload=None, parameters={}, **kwargs):
+    def load(self, url, *args, payload=None, **kwargs):
         address, params, headers = url
-        keywords = dict(params=params, headers=headers) | parameters
+        parameters = dict(params=params, headers=headers)
         with self.mutex:
-            if payload is None: response = self.session.get(str(address), **keywords)
-            else: response = self.session.post(str(address), json=payload, **keywords)
+            if payload is None: response = self.session.get(str(address), **parameters)
+            else: response = self.session.post(str(address), json=payload, **parameters)
             self.request = response.request
             self.response = response
         if not self.response.status_code == requests.codes.ok:
@@ -84,7 +115,7 @@ class WebReader(Logging):
             raise WebStatusError(int(statuscode))
 
     @property
-    def html(self): return lxml.html.fromstring(self.response.text)
+    def html(self): return lxml.html.fromstring(self.response.content)
     @property
     def json(self): return self.response.json()
     @property
@@ -95,9 +126,12 @@ class WebReader(Logging):
     def url(self): return self.response.url
 
     @property
+    def service(self): return self.__service
+    @property
     def delayer(self): return self.__delayer
     @property
     def mutex(self): return self.__mutex
+
     @property
     def session(self): return self.__session
     @session.setter
@@ -110,30 +144,5 @@ class WebReader(Logging):
     def request(self): return self.__request
     @request.setter
     def request(self, request): self.__request = request
-
-
-class WebService(WebReader, ABC):
-    def __init_subclass__(cls, *args, base, access, request, authorize, **kwargs):
-        super().__init_subclass__(*args, **kwargs)
-        cls.urls = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
-
-    def __init__(self, *args, api, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.api = api
-
-    def start(self): self.session = self.service()
-    def load(self, url, *args, **kwargs):
-        super().load(url, *args, parameters={"header_auth": True}, **kwargs)
-
-    def service(self, *args, **kwargs):
-        service = OAuth1Service(consumer_key=self.api.identity, consumer_secret=self.api.code, **self.urls)
-        token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
-        url = str(service.authorize_url).format(str(self.api.identity), str(token))
-        security = self.security(url, *args, **kwargs)
-        session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
-        return session
-
-    @abstractmethod
-    def security(self, url, *args, **kwargs): pass
 
 

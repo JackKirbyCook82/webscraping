@@ -24,13 +24,12 @@ __license__ = "MIT License"
 
 class WebDriver(Logging):
     def __bool__(self): return self.driver is not None
-    def __init__(self, *args, executable, delay, timeout=60, port=None, **kwargs):
+    def __init__(self, *args, executable, delay, timeout=60, **kwargs):
         super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
         self.__delayer = Delayer(delay)
-        self.__executable = executable
         self.__timeout = int(timeout)
-        self.__port = port
+        self.__executable = executable
         self.__driver = None
 
     def __enter__(self):
@@ -50,11 +49,10 @@ class WebDriver(Logging):
     def start(self):
         executable = self.executable
         options = selenium.webdriver.ChromeOptions()
-        self.setup(options, port=self.port)
+        self.setup(options)
         service = ChromeService(executable)
         driver = selenium.webdriver.Chrome(service=service, options=options)
         driver.set_page_load_timeout(self.timeout)
-        driver.delete_all_cookies()
         self.driver = driver
 
     def stop(self):
@@ -81,10 +79,10 @@ class WebDriver(Logging):
     def back(self): self.driver.back()
 
     @staticmethod
-    def setup(options, *args, port=None, **kwargs):
-        if port is not None:
-            options.add_experimental_option("debuggerAddress", f"127.0.0.1:{str(port)}")
+    def setup(options, *args, **kwargs):
         options.add_argument("log-level=3")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-popup-blocking")
         options.add_argument("--start-maximized")
         options.add_argument("--disable-notifications")
         options.add_argument("--ignore-ssl-errors")
@@ -113,6 +111,10 @@ class WebDriver(Logging):
     @property
     def executable(self): return self.__executable
     @property
+    def browser(self): return self.__browser
+    @property
+    def profile(self): return self.__profile
+    @property
     def delayer(self): return self.__delayer
     @property
     def element(self): return self.__driver
@@ -120,8 +122,6 @@ class WebDriver(Logging):
     def timeout(self): return self.__timeout
     @property
     def mutex(self): return self.__mutex
-    @property
-    def port(self): return self.__port
 
 
 
