@@ -55,14 +55,15 @@ class WebService(ABC):
         authorize = kwargs.get("authorize", getattr(cls, "__urls__", {}).get("authorize_url", None))
         cls.__urls__ = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
 
-    def __init__(self, *args, api, **kwargs):
-        assert hasattr(api, "identity") and hasattr(api, "code")
-        self.__api = api
+    def __init__(self, *args, delayer, webapi, **kwargs):
+        assert hasattr(webapi, "identity") and hasattr(webapi, "code")
+        self.__delayer = delayer
+        self.__webapi = webapi
 
     def __call__(self, *args, **kwargs):
-        service = OAuth1Service(consumer_key=self.api.identity, consumer_secret=self.api.code, **self.urls)
+        service = OAuth1Service(consumer_key=self.webapi.identity, consumer_secret=self.webapi.code, **self.urls)
         token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
-        url = str(service.authorize_url).format(str(self.api.identity), str(token))
+        url = str(service.authorize_url).format(str(self.webapi.identity), str(token))
         security = self.security(url, *args, **kwargs)
         session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
         session.headers.update({"header_auth": "True"})
@@ -74,7 +75,7 @@ class WebService(ABC):
     @property
     def urls(self): return type(self).__urls__
     @property
-    def api(self): return self.__api
+    def webapi(self): return self.__webapi
 
 
 class WebReader(Logging, ABC):
@@ -107,7 +108,7 @@ class WebReader(Logging, ABC):
         parameters = dict(params=params, headers=headers)
         with self.mutex:
             if payload is None: response = self.session.get(str(address), **parameters)
-            else: response = self.session.post(str(address), json=payload, **parameters)
+            else: response = self.session.post(str(address), data=payload, **parameters)
             self.request = response.request
             self.response = response
         if not self.response.status_code == requests.codes.ok:
