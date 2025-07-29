@@ -66,7 +66,7 @@ class WebService(ABC):
         url = str(service.authorize_url).format(str(self.webapi.identity), str(token))
         security = self.security(url, *args, **kwargs)
         session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
-        session.headers.update({"header_auth": "True"})
+        session.headers.update({"consumerKey": self.webapi.identity})
         return session
 
     @abstractmethod
@@ -80,9 +80,10 @@ class WebService(ABC):
 
 class WebReader(Logging, ABC):
     def __bool__(self): return self.session is not None
-    def __init__(self, *args, delayer, service=requests.Session, **kwargs):
+    def __init__(self, *args, delayer, service=requests.Session, authenticate=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
+        self.__authenticate = authenticate
         self.__service = service
         self.__delayer = delayer
         self.__session = None
@@ -96,7 +97,9 @@ class WebReader(Logging, ABC):
     def __exit__(self, error_type, error_value, error_traceback):
         self.stop()
 
-    def start(self): self.session = self.service()
+    def start(self):
+        self.session = self.service()
+
     def stop(self):
         self.session.close()
         self.session = None
@@ -106,6 +109,7 @@ class WebReader(Logging, ABC):
     def load(self, url, *args, payload=None, **kwargs):
         address, params, headers = url
         parameters = dict(params=params, headers=headers)
+        if bool(self.authenticate): parameters.update({"header_auth": True})
         with self.mutex:
             if payload is None: response = self.session.get(str(address), **parameters)
             else: response = self.session.post(str(address), data=payload, **parameters)
@@ -126,6 +130,8 @@ class WebReader(Logging, ABC):
     @property
     def url(self): return self.response.url
 
+    @property
+    def authenticate(self): return self.__authenticate
     @property
     def service(self): return self.__service
     @property
