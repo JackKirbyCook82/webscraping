@@ -24,26 +24,14 @@ from support.meta import AttributeMeta, TreeMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMT", "WebJSON", "WebHTML"]
+__all__ = ["WebELMT", "WebJSON", "WebHTML", "WebDataError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebDataErrorMeta(type):
-    def __init__(cls, *args, **kwargs):
-        super(WebDataErrorMeta, cls).__init__(*args, **kwargs)
-        cls.__title__ = kwargs.get("title", getattr(cls, "__title__", None))
-
-    @property
-    def title(cls): return cls.__title__
-    @property
-    def name(cls): return cls.__name__
-
-class WebDataError(Exception, metaclass=WebDataErrorMeta):
-    def __init_subclass__(cls, *args, **kwargs): pass
-
-class WebDataMissingError(WebDataError, title="Missing"): pass
-class WebDataMultipleError(WebDataError, title="Multiple"): pass
+class WebDataError(Exception, metaclass=AttributeMeta): pass
+class WebDataMissingError(WebDataError, attribute="Missing"): pass
+class WebDataMultipleError(WebDataError, attribute="Multiple"): pass
 
 
 class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
