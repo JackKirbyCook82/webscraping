@@ -184,9 +184,9 @@ class WebChild(WebData, ABC):
     def content(self): pass
 
 
-class WebHTML(WebParent, WebHTMLData, ABC, root=True): pass
-class WebJSON(WebParent, WebJSONData, ABC, root=True): pass
-class WebELMT(WebParent, WebELMTData, ABC, root=True): pass
+class WebHTML(WebParent, WebHTMLData, ABC, reset=True): pass
+class WebJSON(WebParent, WebJSONData, ABC, reset=True): pass
+class WebELMT(WebParent, WebELMTData, ABC, reset=True): pass
 
 
 class WebHTMLText(WebChild, WebHTML, ABC, attribute="Text"):
