@@ -62,7 +62,7 @@ class WebService(ABC):
 
     def __call__(self, *args, **kwargs):
         service = OAuth1Service(consumer_key=self.webapi.identity, consumer_secret=self.webapi.code, **self.urls)
-        token, secret = service.get_request_token(params={"oauth_callback": "oob", "format": "json"})
+        token, secret = service.get_request_token(params={"oauth_callback": "oob"}, header_auth=True)
         url = str(service.authorize_url).format(str(self.webapi.identity), str(token))
         security = self.security(url, *args, **kwargs)
         session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
