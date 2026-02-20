@@ -49,6 +49,7 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 
     def __call__(cls, sources, *args, **kwargs):
         sources = list(cls.locate(sources, *args, **kwargs))
+
         if not bool(sources) and not cls.optional: raise WebDataError.Missing()
         if len(sources) > 1 and not cls.multiple: raise WebDataError.Multiple()
         attributes = dict(children=cls.dependents) | dict(cls.attributes)
@@ -129,16 +130,25 @@ class WebHTMLData(WebData, ABC):
 class WebJSONData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
-        assert isinstance(source, (dict, list, str, Number))
-        if not bool(cls.locator): contents = source
-        else:
+        assert isinstance(source, (dict, list, tuple, str, Number))
+        contents = source
+        if bool(cls.locator):
+            multiple = str(cls.locator).endswith("[]")
+            assert multiple == cls.multiple
             locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
-            contents = source[str(locators.pop(0))]
-            for locator in locators: contents = contents[str(locator)]
-        if isinstance(contents, (tuple, list)): yield from iter(contents)
-        elif isinstance(contents, (str, Number)): yield contents
-        elif isinstance(contents, dict): yield contents
-        else: return
+            for locator in locators:
+                try: contents = contents[str(locator)]
+                except KeyError:
+                    try: contents = contents[int(locator)]
+                    except (IndexError, ValueError): contents = None
+        if contents is None: return
+        assert isinstance(contents, (dict, list, tuple, str, Number))
+        if bool(multiple) and not isinstance(contents, list):
+            contents = [contents]
+        if not bool(multiple) and isinstance(contents, list):
+            contents = tuple(contents)
+        if not isinstance(contents, list): yield contents
+        else: yield from iter(contents)
 
     @property
     def string(self): return json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str)
