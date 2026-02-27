@@ -12,8 +12,8 @@ import multiprocessing
 from rauth import OAuth1Service
 from abc import ABC, abstractmethod
 
+from webscraping.webinterface import WebInterface
 from support.meta import RegistryMeta
-from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -55,50 +55,32 @@ class WebService(ABC):
         authorize = kwargs.get("authorize", getattr(cls, "__urls__", {}).get("authorize_url", None))
         cls.__urls__ = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
 
-    def __init__(self, *args, delayer, webapi, **kwargs):
-        assert hasattr(webapi, "identity") and hasattr(webapi, "code")
-        self.__delayer = delayer
-        self.__webapi = webapi
-
-    def __call__(self, *args, **kwargs):
-        service = OAuth1Service(consumer_key=self.webapi.identity, consumer_secret=self.webapi.code, **self.urls)
+    def __call__(self, *args, account, authenticator, **kwargs):
+        parameters = dict(account=account, authenticator=authenticator, delayer=delayer)
+        service = OAuth1Service(consumer_key=authenticator.identity, consumer_secret=authenticator.code, **self.urls)
         token, secret = service.get_request_token(params={"oauth_callback": "oob"}, header_auth=True)
-        url = str(service.authorize_url).format(str(self.webapi.identity), str(token))
-        security = self.security(url, *args, **kwargs)
+        url = str(service.authorize_url).format(str(authenticator.identity), str(token))
+        security = self.security(url, *args, **parameters, **kwargs)
         session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
-        session.headers.update({"consumerKey": self.webapi.identity})
+        session.headers.update({"consumerKey": authenticator.identity})
         return session
 
     @abstractmethod
     def security(self, url, *args, **kwargs): pass
-
     @property
     def urls(self): return type(self).__urls__
-    @property
-    def webapi(self): return self.__webapi
 
 
-class WebReader(Logging, ABC):
-    def __bool__(self): return self.session is not None
-    def __init__(self, *args, delayer, service=requests.Session, authenticate=False, **kwargs):
+class WebReader(WebInterface):
+    def __init__(self, *args, service=requests.Session, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__mutex = multiprocessing.Lock()
-        self.__authenticate = authenticate
         self.__service = service
-        self.__delayer = delayer
-        self.__session = None
         self.__response = None
         self.__request = None
 
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, error_type, error_value, error_traceback):
-        self.stop()
-
     def start(self):
-        self.session = self.service()
+        parameters = dict(account=self.account, authenticator=self.authenticator, delayer=self.delayer)
+        self.session = self.service(**parameters)
 
     def stop(self):
         self.session.close()
@@ -109,7 +91,7 @@ class WebReader(Logging, ABC):
     def load(self, url, *args, payload=None, **kwargs):
         address, params, headers = url
         parameters = dict(params=params, headers=headers)
-        if bool(self.authenticate): parameters.update({"header_auth": True})
+        if bool(self.authenticator is not None): parameters.update({"header_auth": True})
         with self.mutex:
             if payload is None: response = self.session.get(str(address), **parameters)
             else: response = self.session.post(str(address), data=payload, **parameters)
@@ -130,19 +112,14 @@ class WebReader(Logging, ABC):
     @property
     def url(self): return self.response.url
 
-    @property
-    def authenticate(self): return self.__authenticate
-    @property
-    def service(self): return self.__service
-    @property
-    def delayer(self): return self.__delayer
-    @property
-    def mutex(self): return self.__mutex
 
     @property
-    def session(self): return self.__session
+    def service(self): return self.__service
+
+    @property
+    def session(self): return self.source
     @session.setter
-    def session(self, session): self.__session = session
+    def session(self, session): self.source = session
     @property
     def response(self): return self.__response
     @response.setter

@@ -13,8 +13,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 
-from support.mixins import Logging, Delayer
-
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebDriver"]
@@ -23,21 +21,10 @@ __license__ = "MIT License"
 
 
 class WebDriver(Logging):
-    def __bool__(self): return self.driver is not None
-    def __init__(self, *args, executable, delay, timeout=60, **kwargs):
+    def __init__(self, *args, executable, timeout=60, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__mutex = multiprocessing.Lock()
-        self.__delayer = Delayer(delay)
-        self.__timeout = int(timeout)
         self.__executable = executable
-        self.__driver = None
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, error_type, error_value, error_traceback):
-        self.stop()
+        self.__timeout = int(timeout)
 
     def __iter__(self):
         current = self.driver.current_window_handle
@@ -104,9 +91,9 @@ class WebDriver(Logging):
     def elmt(self): return self.driver
 
     @property
-    def driver(self): return self.__driver
+    def driver(self): return self.source
     @driver.setter
-    def driver(self, driver): self.__driver = driver
+    def driver(self, driver): self.source = driver
 
     @property
     def executable(self): return self.__executable
@@ -115,13 +102,10 @@ class WebDriver(Logging):
     @property
     def profile(self): return self.__profile
     @property
-    def delayer(self): return self.__delayer
-    @property
     def element(self): return self.__driver
     @property
     def timeout(self): return self.__timeout
-    @property
-    def mutex(self): return self.__mutex
+
 
 
 
