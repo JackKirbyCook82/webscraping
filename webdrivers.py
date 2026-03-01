@@ -46,14 +46,23 @@ class WebDriver(Logging):
         self.driver.quit()
         self.driver = None
 
+    @WebDelayer.register
     def load(self, url, *args, **kwargs):
         self.driver.get(str(url))
 
+    @WebDelayer.register
     def navigate(self, value):
         if isinstance(value, int): handle = list(self.driver.window_handles)[value]
         elif isinstance(value, str): handle = dict(self)[value]
         else: raise TypeError(type(value))
         self.driver.switch_to.window(handle)
+
+    @WebDelayer.register
+    def refresh(self): self.driver.refresh()
+    @WebDelayer.register
+    def forward(self): self.driver.foward()
+    @WebDelayer.register
+    def back(self): self.driver.back()
 
     def pageup(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_UP)
     def pagedown(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_DOWN)
@@ -61,9 +70,6 @@ class WebDriver(Logging):
     def pageend(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.END)
     def maximize(self): self.driver.maximize_window()
     def minimize(self): self.driver.minimize_window()
-    def refresh(self): self.driver.refresh()
-    def forward(self): self.driver.foward()
-    def back(self): self.driver.back()
 
     @staticmethod
     def setup(options, *args, **kwargs):

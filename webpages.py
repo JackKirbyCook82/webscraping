@@ -27,9 +27,8 @@ class WebPage(Logging, ABC):
         return self.execute(*args, **kwargs)
 
     def load(self, url, *args, payload=None, **kwargs):
-        with self.delayer:
-            self.console(str(url), title="Loading")
-            self.source.load(url, payload=payload)
+        self.console(str(url), title="Loading")
+        self.source.load(url, payload=payload)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)

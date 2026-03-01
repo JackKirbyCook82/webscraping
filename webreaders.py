@@ -21,6 +21,8 @@ __all__ = ["WebReader", "WebService", "WebStatusError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
+from webscraping.websupport import WebDelayer
+
 
 class WebStatusErrorMeta(RegistryMeta):
     def __init__(cls, *args, **kwargs):
@@ -88,6 +90,7 @@ class WebReader(WebInterface):
         self.response = None
         self.request = None
 
+    @WebDelayer.register
     def load(self, url, *args, payload=None, **kwargs):
         address, params, headers = url
         parameters = dict(params=params, headers=headers)
