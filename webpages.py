@@ -13,7 +13,7 @@ from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage"]
+__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage", "WebSUBSPage"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -26,23 +26,32 @@ class WebPage(Logging, ABC):
     def __call__(self, *args, **kwargs):
         return self.execute(*args, **kwargs)
 
-    def load(self, url, *args, payload=None, **kwargs):
-        self.console(str(url), title="Loading")
-        self.source.load(url, payload=payload)
-
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
+
     @abstractmethod
     def execute(self, *args, **kwargs): pass
-    @property
-    def delayer(self): return self.source.delayer
+    @abstractmethod
+    def load(self, *args, **kwargs): pass
+
     @property
     def source(self): return self.__source
 
 
+class WebSUBSPage(WebPage, ABC):
+    def load(self, dataset, *args, **kwargs):
+        self.console(str(dataset).upper(), title="Loading")
+        self.source.load(dataset, *args, **kwargs)
+        self.console(f"SUBS|subscribed|{len(self.source):.0f}", title="Loaded")
+
+    @property
+    def subs(self): return self.source.subs
+
+
 class WebJSONPage(WebPage, ABC):
-    def load(self, *args, **kwargs):
-        super().load(*args, **kwargs)
+    def load(self, url, *args, payload=None, **kwargs):
+        self.console(str(url), title="Loading")
+        self.source.load(url, *args, payload=payload, **kwargs)
         self.console(f"JSON|statuscode|{str(self.source.status)}", title="Loaded")
 
     @property
@@ -50,8 +59,9 @@ class WebJSONPage(WebPage, ABC):
 
 
 class WebHTMLPage(WebPage, ABC):
-    def load(self, *args, **kwargs):
-        super().load(*args, **kwargs)
+    def load(self, url, *args, **kwargs):
+        self.console(str(url), title="Loading")
+        self.source.load(url, *args, payload=payload, **kwargs)
         self.console(f"HTML|statuscode|{str(self.source.status)}", title="Loaded")
 
     @property
@@ -59,6 +69,11 @@ class WebHTMLPage(WebPage, ABC):
 
 
 class WebELMTPage(WebPage, ABC):
+    def load(self, url, *args, **kwargs):
+        self.console(str(url), title="Loading")
+        self.source.load(url, *args, **kwargs)
+        self.console(f"ELMT|statuscode|{str(self.source.status)}", title="Loaded")
+
     def __getattr__(self, attribute):
         attributes = ("navigate", "pageup", "pagedown", "pagehome", "pageend", "maximize", "minimize", "refresh", "forward", "back")
         if attribute in attributes: return getattr(self.source, attribute)

@@ -13,6 +13,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 
+from webscraping.websupport import WebSource, WebDelayer
+
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebDriver"]
@@ -20,7 +22,7 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebDriver(Logging):
+class WebDriver(WebSource):
     def __init__(self, *args, executable, timeout=60, **kwargs):
         super().__init__(*args, **kwargs)
         self.__executable = executable
@@ -87,6 +89,8 @@ class WebDriver(Logging):
     def response(self): return [request.response for request in self.driver.requests]
     @property
     def request(self): return [request for request in self.driver.requests]
+    @property
+    def status(self): return self.response.status_code
     @property
     def html(self): return lxml.html.fromstring(self.driver.page_source)
     @property

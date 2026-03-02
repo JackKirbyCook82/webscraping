@@ -12,7 +12,7 @@ import multiprocessing
 from rauth import OAuth1Service
 from abc import ABC, abstractmethod
 
-from webscraping.webinterface import WebInterface
+from webscraping.websupport import WebSource, WebDelayer
 from support.meta import RegistryMeta
 
 __version__ = "1.0.0"
@@ -20,8 +20,6 @@ __author__ = "Jack Kirby Cook"
 __all__ = ["WebReader", "WebService", "WebStatusError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
-
-from webscraping.websupport import WebDelayer
 
 
 class WebStatusErrorMeta(RegistryMeta):
@@ -73,7 +71,7 @@ class WebService(ABC):
     def urls(self): return type(self).__urls__
 
 
-class WebReader(WebInterface):
+class WebReader(WebSource):
     def __init__(self, *args, service=requests.Session, **kwargs):
         super().__init__(*args, **kwargs)
         self.__service = service
@@ -115,10 +113,6 @@ class WebReader(WebInterface):
     @property
     def url(self): return self.response.url
 
-
-    @property
-    def service(self): return self.__service
-
     @property
     def session(self): return self.source
     @session.setter
@@ -131,5 +125,9 @@ class WebReader(WebInterface):
     def request(self): return self.__request
     @request.setter
     def request(self, request): self.__request = request
+    @property
+    def service(self): return self.__service
+    @service.setter
+    def service(self, service): self.__service = service
 
 
