@@ -86,7 +86,7 @@ class WebPayloadMeta(TreeMeta, ABCMeta):
         cls = super(WebPayloadMeta, mcs).__new__(mcs, name, bases, attrs, *args, **kwargs)
         return cls
 
-    def __init__(cls, name, bases, attrs, *args, dependents=[], **kwargs):
+    def __init__(cls, name, bases, attrs, *args, dependents, **kwargs):
         super(WebPayloadMeta, cls).__init__(name, bases, attrs, *args, dependents=dependents, **kwargs)
         functions = {key: value for key, value in attrs.items() if isinstance(value, types.LambdaType) and value.__name__ == "<lambda>"}
         cls.__functions__ = getattr(cls, "__functions__", {}) | dict(functions)
@@ -122,7 +122,7 @@ class WebPayloadMeta(TreeMeta, ABCMeta):
 
 
 class WebPayload(ABC, metaclass=WebPayloadMeta):
-    def __init__(self, contents, *args, children={}, **kwargs):
+    def __init__(self, contents, *args, children, **kwargs):
         assert isinstance(contents, dict) and isinstance(children, dict)
         assert all([isinstance(child, (list, WebPayload)) for child in children.values()])
         assert all([all([isinstance(child, WebPayload) for child in children]) for children in children.values() if isinstance(children, list)])

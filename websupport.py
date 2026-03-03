@@ -6,11 +6,14 @@ Created on Sat Feb 28 2026
 
 """
 
+import time
 import multiprocessing
 from types import SimpleNamespace
 from abc import ABC, abstractmethod
+from functools import update_wrapper
 
-from support.mixins import Logging, Counting
+from support.mixins import Sizing, Emptying, Partition, Logging, Counting
+from support.custom import SliceOrderedDict as SODict
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -62,7 +65,7 @@ class WebSource(Counting, Logging, ABC):
 
 
 class WebDownloader(Sizing, Emptying, Partition, Logging, ABC, title="Downloaded"):
-    def __init_subclass__(cls, *args, pages={}, page=None, **kwargs):
+    def __init_subclass__(cls, *args, pages, page=None, **kwargs):
         assert isinstance(pages, dict)
         super().__init_subclass__(*args, **kwargs)
         cls.__Pages__ = pages
@@ -83,9 +86,9 @@ class WebDownloader(Sizing, Emptying, Partition, Logging, ABC, title="Downloaded
         return querys
 
     @property
-    def Pages(self): return self.__Pages
+    def Pages(self): return self.__Pages__
     @property
-    def Page(self): return self.__Page
+    def Page(self): return self.__Page__
 
     @property
     def pages(self): return self.__pages

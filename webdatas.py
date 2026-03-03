@@ -35,7 +35,7 @@ class WebDataMultipleError(WebDataError, attribute="Multiple"): pass
 
 
 class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
-    def __init__(cls, *args, dependents=[], **kwargs):
+    def __init__(cls, *args, dependents, **kwargs):
         function = lambda name, base, locator: type(repr(cls) + str(name).title(), tuple([base]), dict(), locator=locator)
         modified = [function(key, cls.dependents[key], locator) for key, locator in kwargs.get("locators", {}).items()]
         dependents = list(dependents) + list(modified)
@@ -49,8 +49,8 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 
     def __call__(cls, sources, *args, **kwargs):
         sources = list(cls.locate(sources, *args, **kwargs))
-        if not bool(sources) and not cls.optional: raise WebDataError.Missing()
-        if len(sources) > 1 and not cls.multiple: raise WebDataError.Multiple()
+        if not bool(sources) and not cls.optional: raise WebDataMissingError()
+        if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
         attributes = dict(children=cls.dependents) | dict(cls.attributes)
         initialize = lambda source: super(WebDataMeta, cls).__call__(source, *args, **attributes, **kwargs)
         if bool(cls.multiple) and not bool(sources): return list()
@@ -131,8 +131,8 @@ class WebJSONData(WebData, ABC):
     def locate(cls, source, *args, **kwargs):
         assert isinstance(source, (dict, list, tuple, str, Number))
         contents = source
+        multiple = str(cls.locator).endswith("[]")
         if bool(cls.locator):
-            multiple = str(cls.locator).endswith("[]")
             assert multiple == cls.multiple
             locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
             for locator in locators:

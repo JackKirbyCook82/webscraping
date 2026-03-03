@@ -13,7 +13,7 @@ from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage", "WebSUBSPage"]
+__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage", "WebPage"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -38,16 +38,6 @@ class WebPage(Logging, ABC):
     def source(self): return self.__source
 
 
-class WebSUBSPage(WebPage, ABC):
-    def load(self, dataset, *args, **kwargs):
-        self.console(str(dataset).upper(), title="Loading")
-        self.source.load(dataset, *args, **kwargs)
-        self.console(f"SUBS|subscribed|{len(self.source):.0f}", title="Loaded")
-
-    @property
-    def subs(self): return self.source.subs
-
-
 class WebJSONPage(WebPage, ABC):
     def load(self, url, *args, payload=None, **kwargs):
         self.console(str(url), title="Loading")
@@ -59,7 +49,7 @@ class WebJSONPage(WebPage, ABC):
 
 
 class WebHTMLPage(WebPage, ABC):
-    def load(self, url, *args, **kwargs):
+    def load(self, url, *args, payload=None, **kwargs):
         self.console(str(url), title="Loading")
         self.source.load(url, *args, payload=payload, **kwargs)
         self.console(f"HTML|statuscode|{str(self.source.status)}", title="Loaded")
@@ -69,15 +59,14 @@ class WebHTMLPage(WebPage, ABC):
 
 
 class WebELMTPage(WebPage, ABC):
-    def load(self, url, *args, **kwargs):
-        self.console(str(url), title="Loading")
-        self.source.load(url, *args, **kwargs)
-        self.console(f"ELMT|statuscode|{str(self.source.status)}", title="Loaded")
-
     def __getattr__(self, attribute):
         attributes = ("navigate", "pageup", "pagedown", "pagehome", "pageend", "maximize", "minimize", "refresh", "forward", "back")
         if attribute in attributes: return getattr(self.source, attribute)
         else: raise AttributeError(attribute)
+
+    def load(self, url, *args, **kwargs):
+        self.console(str(url), title="Loading")
+        self.source.load(url, *args, **kwargs)
 
     @property
     def elmt(self): return self.source.element

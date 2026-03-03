@@ -8,7 +8,6 @@ Created on Sat Mar 23 2019
 
 import requests
 import lxml.html
-import multiprocessing
 from rauth import OAuth1Service
 from abc import ABC, abstractmethod
 
@@ -55,7 +54,7 @@ class WebService(ABC):
         authorize = kwargs.get("authorize", getattr(cls, "__urls__", {}).get("authorize_url", None))
         cls.__urls__ = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
 
-    def __call__(self, *args, account, authenticator, **kwargs):
+    def __call__(self, *args, account, authenticator, delayer, **kwargs):
         parameters = dict(account=account, authenticator=authenticator, delayer=delayer)
         service = OAuth1Service(consumer_key=authenticator.identity, consumer_secret=authenticator.code, **self.urls)
         token, secret = service.get_request_token(params={"oauth_callback": "oob"}, header_auth=True)
@@ -66,13 +65,13 @@ class WebService(ABC):
         return session
 
     @abstractmethod
-    def security(self, url, *args, **kwargs): pass
+    def security(self, url, *args, account, authenticator, delayer, **kwargs): pass
     @property
     def urls(self): return type(self).__urls__
 
 
 class WebReader(WebSource):
-    def __init__(self, *args, service=requests.Session, **kwargs):
+    def __init__(self, *args, service=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.__service = service
         self.__response = None
@@ -80,7 +79,8 @@ class WebReader(WebSource):
 
     def start(self):
         parameters = dict(account=self.account, authenticator=self.authenticator, delayer=self.delayer)
-        self.session = self.service(**parameters)
+        if self.service is None: self.service = requests.Session()
+        else: self.session = self.service(**parameters)
 
     def stop(self):
         self.session.close()

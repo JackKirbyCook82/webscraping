@@ -7,7 +7,6 @@ Created on Mon Dec 30 2019
 """
 
 import lxml.html
-import multiprocessing
 import selenium.webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -90,8 +89,6 @@ class WebDriver(WebSource):
     @property
     def request(self): return [request for request in self.driver.requests]
     @property
-    def status(self): return self.response.status_code
-    @property
     def html(self): return lxml.html.fromstring(self.driver.page_source)
     @property
     def text(self): return self.driver.page_source
@@ -99,6 +96,8 @@ class WebDriver(WebSource):
     def url(self): return self.driver.current_url
     @property
     def elmt(self): return self.driver
+    @property
+    def element(self): return self.driver
 
     @property
     def driver(self): return self.source
@@ -107,12 +106,6 @@ class WebDriver(WebSource):
 
     @property
     def executable(self): return self.__executable
-    @property
-    def browser(self): return self.__browser
-    @property
-    def profile(self): return self.__profile
-    @property
-    def element(self): return self.__driver
     @property
     def timeout(self): return self.__timeout
 
