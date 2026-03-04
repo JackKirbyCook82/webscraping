@@ -13,7 +13,7 @@ from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage", "WebPage"]
+__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage", "WebSOCKPage"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -36,6 +36,12 @@ class WebPage(Logging, ABC):
 
     @property
     def source(self): return self.__source
+
+
+class WebSOCKPage(WebPage, ABC):
+    def load(self, dataset, *args, **kwargs):
+        self.console(str(dataset), title="Loading")
+        return self.source.load(dataset, *args, **kwargs)
 
 
 class WebJSONPage(WebPage, ABC):

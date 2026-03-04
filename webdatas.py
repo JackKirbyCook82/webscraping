@@ -113,6 +113,11 @@ class WebData(ABC, metaclass=WebDataMeta):
     def source(self): return self.__source
 
 
+class WebNAMEData(WebData, ABC):
+    @classmethod
+    def locate(cls, source, *args, **kwargs):
+        contents = source
+
 class WebHTMLData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
