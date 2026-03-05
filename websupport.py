@@ -8,16 +8,14 @@ Created on Sat Feb 28 2026
 
 import time
 import multiprocessing
-from types import SimpleNamespace
 from abc import ABC, abstractmethod
 from functools import update_wrapper
 
-from support.mixins import Sizing, Emptying, Partition, Logging, Counting
-from support.custom import SliceOrderedDict as SODict
+from support.mixins import Logging, Counting
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebSource", "WebDelayer", "WebDownloader"]
+__all__ = ["WebSource", "WebDelayer"]
 __copyright__ = "Copyright 2026, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -62,38 +60,6 @@ class WebSource(Counting, Logging, ABC):
     def delayer(self): return self.__delayer
     @property
     def mutex(self): return self.__mutex
-
-
-class WebDownloader(Sizing, Emptying, Partition, Logging, ABC, title="Downloaded"):
-    def __init_subclass__(cls, *args, pages, page=None, **kwargs):
-        assert isinstance(pages, dict)
-        super().__init_subclass__(*args, **kwargs)
-        cls.__Pages__ = pages
-        cls.__Page__ = page
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__pages = SimpleNamespace(**{key: value(*args, **kwargs) for key, value in self.Pages.items()})
-        self.__page = self.Page(*args, **kwargs) if self.Page is not None else None
-
-    @staticmethod
-    def querys(querys, querytype):
-        assert isinstance(querys, (list, dict, querytype))
-        assert all([isinstance(query, querytype) for query in querys]) if isinstance(querys, (list, dict)) else True
-        if isinstance(querys, querytype): querys = [querys]
-        elif isinstance(querys, dict): querys = SODict(querys)
-        else: querys = list(querys)
-        return querys
-
-    @property
-    def Pages(self): return self.__Pages__
-    @property
-    def Page(self): return self.__Page__
-
-    @property
-    def pages(self): return self.__pages
-    @property
-    def page(self): return self.__page
 
 
 class WebDelayerMissingError(Exception): pass

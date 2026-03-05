@@ -13,6 +13,7 @@ import pandas as pd
 from numbers import Number
 from abc import ABC, ABCMeta, abstractmethod
 from collections import OrderedDict as ODict
+
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException, StaleElementReferenceException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webelement import WebElement
@@ -24,7 +25,7 @@ from support.meta import AttributeMeta, TreeMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMT", "WebJSON", "WebHTML", "WebDataError"]
+__all__ = ["WebELMT", "WebJSON", "WebHTML", "WebATTR", "WebDataError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -59,8 +60,8 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         if bool(cls.multiple): return list(instances)
         else: return instances[0] if bool(instances) else None
 
-    @abstractmethod
-    def locate(cls, source, *args, **kwargs): pass
+    def locate(cls, source, *args, **kwargs):
+        pass
 
     @property
     def attributes(cls): return cls.__attributes__
@@ -98,6 +99,9 @@ class WebData(ABC, metaclass=WebDataMeta):
     @property
     @abstractmethod
     def string(self): pass
+    @classmethod
+    @abstractmethod
+    def locate(cls, source, *args, **kwargs): pass
     @abstractmethod
     def execute(self, *args, **kwargs): pass
 
@@ -113,10 +117,24 @@ class WebData(ABC, metaclass=WebDataMeta):
     def source(self): return self.__source
 
 
-class WebNAMEData(WebData, ABC):
+class WebATTRData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
-        contents = source
+        locators = str(cls.locator).split(".")
+        try: contents = cls.retrieve(source, locators, default=None)
+        except AttributeError: return
+        if bool(cls.multiple) and not isinstance(contents, list): contents = list([contents])
+        if not bool(cls.multiple) and isinstance(contents, list): contents = tuple(contents)
+        if not isinstance(contents, list): yield contents
+        else: yield from iter(contents)
+
+    @classmethod
+    def retrieve(cls, data, attrs, default=None):
+        if not attrs: return data
+        return cls.retrieve(getattr(data, str(attrs[0])), attrs[1:], default)
+
+    @property
+    def attr(self): return self.source
 
 class WebHTMLData(WebData, ABC):
     @classmethod
@@ -135,24 +153,20 @@ class WebJSONData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
         assert isinstance(source, (dict, list, tuple, str, Number))
-        contents = source
-        multiple = str(cls.locator).endswith("[]")
-        if bool(cls.locator):
-            assert multiple == cls.multiple
-            locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
-            for locator in locators:
-                try: contents = contents[str(locator)]
-                except KeyError:
-                    try: contents = contents[int(locator)]
-                    except (IndexError, ValueError): contents = None
-        if contents is None: return
-        assert isinstance(contents, (dict, list, tuple, str, Number))
-        if bool(multiple) and not isinstance(contents, list):
-            contents = [contents]
-        if not bool(multiple) and isinstance(contents, list):
-            contents = tuple(contents)
+        locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
+        try: contents = cls.retrieve(source, locators, default=None)
+        except (KeyError, IndexError, TypeError): return
+        if bool(cls.multiple) and not isinstance(contents, list): contents = list([contents])
+        if not bool(cls.multiple) and isinstance(contents, list): contents = tuple(contents)
         if not isinstance(contents, list): yield contents
         else: yield from iter(contents)
+
+    @classmethod
+    def retrieve(cls, data, keys, default=None):
+        if not keys: return data
+        if isinstance(data, dict): return cls.retrieve(data[str(keys[0])], keys[1:], default)
+        elif isinstance(data, list): return cls.retrieve(data[int(keys[0])], keys[1:], default)
+        else: return default
 
     @property
     def string(self): return json.dumps(self.json, sort_keys=True, indent=3, separators=(',', ' : '), default=str)
@@ -198,9 +212,17 @@ class WebChild(WebData, ABC):
     def content(self): pass
 
 
+class WebATTR(WebParent, WebATTRData, ABC, root=True): pass
 class WebHTML(WebParent, WebHTMLData, ABC, root=True): pass
 class WebJSON(WebParent, WebJSONData, ABC, root=True): pass
 class WebELMT(WebParent, WebELMTData, ABC, root=True): pass
+
+
+class WebATTRText(WebChild, WebATTR, ABC, attribute="Text"):
+    @property
+    def text(self): return str(self.attr)
+    @property
+    def content(self): return self.text
 
 
 class WebHTMLText(WebChild, WebHTML, ABC, attribute="Text"):
