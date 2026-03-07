@@ -36,10 +36,10 @@ class WebDataMultipleError(WebDataError, attribute="Multiple"): pass
 
 
 class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
-    def __init__(cls, *args, dependents, **kwargs):
+    def __init__(cls, *args, **kwargs):
         function = lambda name, base, locator: type(repr(cls) + str(name).title(), tuple([base]), dict(), locator=locator)
         modified = [function(key, cls.dependents[key], locator) for key, locator in kwargs.get("locators", {}).items()]
-        dependents = list(dependents) + list(modified)
+        dependents = list(kwargs.pop("dependents", [])) + list(modified)
         super(WebDataMeta, cls).__init__(*args, dependents=dependents, **kwargs)
         attributes = dict(getattr(cls, "__attributes__", {}))
         attributes["parser"] = kwargs.get("parser", attributes.get("parser", lambda content: content))
@@ -59,9 +59,6 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
         instances = list(map(initialize, sources))
         if bool(cls.multiple): return list(instances)
         else: return instances[0] if bool(instances) else None
-
-    def locate(cls, source, *args, **kwargs):
-        pass
 
     @property
     def attributes(cls): return cls.__attributes__
@@ -120,6 +117,7 @@ class WebData(ABC, metaclass=WebDataMeta):
 class WebATTRData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
+        if cls.locator is None: yield source
         locators = str(cls.locator).split(".")
         try: contents = cls.retrieve(source, locators, default=None)
         except AttributeError: return
@@ -153,6 +151,7 @@ class WebJSONData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
         assert isinstance(source, (dict, list, tuple, str, Number))
+        if cls.locator is None: yield source
         locators = str(cls.locator).lstrip("//").rstrip("[]").split("/")
         try: contents = cls.retrieve(source, locators, default=None)
         except (KeyError, IndexError, TypeError): return

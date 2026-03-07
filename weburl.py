@@ -86,8 +86,8 @@ class WebPayloadMeta(TreeMeta, ABCMeta):
         cls = super(WebPayloadMeta, mcs).__new__(mcs, name, bases, attrs, *args, **kwargs)
         return cls
 
-    def __init__(cls, name, bases, attrs, *args, dependents, **kwargs):
-        super(WebPayloadMeta, cls).__init__(name, bases, attrs, *args, dependents=dependents, **kwargs)
+    def __init__(cls, name, bases, attrs, *args, **kwargs):
+        super(WebPayloadMeta, cls).__init__(name, bases, attrs, *args, **kwargs)
         functions = {key: value for key, value in attrs.items() if isinstance(value, types.LambdaType) and value.__name__ == "<lambda>"}
         cls.__functions__ = getattr(cls, "__functions__", {}) | dict(functions)
         cls.__fields__ = getattr(cls, "__fields__", {}) | kwargs.get("fields", {})

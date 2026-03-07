@@ -79,11 +79,11 @@ class WebReader(WebSource):
 
     def start(self):
         parameters = dict(account=self.account, authenticator=self.authenticator, delayer=self.delayer)
-        if self.service is None: self.service = requests.Session()
+        if self.service is None: self.session = requests.Session()
         else: self.session = self.service(**parameters)
 
     def stop(self):
-        self.session.close()
+        if self.session is not None: self.session.close()
         self.session = None
         self.response = None
         self.request = None
@@ -92,7 +92,6 @@ class WebReader(WebSource):
     def load(self, url, *args, payload=None, **kwargs):
         address, params, headers = url
         parameters = dict(params=params, headers=headers)
-        if bool(self.authenticator is not None): parameters.update({"header_auth": True})
         with self.mutex:
             if payload is None: response = self.session.get(str(address), **parameters)
             else: response = self.session.post(str(address), data=payload, **parameters)

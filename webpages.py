@@ -21,17 +21,15 @@ __license__ = "MIT License"
 
 
 class WebStream(Sizing, Emptying, Partition, Logging, ABC):
-    def __init_subclass__(cls, *args, pages, page=None, **kwargs):
-        assert isinstance(pages, dict)
+    def __init_subclass__(cls, *args, **kwargs):
         super().__init_subclass__(*args, **kwargs)
-        cls.__Pages__ = pages
-        cls.__Page__ = page
+        cls.__Pages__ = getattr(cls, "__Pages__", {}) | kwargs.get("pages", {})
+        cls.__Page__ = kwargs.get("page", getattr(cls, "__Page__", None))
 
-    def __init__(self, *args, limit=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__pages = SimpleNamespace(**{key: value(*args, **kwargs) for key, value in self.Pages.items()})
         self.__page = self.Page(*args, **kwargs) if self.Page is not None else None
-        self.__limit = int(limit)
 
     @staticmethod
     def querys(querys, querytype):
@@ -47,8 +45,6 @@ class WebStream(Sizing, Emptying, Partition, Logging, ABC):
     @property
     def Page(self): return self.__Page__
 
-    @property
-    def limit(self): return self.__limit
     @property
     def pages(self): return self.__pages
     @property

@@ -24,8 +24,6 @@ class WebSourceMissingError(Exception): pass
 class WebSource(Counting, Logging, ABC):
     def __bool__(self): return self.source is not None
     def __init__(self, *args, account=None, authenticator=None, delayer=None, **kwargs):
-        if account is not None: assert all([hasattr(account, attr) for attr in ["identity", "username", "password"]])
-        if authenticator is not None: assert all([hasattr(account, attr) for attr in ["identity", "code"]])
         super().__init__(*args, **kwargs)
         self.__mutex = multiprocessing.Lock()
         self.__authenticator = authenticator
