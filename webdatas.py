@@ -13,7 +13,6 @@ import pandas as pd
 from numbers import Number
 from abc import ABC, ABCMeta, abstractmethod
 from collections import OrderedDict as ODict
-
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException, StaleElementReferenceException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webelement import WebElement
@@ -25,7 +24,7 @@ from support.meta import AttributeMeta, TreeMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMT", "WebJSON", "WebHTML", "WebATTR", "WebDataError"]
+__all__ = ["WebELMT", "WebJSON", "WebHTML", "WebDataError"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -114,26 +113,6 @@ class WebData(ABC, metaclass=WebDataMeta):
     def source(self): return self.__source
 
 
-class WebATTRData(WebData, ABC):
-    @classmethod
-    def locate(cls, source, *args, **kwargs):
-        if cls.locator is None: yield source
-        locators = str(cls.locator).split(".")
-        try: contents = cls.retrieve(source, locators, default=None)
-        except AttributeError: return
-        if bool(cls.multiple) and not isinstance(contents, list): contents = list([contents])
-        if not bool(cls.multiple) and isinstance(contents, list): contents = tuple(contents)
-        if not isinstance(contents, list): yield contents
-        else: yield from iter(contents)
-
-    @classmethod
-    def retrieve(cls, data, attrs, default=None):
-        if not attrs: return data
-        return cls.retrieve(getattr(data, str(attrs[0])), attrs[1:], default)
-
-    @property
-    def attr(self): return self.source
-
 class WebHTMLData(WebData, ABC):
     @classmethod
     def locate(cls, source, *args, **kwargs):
@@ -211,17 +190,9 @@ class WebChild(WebData, ABC):
     def content(self): pass
 
 
-class WebATTR(WebParent, WebATTRData, ABC, root=True): pass
 class WebHTML(WebParent, WebHTMLData, ABC, root=True): pass
 class WebJSON(WebParent, WebJSONData, ABC, root=True): pass
 class WebELMT(WebParent, WebELMTData, ABC, root=True): pass
-
-
-class WebATTRText(WebChild, WebATTR, ABC, attribute="Text"):
-    @property
-    def text(self): return str(self.attr)
-    @property
-    def content(self): return self.text
 
 
 class WebHTMLText(WebChild, WebHTML, ABC, attribute="Text"):

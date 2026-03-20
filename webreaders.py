@@ -8,16 +8,14 @@ Created on Sat Mar 23 2019
 
 import requests
 import lxml.html
-from rauth import OAuth1Service
-from abc import ABC, abstractmethod
 
-from webscraping.websupport import WebSource, WebDelayer
+from webscraping.websources import WebSource
 from support.meta import RegistryMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebReader", "WebService", "WebStatusError"]
-__copyright__ = "Copyright 2018, Jack Kirby Cook"
+__all__ = ["WebReader", "WebStatusError"]
+__copyright__ = "Copyright 2026, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
@@ -46,41 +44,14 @@ class GatewayError(WebStatusError, register=502, title="Gateway"): pass
 class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
 
 
-class WebService(ABC):
-    def __init_subclass__(cls, *args, **kwargs):
-        base = kwargs.get("base", getattr(cls, "__urls__", {}).get("base_url", None))
-        access = kwargs.get("access", getattr(cls, "__urls__", {}).get("access_token_url", None))
-        request = kwargs.get("request", getattr(cls, "__urls__", {}).get("request_token_url", None))
-        authorize = kwargs.get("authorize", getattr(cls, "__urls__", {}).get("authorize_url", None))
-        cls.__urls__ = {"authorize_url": authorize, "request_token_url": request, "access_token_url": access, "base_url": base}
-
-    def __call__(self, *args, account, authenticator, delayer, **kwargs):
-        parameters = dict(account=account, authenticator=authenticator, delayer=delayer)
-        service = OAuth1Service(consumer_key=authenticator.identity, consumer_secret=authenticator.code, **self.urls)
-        token, secret = service.get_request_token(params={"oauth_callback": "oob"}, header_auth=True)
-        url = str(service.authorize_url).format(str(authenticator.identity), str(token))
-        security = self.security(url, *args, **parameters, **kwargs)
-        session = service.get_auth_session(token, secret, params={"oauth_verifier": security})
-        session.headers.update({"consumerKey": authenticator.identity})
-        return session
-
-    @abstractmethod
-    def security(self, url, *args, account, authenticator, delayer, **kwargs): pass
-    @property
-    def urls(self): return type(self).__urls__
-
-
 class WebReader(WebSource):
-    def __init__(self, *args, service=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__service = service
         self.__response = None
         self.__request = None
 
     def start(self):
-        parameters = dict(account=self.account, authenticator=self.authenticator, delayer=self.delayer)
-        if self.service is None: self.session = requests.Session()
-        else: self.session = self.service(**parameters)
+        self.session = requests.Session()
 
     def stop(self):
         if self.session is not None: self.session.close()
@@ -88,7 +59,6 @@ class WebReader(WebSource):
         self.response = None
         self.request = None
 
-    @WebDelayer.register
     def load(self, url, *args, payload=None, **kwargs):
         address, params, headers = url
         parameters = dict(params=params, headers=headers)
@@ -124,9 +94,6 @@ class WebReader(WebSource):
     def request(self): return self.__request
     @request.setter
     def request(self, request): self.__request = request
-    @property
-    def service(self): return self.__service
-    @service.setter
-    def service(self, service): self.__service = service
+
 
 

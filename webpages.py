@@ -7,78 +7,36 @@ Created on Mon Dec 30 2019
 """
 
 import time
-from types import SimpleNamespace
 from abc import ABC, abstractmethod
 
-from support.mixins import Sizing, Emptying, Partition, Logging
-from support.custom import SliceOrderedDict as SODict
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage", "WebATTRPage", "WebDownloader", "WebUploader"]
+__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebStream(Sizing, Emptying, Partition, Logging, ABC):
-    def __init_subclass__(cls, *args, **kwargs):
-        super().__init_subclass__(*args, **kwargs)
-        cls.__Pages__ = getattr(cls, "__Pages__", {}) | kwargs.get("pages", {})
-        cls.__Page__ = kwargs.get("page", getattr(cls, "__Page__", None))
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.__pages = SimpleNamespace(**{key: value(*args, **kwargs) for key, value in self.Pages.items()})
-        self.__page = self.Page(*args, **kwargs) if self.Page is not None else None
-
-    @staticmethod
-    def querys(querys, querytype):
-        assert isinstance(querys, (list, dict, querytype))
-        assert all([isinstance(query, querytype) for query in querys]) if isinstance(querys, (list, dict)) else True
-        if isinstance(querys, querytype): querys = [querys]
-        elif isinstance(querys, dict): querys = SODict(querys)
-        else: querys = list(querys)
-        return querys
-
-    @property
-    def Pages(self): return self.__Pages__
-    @property
-    def Page(self): return self.__Page__
-
-    @property
-    def pages(self): return self.__pages
-    @property
-    def page(self): return self.__page
-
-
-class WebDownloader(WebStream, ABC, title="Downloaded"): pass
-class WebUploader(WebStream, ABC, title="Uploaded"): pass
-
-
 class WebPage(Logging, ABC):
-    def __init__(self, *args, source, **kwargs):
+    def __init__(self, *args, source, account, authenticator, **kwargs):
         super().__init__(*args, **kwargs)
+        self.__authenticator = authenticator
+        self.__account = account
         self.__source = source
-
-    def __call__(self, *args, **kwargs):
-        return self.execute(*args, **kwargs)
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
 
     @abstractmethod
-    def execute(self, *args, **kwargs): pass
-    @abstractmethod
     def load(self, *args, **kwargs): pass
 
     @property
+    def authenticator(self): return self.__authenticator
+    @property
+    def account(self): return self.__account
+    @property
     def source(self): return self.__source
-
-
-class WebATTRPage(WebPage, ABC):
-    def load(self, dataset, *args, **kwargs):
-        self.console(str(dataset), title="Loading")
-        return self.source.load(dataset, *args, **kwargs)
 
 
 class WebJSONPage(WebPage, ABC):
@@ -86,6 +44,7 @@ class WebJSONPage(WebPage, ABC):
         self.console(str(url), title="Loading")
         self.source.load(url, *args, payload=payload, **kwargs)
         self.console(f"JSON|statuscode|{str(self.source.status)}", title="Loaded")
+        return self.source.json
 
     @property
     def json(self): return self.source.json
@@ -96,6 +55,7 @@ class WebHTMLPage(WebPage, ABC):
         self.console(str(url), title="Loading")
         self.source.load(url, *args, payload=payload, **kwargs)
         self.console(f"HTML|statuscode|{str(self.source.status)}", title="Loaded")
+        return self.source.html
 
     @property
     def html(self): return self.source.html
@@ -110,6 +70,7 @@ class WebELMTPage(WebPage, ABC):
     def load(self, url, *args, **kwargs):
         self.console(str(url), title="Loading")
         self.source.load(url, *args, **kwargs)
+        return self.source.element
 
     @property
     def elmt(self): return self.source.element

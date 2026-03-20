@@ -12,12 +12,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 
-from webscraping.websupport import WebSource, WebDelayer
+from webscraping.websources import WebSource
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
 __all__ = ["WebDriver"]
-__copyright__ = "Copyright 2018, Jack Kirby Cook"
+__copyright__ = "Copyright 2026, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
@@ -26,13 +26,6 @@ class WebDriver(WebSource):
         super().__init__(*args, **kwargs)
         self.__executable = executable
         self.__timeout = int(timeout)
-
-    def __iter__(self):
-        current = self.driver.current_window_handle
-        for handle in list(self.driver.window_handles):
-            self.driver.switch_to.window(handle)
-            yield self.driver.title, handle
-        self.driver.switch_to.window(current)
 
     def start(self):
         executable = self.executable
@@ -47,22 +40,17 @@ class WebDriver(WebSource):
         self.driver.quit()
         self.driver = None
 
-    @WebDelayer.register
     def load(self, url, *args, **kwargs):
         self.driver.get(str(url))
 
-    @WebDelayer.register
     def navigate(self, value):
         if isinstance(value, int): handle = list(self.driver.window_handles)[value]
-        elif isinstance(value, str): handle = dict(self)[value]
+        elif isinstance(value, str): handle = self.windows[value]
         else: raise TypeError(type(value))
         self.driver.switch_to.window(handle)
 
-    @WebDelayer.register
     def refresh(self): self.driver.refresh()
-    @WebDelayer.register
     def forward(self): self.driver.foward()
-    @WebDelayer.register
     def back(self): self.driver.back()
 
     def pageup(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_UP)
@@ -83,6 +71,14 @@ class WebDriver(WebSource):
         options.add_argument("--ignore-certificate-errors-spki-list")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
+
+    @property
+    def windows(self):
+        current = self.driver.current_window_handle
+        for handle in list(self.driver.window_handles):
+            self.driver.switch_to.window(handle)
+            yield self.driver.title, handle
+        self.driver.switch_to.window(current)
 
     @property
     def response(self): return [request.response for request in self.driver.requests]
