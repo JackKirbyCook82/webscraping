@@ -9,7 +9,7 @@ Created on Sat Mar 23 2019
 import requests
 import lxml.html
 
-from webscraping.websources import WebSource
+from webscraping.websources import WebSource, WebDelayer
 from support.meta import RegistryMeta
 
 __version__ = "1.0.0"
@@ -59,6 +59,7 @@ class WebReader(WebSource):
         self.response = None
         self.request = None
 
+    @WebDelayer.register
     def load(self, url, *args, payload=None, **kwargs):
         address, params, headers = url
         parameters = dict(params=params, headers=headers)

@@ -18,9 +18,6 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-# DELAY LOADING / NAVIGATING
-
-
 class WebStream(Logging, ABC):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -70,9 +67,9 @@ class WebPage(Logging, ABC):
 
 class WebJSONPage(WebPage, ABC):
     def load(self, url, *args, payload=None, **kwargs):
-#        self.console(str(url), title="Loading")
+        self.console("Loading", str(url))
         self.source.load(url, *args, payload=payload, **kwargs)
-#        self.console(f"JSON|statuscode|{str(self.source.status)}", title="Loaded")
+        self.console("Loaded", f"JSON|statuscode|{str(self.source.status)}")
         return self.source.json
 
     @property
@@ -81,9 +78,9 @@ class WebJSONPage(WebPage, ABC):
 
 class WebHTMLPage(WebPage, ABC):
     def load(self, url, *args, payload=None, **kwargs):
-#        self.console(str(url), title="Loading")
+        self.console("Loading", str(url))
         self.source.load(url, *args, payload=payload, **kwargs)
-#        self.console(f"HTML|statuscode|{str(self.source.status)}", title="Loaded")
+        self.console("Loaded", f"HTML|statuscode|{str(self.source.status)}")
         return self.source.html
 
     @property
@@ -97,8 +94,9 @@ class WebELMTPage(WebPage, ABC):
         else: raise AttributeError(attribute)
 
     def load(self, url, *args, **kwargs):
-#        self.console(str(url), title="Loading")
+        self.console("Loading", str(url))
         self.source.load(url, *args, **kwargs)
+        self.console("Loaded", "ELMT")
         return self.source.element
 
     @property

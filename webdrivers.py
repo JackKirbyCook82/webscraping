@@ -12,7 +12,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 
-from webscraping.websources import WebSource
+from webscraping.websources import WebSource, WebDelayer
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -40,6 +40,7 @@ class WebDriver(WebSource):
         self.driver.quit()
         self.driver = None
 
+    @WebDelayer.register
     def load(self, url, *args, **kwargs):
         self.driver.get(str(url))
 
@@ -49,8 +50,11 @@ class WebDriver(WebSource):
         else: raise TypeError(type(value))
         self.driver.switch_to.window(handle)
 
+    @WebDelayer.register
     def refresh(self): self.driver.refresh()
+    @WebDelayer.register
     def forward(self): self.driver.foward()
+    @WebDelayer.register
     def back(self): self.driver.back()
 
     def pageup(self): self.driver.find_element(By.TAG_NAME, "html").send_keys(Keys.PAGE_UP)
