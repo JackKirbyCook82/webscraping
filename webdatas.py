@@ -29,9 +29,9 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebDataError(Exception, metaclass=AttributeMeta): pass
-class WebDataMissingError(WebDataError, attribute="Missing"): pass
-class WebDataMultipleError(WebDataError, attribute="Multiple"): pass
+class WebDataError(Exception): pass
+class WebDataMissingError(WebDataError): pass
+class WebDataMultipleError(WebDataError): pass
 
 
 class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
