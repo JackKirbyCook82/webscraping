@@ -31,7 +31,10 @@ class WebPayloadMeta(AttributeMeta, TreeMeta, ABCMeta):
         cls.__locator__ = kwargs.get("locator", getattr(cls, "__locator__", None))
 
     def extract(cls, source):
-        pass
+        if cls.key is not None: return source
+        if not isinstance(source, dict): raise WebPayloadTypingError()
+        if cls.optional and cls.key not in source: raise WebPayloadMissingError()
+        return source[cls.key]
 
     @property
     def optional(cls): return cls.__optional__
@@ -62,7 +65,7 @@ class WebMappingMeta(WebPayloadMeta):
         cls.__static__ = getattr(cls, "__static__", {}) | kwargs.get("static", {})
 
     def __call__(cls, source, *args, **kwargs):
-#        source = source[cls.key] if cls.key is not None else source
+        source = cls.extract(source)
         if not isinstance(source, dict): raise WebPayloadTypingError()
         if not cls.optional and not bool(source): raise WebPayloadMissingError()
         children = {dependent.locator: dependent(source, *args, **kwargs) for dependent in cls.dependents.values()}
@@ -78,7 +81,7 @@ class WebTextMeta(WebPayloadMeta):
         cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", str))
 
     def __call__(cls, source, *args, **kwargs):
-#        source = source[cls.key] if cls.key is not None else source
+        source = cls.extract(source)
         if not isinstance(source, (str, int, float)): raise WebPayloadTypingError()
         if not cls.optional and source is None: raise WebPayloadMissingError()
         return cls.parser(source)
