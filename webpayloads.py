@@ -6,7 +6,7 @@ Created on Tues May 19 2026
 
 """
 
-from abc import ABC, ABCMeta
+from abc import ABC, ABCMeta, abstractmethod
 
 from support.meta import AttributeMeta, TreeMeta
 
@@ -34,16 +34,21 @@ class WebPayloadMeta(AttributeMeta, TreeMeta, ABCMeta):
     def __call__(cls, sources, *args, **kwargs):
         default = [] if cls.multiple else None
         sources = sources.get(cls.key, default) if cls.key is not None else sources
-        initialize = lambda source: super(WebPayloadMeta, cls).__call__(source, *args, **kwargs)
+        initialize = lambda value: super(WebPayloadMeta, cls).__call__(value, *args, **kwargs)
         if cls.multiple:
             if not isinstance(sources, list): raise WebPayloadSingleError()
             if not cls.optional and not sources: raise WebPayloadMissingError()
-            instance = [initialize(source) for source in sources]
+            contents = [cls.create(source) for source in sources]
+            instances = [initialize(content) for content in contents]
         else:
             if isinstance(sources, list): raise WebPayloadMultipleError()
             if not cls.optional and sources is None: raise WebPayloadMissingError()
-            instance = initialize(sources)
-        return instance
+            contents = cls.create(sources)
+            instances = initialize(contents)
+        return instances
+
+    @abstractmethod
+    def create(cls, source): pass
 
     @property
     def multiple(cls): return cls.__multiple__
@@ -53,29 +58,37 @@ class WebPayloadMeta(AttributeMeta, TreeMeta, ABCMeta):
     def locator(cls): return cls.__locator__
 
 
-class WebPayload(ABC, metaclass=WebPayloadMeta):
-    pass
+class WebPayloadMappingMeta(WebPayloadMeta):
+    def __init__(cls, *args, **kwargs):
+        super(WebPayloadMappingMeta, cls).__init__(*args, **kwargs)
+        cls.__mapping__ = getattr(cls, "__mapping__", {}) | kwargs.get("mapping", {})
 
-
-class WebPayloadMapping(WebPayload, attribute="Mapping"):
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.static = getattr(cls, "static", {}) | kwargs.get("static", {})
-
-    def __new__(cls, source, *args, **kwargs):
+    def create(cls, source):
         if not isinstance(source, dict): raise WebPayloadTypingError()
         dependents = cls.dependents.values()
         dynamic = {dependent.locator: dependent(source) for dependent in dependents}
-        return cls.static | dynamic
+        static = dict(cls.mapping)
+        return dynamic | static
+
+    @property
+    def mapping(cls): return cls.__mapping__
 
 
-class WebPayloadText(WebPayload, attribute="Text"):
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.parser = kwargs.get("parser", getattr(cls, "parser", str))
+class WebPayloadValueMeta(WebPayloadMeta):
+    def __init__(cls, *args, **kwargs):
+        super(WebPayloadValueMeta, cls).__init__(*args, **kwargs)
+        cls.__parser__ = kwargs.get("parser", getattr(cls, "__parser__", lambda value: value))
 
-    def __new__(cls, source, *args, **kwargs):
+    def create(cls, source):
         return cls.parser(source)
+
+    @property
+    def parser(cls): return cls.__parser__
+
+
+class WebPayload(ABC, metaclass=WebPayloadMeta): pass
+class WebPayloadMapping(WebPayload, dict, attribute="Mapping", metaclass=WebPayloadMappingMeta): pass
+class WebPayloadValue(WebPayload, str, attribute="Value", metaclass=WebPayloadValueMeta): pass
 
 
 
