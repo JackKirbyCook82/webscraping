@@ -37,6 +37,7 @@ class WebDelayer(object):
     @staticmethod
     def register(method):
         def wrapper(instance, *args, **kwargs):
+            if instance.delayer is None: return method(instance, *args, **kwargs)
             with instance.delayer: return method(instance, *args, **kwargs)
         update_wrapper(wrapper, method)
         return wrapper

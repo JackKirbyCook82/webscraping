@@ -8,6 +8,8 @@ Created on Sat Mar 23 2019
 
 import requests
 import lxml.html
+from pprint import pprint
+from types import NoneType
 
 from webscraping.websources import WebSource, WebDelayer
 from support.meta import RegistryMeta
@@ -61,15 +63,21 @@ class WebReader(WebSource):
 
     @WebDelayer.register
     def load(self, url, *args, payload=None, **kwargs):
+        assert isinstance(payload, (list, dict, NoneType))
         address, params, headers = url
         parameters = dict(params=params, headers=headers)
         with self.mutex:
             if payload is None: response = self.session.get(str(address), **parameters)
-            else: response = self.session.post(str(address), data=payload, **parameters)
+            else: response = self.session.post(str(address), json=payload, **parameters)
             self.request = response.request
             self.response = response
         if not self.response.status_code == requests.codes.ok:
             statuscode = self.response.status_code
+            pprint(self.request.url)
+            pprint(self.request.headers)
+            pprint(self.request.body)
+            pprint(self.response.status_code)
+            pprint(self.request.text)
             raise WebStatusError(int(statuscode))
 
     @property
