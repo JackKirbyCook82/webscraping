@@ -8,7 +8,7 @@ Created on Sat Mar 23 2019
 
 import requests
 import lxml.html
-from pprint import pprint
+from pprint import pformat
 from types import NoneType
 
 from webscraping.websources import WebSource, WebDelayer
@@ -73,11 +73,11 @@ class WebReader(WebSource):
             self.response = response
         if not self.response.status_code == requests.codes.ok:
             statuscode = self.response.status_code
-            pprint(self.request.url)
-            pprint(self.request.headers)
-            pprint(self.request.body)
-            pprint(self.response.status_code)
-            pprint(self.request.text)
+            print("\033[31m" + pformat(self.request.url) + "\033[0m")
+            print("\033[31m" + pformat(self.request.headers) + "\033[0m")
+            print("\033[31m" + pformat(self.request.body) + "\033[0m")
+            print("\033[31m" + pformat(self.response.status_code) + "\033[0m")
+            print("\033[31m" + pformat(self.request.text) + "\033[0m")
             raise WebStatusError(int(statuscode))
 
     @property
