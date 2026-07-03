@@ -6,7 +6,7 @@ Created on Fri Mar 20 2026
 
 """
 
-from collections import namedtuple as ntuple
+from dataclasses import dataclass
 from collections import OrderedDict as ODict
 
 __version__ = "1.0.0"
@@ -16,18 +16,29 @@ __copyright__ = "Copyright 2026, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebAddress(ntuple("Address", "domain path")):
-    def __str__(self): return "/".join([self.domain, "/".join(self.path)])
+@dataclass(frozen=True)
+class WebAddress:
+    domain: str; path: list
 
+    def __str__(self):
+        return "/".join([self.domain, "/".join(self.path)])
+
+
+class WebHeaders(ODict): pass
 class WebParameters(ODict):
     def __str__(self):
         parameters = [list(map(str, parameter)) for parameter in self.items()]
         return str("&").join([str("=").join(parameter) for parameter in parameters])
 
-class WebURLBase(ntuple("URL", "address parameters headers")):
+
+@dataclass(frozen=True)
+class WebCURL:
+    address: WebAddress; parameters: WebParameters | dict; headers: WebHeaders | dict
+
     def __str__(self):
         parameters = (str("?") + str(self.parameters)) if bool(self.parameters) else str("")
         return str(self.address) + str(parameters)
+
 
 class WebURL(object):
     def __init_subclass__(cls, *args, **kwargs):
@@ -44,7 +55,7 @@ class WebURL(object):
         headers = cls.attributes["headers"] | cls.headers(*args, **kwargs)
         address = WebAddress(domain, path)
         parameters = WebParameters(parameters.items())
-        return WebURLBase(address, parameters, headers)
+        return WebCURL(address, parameters, headers)
 
     @staticmethod
     def path(*args, **kwargs): return []
