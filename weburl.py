@@ -35,6 +35,9 @@ class WebParameters(ODict):
 class WebCURL:
     address: WebAddress; parameters: WebParameters | dict; headers: WebHeaders | dict
 
+    def __iter__(self):
+        yield self.address; yield self.parameters; yield self.headers
+
     def __str__(self):
         parameters = (str("?") + str(self.parameters)) if bool(self.parameters) else str("")
         return str(self.address) + str(parameters)
