@@ -3,6 +3,7 @@
 Created on Sat Mar 23 2019
 @name:   WebReader Objects
 @author: Jack Kirby Cook
+@file:   webscraping\webreaders.py
 
 """
 

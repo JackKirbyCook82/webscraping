@@ -3,6 +3,7 @@
 Created on Tues May 19 2026
 @name:   WebPayload Objects
 @author: Jack Kirby Cook
+@file:   webscraping\webpayloads.py
 
 """
 

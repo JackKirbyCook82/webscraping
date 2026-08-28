@@ -3,6 +3,7 @@
 Created on Sat Feb 28 2026
 @name:   WebSupport Objects
 @author: Jack Kirby Cook
+@file:   webscraping\websources.py
 
 """
 
