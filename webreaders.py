@@ -44,6 +44,7 @@ class BadRequestError(WebStatusError, register=400, title="BadRequest"): pass
 class AuthenticationError(WebStatusError, register=401, title="Authentication"): pass
 class ForbiddenRequestError(WebStatusError, register=403, title="ForbiddenRequest"): pass
 class IncorrectRequestError(WebStatusError, register=404, title="IncorrectRequest"): pass
+class UnprocessableRequestError(WebStatusError, register=422, title="UnprocessableRequest"): pass
 class GatewayError(WebStatusError, register=502, title="Gateway"): pass
 class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
 
