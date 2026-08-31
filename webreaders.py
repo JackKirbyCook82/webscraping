@@ -7,6 +7,7 @@ Created on Sat Mar 23 2019
 
 """
 
+import json
 import requests
 import lxml.html
 from pprint import pformat
@@ -74,11 +75,10 @@ class WebReader(WebSource):
             self.response = response
         if not self.response.status_code == requests.codes.ok:
             statuscode = self.response.status_code
-            print("\033[31m" + pformat(self.request.url) + "\033[0m")
-            print("\033[31m" + pformat(self.request.headers) + "\033[0m")
-            print("\033[31m" + pformat(self.request.body) + "\033[0m")
-            print("\033[31m" + pformat(self.response.status_code) + "\033[0m")
-            print("\033[31m" + pformat(self.request.text) + "\033[0m")
+            print("\033[31m" + pformat(str(self.request.url)) + "\033[0m")
+            print("\033[31m" + pformat(dict(self.request.headers)) + "\033[0m")
+            print("\033[31m" + pformat(json.loads(self.request.body)) + "\033[0m")
+            print("\033[31m" + pformat(str(self.response.status_code)) + "\033[0m")
             raise WebStatusError(int(statuscode))
 
     @property
