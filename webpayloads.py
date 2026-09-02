@@ -7,7 +7,7 @@ Created on Tues May 19 2026
 
 """
 
-from abc import ABC, ABCMeta, abstractmethod
+from abc import ABC, ABCMeta
 
 from support.meta import AttributeMeta, TreeMeta
 
@@ -47,9 +47,6 @@ class WebPayloadMeta(AttributeMeta, TreeMeta, ABCMeta):
             contents = cls.create(sources)
             instances = initialize(contents)
         return instances
-
-    @abstractmethod
-    def create(cls, source): pass
 
     @property
     def multiple(cls): return cls.__multiple__
