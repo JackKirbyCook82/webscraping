@@ -99,6 +99,7 @@ class WebData(ABC, metaclass=WebDataMeta):
     @classmethod
     @abstractmethod
     def locate(cls, source, *args, **kwargs): pass
+
     @abstractmethod
     def execute(self, *args, **kwargs): pass
 
@@ -178,8 +179,9 @@ class WebELMTData(WebData, ABC):
 
 class WebParent(WebData, ABC):
     def execute(self, *args, **kwargs):
-        content = {key: value(*args, **kwargs) for key, value in iter(self)}
-        return self.parse(content, *args, **kwargs)
+        function = lambda children: children(*args, **kwargs) if isinstance(children, WebData) else [child(*args, **kwargs) for child in children]
+        contents = {key: function(value) for key, value in iter(self)}
+        return self.parse(contents, *args, **kwargs)
 
 class WebChild(WebData, ABC):
     def execute(self, *args, **kwargs):
