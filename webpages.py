@@ -10,7 +10,7 @@ Created on Mon Dec 30 2019
 import time
 from abc import ABC, abstractmethod
 
-from support.mixins import Logging, Mixin
+from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
