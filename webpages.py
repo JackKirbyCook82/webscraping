@@ -14,32 +14,9 @@ from support.mixins import Logging, Mixin
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage", "WebStream"]
+__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
-
-
-class WebStream(Mixin, ABC):
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.__Pages__ = getattr(cls, "__Pages__", {}) | kwargs.get("pages", {})
-        cls.__Page__ = kwargs.get("page", getattr(cls, "__Page__", None))
-
-    def __init__(self, *args, source, account=None, authenticator=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        parameters = dict(source=source, account=account, authenticator=authenticator)
-        self.__pages = {key: value(**parameters) for key, value in self.Pages.items()}
-        self.__page = self.Page(**parameters) if self.Page is not None else None
-
-    @property
-    def Pages(self): return type(self).__Pages__
-    @property
-    def Page(self): return type(self).__Page__
-
-    @property
-    def pages(self): return self.__pages
-    @property
-    def page(self): return self.__page
 
 
 class WebPage(Logging, ABC):
