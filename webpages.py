@@ -25,20 +25,17 @@ class WebStream(Mixin, ABC):
         cls.__Pages__ = getattr(cls, "__Pages__", {}) | kwargs.get("pages", {})
         cls.__Page__ = kwargs.get("page", getattr(cls, "__Page__", None))
 
-    def __init__(self, *args, source, account=None, authenticator=None, capacity=100, **kwargs):
+    def __init__(self, *args, source, account=None, authenticator=None, **kwargs):
         super().__init__(*args, **kwargs)
         parameters = dict(source=source, account=account, authenticator=authenticator)
         self.__pages = {key: value(**parameters) for key, value in self.Pages.items()}
         self.__page = self.Page(**parameters) if self.Page is not None else None
-        self.__capacity = int(capacity)
 
     @property
     def Pages(self): return type(self).__Pages__
     @property
     def Page(self): return type(self).__Page__
 
-    @property
-    def capacity(self): return self.__capacity
     @property
     def pages(self): return self.__pages
     @property
