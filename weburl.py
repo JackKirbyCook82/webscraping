@@ -44,22 +44,29 @@ class WebCURL:
         return str(self.address) + str(parameters)
 
 
-class WebURL(object):
-    def __init_subclass__(cls, *args, **kwargs):
+class WebURLMeta(type):
+    def __init__(cls, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         domain = kwargs.get("domain", getattr(cls, "attributes", {}).get("domain", None))
         path = getattr(cls, "attributes", {}).get("path", []) + kwargs.get("path", [])
         parameters = getattr(cls, "attributes", {}).get("parameters", {}) | kwargs.get("parameters", {})
         headers = getattr(cls, "attributes", {}).get("headers", {}) | kwargs.get("headers", {})
         cls.attributes = dict(domain=domain, path=path, parameters=parameters, headers=headers)
 
-    def __new__(cls, *args, **kwargs):
+    def __call__(cls, *args, **kwargs):
+        instance = super().__call__(*args, **kwargs)
         domain = cls.attributes["domain"]
-        path = cls.attributes["path"] + cls.path(*args, **kwargs)
-        parameters = cls.attributes["parameters"] | cls.parameters(*args, **kwargs)
-        headers = cls.attributes["headers"] | cls.headers(*args, **kwargs)
+        path = cls.attributes["path"] + instance.path(*args, **kwargs)
+        parameters = cls.attributes["parameters"] | instance.parameters(*args, **kwargs)
+        headers = cls.attributes["headers"] | instance.headers(*args, **kwargs)
         address = WebAddress(domain, path)
         parameters = WebParameters(parameters.items())
         return WebCURL(address, parameters, headers)
+
+
+class WebURL(object, metaclass=WebURLMeta):
+    def __new__(cls, *args, **kwargs): return super().__new__(cls)
+    def __init__(self, *args, **kwargs): super().__init__()
 
     @staticmethod
     def path(*args, **kwargs): return []
