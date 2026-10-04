@@ -13,7 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 
-from webscraping.websources import WebSource, WebDelayer
+from webscraping.websources import WebRESTSource, WebDelayer
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -22,7 +22,7 @@ __copyright__ = "Copyright 2026, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebDriver(WebSource):
+class WebDriver(WebRESTSource):
     def __init__(self, *args, executable, timeout=60, **kwargs):
         super().__init__(*args, **kwargs)
         self.__executable = executable

@@ -13,7 +13,7 @@ import lxml.html
 from pprint import pformat
 from types import NoneType
 
-from webscraping.websources import WebSource, WebDelayer
+from webscraping.websources import WebRESTSource, WebDelayer
 from support.meta import RegistryMeta
 
 __version__ = "1.0.0"
@@ -49,7 +49,7 @@ class GatewayError(WebStatusError, register=502, title="Gateway"): pass
 class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
 
 
-class WebReader(WebSource):
+class WebReader(WebRESTSource):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__response = None

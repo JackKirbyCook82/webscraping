@@ -14,13 +14,13 @@ from support.mixins import Logging
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebELMTPage", "WebJSONPage", "WebHTMLPage"]
+__all__ = ["WebSOCKPage", "WebELMTPage", "WebJSONPage", "WebHTMLPage"]
 __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
 class WebPage(Logging, ABC):
-    def __init__(self, *args, source, account, authenticator, **kwargs):
+    def __init__(self, *args, source, account=None, authenticator=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.__authenticator = authenticator
         self.__account = account
@@ -29,15 +29,21 @@ class WebPage(Logging, ABC):
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
 
-    @abstractmethod
-    def load(self, *args, **kwargs): pass
-
     @property
     def authenticator(self): return self.__authenticator
     @property
     def account(self): return self.__account
     @property
     def source(self): return self.__source
+
+
+class WebSOCKPage(WebPage, ABC):
+    pass
+
+
+class WebRESTPage(WebPage, ABC):
+    @abstractmethod
+    def load(self, url, *args, payload=None, **kwargs): pass
 
 
 class WebJSONPage(WebPage, ABC):
@@ -71,7 +77,6 @@ class WebELMTPage(WebPage, ABC):
     def load(self, url, *args, **kwargs):
         self.console("Loading", str(url))
         self.source.load(url, *args, **kwargs)
-        self.console("Loaded", "ELMT")
         return self.source.element
 
     @property

@@ -14,7 +14,7 @@ from functools import update_wrapper
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebSource", "WebDelayer"]
+__all__ = ["WebRESTSource", "WebSOCKSource", "WebDelayer"]
 __copyright__ = "Copyright 2026, Jack Kirby Cook"
 __license__ = "MIT License"
 
@@ -68,8 +68,6 @@ class WebSource(ABC):
         self.stop()
 
     @abstractmethod
-    def load(self, *args, **kwargs): pass
-    @abstractmethod
     def start(self): pass
     @abstractmethod
     def stop(self): pass
@@ -82,5 +80,15 @@ class WebSource(ABC):
     def mutex(self): return self.__mutex
     @property
     def delayer(self): return self.__delayer
+
+
+class WebRESTSource(WebSource, ABC):
+    @abstractmethod
+    def load(self, *args, **kwargs): pass
+
+
+class WebSOCKSource(WebSource, ABC):
+    pass
+
 
 
