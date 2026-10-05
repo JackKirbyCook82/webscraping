@@ -94,9 +94,9 @@ class WebReader(WebRESTSource):
     def url(self): return self.response.url
 
     @property
-    def session(self): return self.source
+    def session(self): return self.connection
     @session.setter
-    def session(self, session): self.source = session
+    def session(self, session): self.connection = session
     @property
     def response(self): return self.__response
     @response.setter

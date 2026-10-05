@@ -101,9 +101,9 @@ class WebDriver(WebRESTSource):
     def element(self): return self.driver
 
     @property
-    def driver(self): return self.source
+    def driver(self): return self.connection
     @driver.setter
-    def driver(self, driver): self.source = driver
+    def driver(self, driver): self.connection = driver
 
     @property
     def executable(self): return self.__executable

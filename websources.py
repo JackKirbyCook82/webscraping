@@ -52,13 +52,13 @@ class WebDelayer(object):
 
 
 class WebSource(ABC):
-    def __bool__(self): return self.source is not None
+    def __bool__(self): return self.connection is not None
     def __init__(self, *args, delay=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.__delayer = WebDelayer(delay=delay) if delay is not None else None
         self.__mutex = multiprocessing.Lock()
         self.__timer = time.monotonic()
-        self.__source = None
+        self.__connection = None
 
     def __enter__(self):
         self.start()
@@ -73,9 +73,9 @@ class WebSource(ABC):
     def stop(self): pass
 
     @property
-    def source(self): return self.__source
-    @source.setter
-    def source(self, source): self.__source = source
+    def connection(self): return self.__connection
+    @connection.setter
+    def connection(self, connection): self.__connection = connection
     @property
     def mutex(self): return self.__mutex
     @property
