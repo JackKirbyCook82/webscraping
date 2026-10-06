@@ -77,9 +77,9 @@ class WebSource(ABC):
     @connection.setter
     def connection(self, connection): self.__connection = connection
     @property
-    def mutex(self): return self.__mutex
-    @property
     def delayer(self): return self.__delayer
+    @property
+    def mutex(self): return self.__mutex
 
 
 class WebRESTSource(WebSource, ABC):

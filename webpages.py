@@ -20,19 +20,12 @@ __license__ = "MIT License"
 
 
 class WebPage(Logging, ABC):
-    def __init__(self, *args, source, account=None, authenticator=None, **kwargs):
+    def __init__(self, *args, source, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__authenticator = authenticator
-        self.__account = account
         self.__source = source
 
     @staticmethod
     def sleep(seconds): time.sleep(seconds)
-
-    @property
-    def authenticator(self): return self.__authenticator
-    @property
-    def account(self): return self.__account
     @property
     def source(self): return self.__source
 
