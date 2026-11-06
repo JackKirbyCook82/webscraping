@@ -18,18 +18,18 @@ from support.meta import RegistryMeta
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
-__all__ = ["WebReader", "WebStatusError"]
+__all__ = ["WebReader", "WebReaderError"]
 __copyright__ = "Copyright 2026, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebStatusErrorMeta(RegistryMeta):
+class WebReaderErrorMeta(RegistryMeta):
     def __init__(cls, *args, **kwargs):
-        super(WebStatusErrorMeta, cls).__init__(*args, **kwargs)
+        super(WebReaderErrorMeta, cls).__init__(*args, **kwargs)
         cls.__title__ = kwargs.get("title", getattr(cls, "__title__", None))
 
     def __call__(cls, statuscode, *args, **kwargs):
-        error = super(WebStatusErrorMeta, cls[statuscode]).__call__(*args, **kwargs)
+        error = super(WebReaderErrorMeta, cls[statuscode]).__call__(*args, **kwargs)
         return error
 
     @property
@@ -37,16 +37,16 @@ class WebStatusErrorMeta(RegistryMeta):
     @property
     def name(cls): return cls.__name__
 
-class WebStatusError(Exception, metaclass=WebStatusErrorMeta):
+class WebReaderError(Exception, metaclass=WebReaderErrorMeta):
     def __init_subclass__(cls, *args, **kwargs): pass
 
-class BadRequestError(WebStatusError, register=400, title="BadRequest"): pass
-class AuthenticationError(WebStatusError, register=401, title="Authentication"): pass
-class ForbiddenRequestError(WebStatusError, register=403, title="ForbiddenRequest"): pass
-class IncorrectRequestError(WebStatusError, register=404, title="IncorrectRequest"): pass
-class UnprocessableRequestError(WebStatusError, register=422, title="UnprocessableRequest"): pass
-class GatewayError(WebStatusError, register=502, title="Gateway"): pass
-class UnavailableError(WebStatusError, register=503, title="Unavailable"): pass
+class BadRequestError(WebReaderError, register=400, title="BadRequest"): pass
+class AuthenticationError(WebReaderError, register=401, title="Authentication"): pass
+class ForbiddenRequestError(WebReaderError, register=403, title="ForbiddenRequest"): pass
+class IncorrectRequestError(WebReaderError, register=404, title="IncorrectRequest"): pass
+class UnprocessableRequestError(WebReaderError, register=422, title="UnprocessableRequest"): pass
+class GatewayError(WebReaderError, register=502, title="Gateway"): pass
+class UnavailableError(WebReaderError, register=503, title="Unavailable"): pass
 
 
 class WebReader(WebRESTSource):
