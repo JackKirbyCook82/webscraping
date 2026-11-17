@@ -10,7 +10,7 @@ Created on Mon Dec 30 2019
 import time
 from abc import ABC, abstractmethod
 
-from support.mixins import Logging
+from support.mixins import LoggingMixin
 
 __version__ = "1.0.0"
 __author__ = "Jack Kirby Cook"
@@ -19,7 +19,7 @@ __copyright__ = "Copyright 2018, Jack Kirby Cook"
 __license__ = "MIT License"
 
 
-class WebPage(Logging, ABC):
+class WebPage(LoggingMixin, ABC):
     def __init__(self, *args, source, **kwargs):
         super().__init__(*args, **kwargs)
         self.__source = source
