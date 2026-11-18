@@ -31,8 +31,8 @@ __license__ = "MIT License"
 
 
 class WebDataError(Exception): pass
-class WebDataMissingError(WebDataError): pass
-class WebDataMultipleError(WebDataError): pass
+class MissingError(WebDataError): pass
+class MultipleError(WebDataError): pass
 
 
 class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
@@ -50,8 +50,8 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 
     def __call__(cls, sources, *args, **kwargs):
         sources = list(cls.locate(sources, *args, **kwargs))
-        if not bool(sources) and not cls.optional: raise WebDataMissingError()
-        if len(sources) > 1 and not cls.multiple: raise WebDataMultipleError()
+        if not bool(sources) and not cls.optional: raise MissingError()
+        if len(sources) > 1 and not cls.multiple: raise MultipleError()
         attributes = dict(children=cls.dependents) | dict(cls.attributes)
         initialize = lambda source: super(WebDataMeta, cls).__call__(source, *args, **attributes, **kwargs)
         if bool(cls.multiple) and not bool(sources): return list()

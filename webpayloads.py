@@ -19,10 +19,10 @@ __license__ = "MIT License"
 
 
 class WebPayloadError(Exception): pass
-class WebPayloadMissingError(WebPayloadError): pass
-class WebPayloadSingleError(WebPayloadError): pass
-class WebPayloadMultipleError(WebPayloadError): pass
-class WebPayloadTypingError(WebPayloadError): pass
+class MissingError(WebPayloadError): pass
+class SingleError(WebPayloadError): pass
+class MultipleError(WebPayloadError): pass
+class TypingError(WebPayloadError): pass
 
 
 class WebPayloadMeta(AttributeMeta, TreeMeta, ABCMeta):
@@ -37,13 +37,13 @@ class WebPayloadMeta(AttributeMeta, TreeMeta, ABCMeta):
         sources = sources.get(cls.key, default) if cls.key is not None else sources
         initialize = lambda value: super(WebPayloadMeta, cls).__call__(value, *args, **kwargs)
         if cls.multiple:
-            if not isinstance(sources, list): raise WebPayloadSingleError()
-            if not cls.optional and not sources: raise WebPayloadMissingError()
+            if not isinstance(sources, list): raise SingleError()
+            if not cls.optional and not sources: raise MissingError()
             contents = [cls.create(source) for source in sources]
             instances = [initialize(content) for content in contents]
         else:
-            if isinstance(sources, list): raise WebPayloadMultipleError()
-            if not cls.optional and sources is None: raise WebPayloadMissingError()
+            if isinstance(sources, list): raise MultipleError()
+            if not cls.optional and sources is None: raise MissingError()
             contents = cls.create(sources)
             instances = initialize(contents)
         return instances
@@ -63,7 +63,7 @@ class WebPayloadMappingMeta(WebPayloadMeta):
         cls.__mapping__ = getattr(cls, "__mapping__", {}) | kwargs.get("mapping", {})
 
     def create(cls, source):
-        if not isinstance(source, dict): raise WebPayloadTypingError()
+        if not isinstance(source, dict): raise TypingError()
         dependents = cls.dependents.values()
         dynamic = {dependent.locator: dependent(source) for dependent in dependents}
         static = dict(cls.mapping)
