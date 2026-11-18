@@ -57,6 +57,7 @@ class WebPayloadMeta(AttributeMeta, TreeMeta, ABCMeta):
 
 
 class WebPayloadMappingMeta(WebPayloadMeta):
+    def __init_subclass__(cls, **kwargs): pass
     def __init__(cls, *args, **kwargs):
         super(WebPayloadMappingMeta, cls).__init__(*args, **kwargs)
         cls.__mapping__ = getattr(cls, "__mapping__", {}) | kwargs.get("mapping", {})
@@ -84,7 +85,10 @@ class WebPayloadValueMeta(WebPayloadMeta):
     def parser(cls): return cls.__parser__
 
 
-class WebPayload(ABC, metaclass=WebPayloadMeta): pass
+class WebPayload(ABC, metaclass=WebPayloadMeta):
+    def __init_subclass__(cls, **kwargs): pass
+
+
 class WebPayloadMapping(WebPayload, dict, attribute="Mapping", metaclass=WebPayloadMappingMeta): pass
 class WebPayloadValue(WebPayload, str, attribute="Value", metaclass=WebPayloadValueMeta): pass
 

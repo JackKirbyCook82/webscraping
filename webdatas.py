@@ -71,6 +71,7 @@ class WebDataMeta(AttributeMeta, TreeMeta, ABCMeta):
 
 
 class WebData(ABC, metaclass=WebDataMeta):
+    def __init_subclass__(cls, **kwargs): pass
     def __init__(self, source, *arguments, children, parser, **parameters):
         self.__parameters = parameters
         self.__arguments = arguments

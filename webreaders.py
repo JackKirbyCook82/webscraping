@@ -38,7 +38,7 @@ class WebReaderErrorMeta(RegistryMeta):
     def name(cls): return cls.__name__
 
 class WebReaderError(Exception, metaclass=WebReaderErrorMeta):
-    def __init_subclass__(cls, *args, **kwargs): pass
+    def __init_subclass__(cls, **kwargs): pass
 
 class BadRequestError(WebReaderError, register=400, title="BadRequest"): pass
 class AuthenticationError(WebReaderError, register=401, title="Authentication"): pass
